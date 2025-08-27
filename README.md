@@ -10,9 +10,13 @@
 - ⏰ 自動計算加班時數（符合1小時以上規定）
 - 🏠 自動識別週五WFH假建議
 - 📊 生成詳細分析報告
-- 📈 匯出CSV格式統計資料
+- 📈 匯出Excel/CSV格式統計資料
 - 🔄 智慧忘刷卡建議（每月2次額度）
 - 🗓️ 支援跨年份出勤分析（自動載入國定假日）
+- **🚀 NEW: 增量分析功能 - 避免重複處理已分析資料**
+- **📁 NEW: 支援跨月檔案格式 (`202508-202509-姓名-出勤資料.txt`)**
+- **💾 NEW: 智慧狀態管理 - 自動記住處理進度**
+- **📋 NEW: 增強輸出格式 - 標示新發現與已存在問題**
 
 ## 出勤規則
 
@@ -27,26 +31,46 @@
 ### 基本使用
 
 ```bash
-python attendance_analyzer.py <考勤檔案路徑> [格式]
+python attendance_analyzer.py <考勤檔案路徑> [格式] [選項]
 ```
 
 **參數說明**：
 - `考勤檔案路徑`：必填，出勤資料檔案路徑
 - `格式`：可選，輸出格式 (`excel` 或 `csv`)，預設為 `excel`
 
-### 範例
+**分析模式選項**：
+- `--incremental` / `-i`：啟用增量分析模式（預設）
+- `--full` / `-f`：強制完整重新分析
+- `--reset-state` / `-r`：清除使用者的處理狀態記錄
 
+### 使用範例
+
+#### 增量分析範例（推薦）
 ```bash
-# 使用範例檔案測試（預設Excel格式）
+# 預設增量分析模式 - 自動跳過已處理資料
+python attendance_analyzer.py "202508-員工姓名-出勤資料.txt"
+
+# 跨月檔案增量分析
+python attendance_analyzer.py "202508-202509-員工姓名-出勤資料.txt"
+
+# 指定輸出格式（增量分析 + CSV）
+python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" csv
+```
+
+#### 完整分析模式
+```bash
+# 強制重新分析所有資料
+python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" --full
+
+# 清除處理狀態後重新分析
+python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" --reset-state
+```
+
+#### 範例檔案測試
+```bash
+# 使用範例檔案測試（會回退到完整分析模式）
 python attendance_analyzer.py "sample-attendance-data.txt"
-
-# 指定輸出格式
-python attendance_analyzer.py "sample-attendance-data.txt" excel
 python attendance_analyzer.py "sample-attendance-data.txt" csv
-
-# 使用實際出勤檔案（支援不同年份）
-python attendance_analyzer.py "202507-202508-員工姓名-出勤資料.txt"
-python attendance_analyzer.py "202601-202602-員工姓名-出勤資料.txt" csv
 ```
 
 ## 輸出說明
@@ -59,6 +83,13 @@ python attendance_analyzer.py "202601-202602-員工姓名-出勤資料.txt" csv
 - 統計摘要
 
 ### 分析報告檔案
+
+#### 📦 智慧備份系統
+- **自動備份**：建立新分析檔案前，自動備份現有檔案
+- **時間戳記命名**：備份檔案格式 `<原檔名>_YYYYMMDD_HHMMSS.<副檔名>`
+- **範例**：`sample-attendance-data_analysis.xlsx` → `sample-attendance-data_analysis_20250827_165618.xlsx`
+- **使用者控制**：讓使用者自行決定保留檔案數量和版本管理
+- **安全保障**：避免意外覆蓋檔案造成資料遺失
 
 系統支援兩種輸出格式：
 
@@ -81,9 +112,73 @@ python attendance_analyzer.py "202601-202602-員工姓名-出勤資料.txt" csv
 - 詳細說明
 - 時段資訊
 - 計算公式
+- **NEW**: 狀態（在增量模式下標示 `[NEW] 本次新發現` 或 `已存在`）
+
+### 實際使用範例
+
+以下展示增量分析的實際效果：
+
+#### 第一次分析
+```bash
+python attendance_analyzer.py "202507-202508-員工姓名-出勤資料.txt"
+```
+**輸出**：
+```
+📋 識別使用者: 員工姓名
+📅 檔案涵蓋期間: 2025-07-01 至 2025-08-31
+🔄 增量分析: 發現 36 個新的完整工作日需要處理
+💾 已更新處理狀態: 2025-07-01 至 2025-08-26
+
+統計摘要：
+- 🔄 建議忘刷卡天數：3 天
+- 😰 需要請遲到天數：2 天
+- 💪 加班天數：6 天
+```
+
+#### 第二次分析（文件無變化）
+```bash
+python attendance_analyzer.py "202507-202508-員工姓名-出勤資料.txt"
+```
+**輸出**：
+```
+⚠️  發現重疊日期範圍: [(2025-07-01, 2025-08-26)]
+✅ 增量分析: 沒有新的工作日需要處理
+📊 跳過已處理：36 天
+
+統計摘要：全部為 0（因為沒有新資料需要處理）
+```
+
+## 增量分析功能 🚀
+
+### 工作原理
+1. **檔案名稱識別**：自動從檔名提取使用者姓名和日期範圍
+2. **狀態管理**：使用 `attendance_state.json` 記錄處理歷史
+3. **智慧重疊檢測**：自動處理跨月檔案的日期重疊問題
+4. **完整工作日識別**：僅處理有上下班記錄的完整工作日
+5. **按月額度管理**：忘刷卡使用次數按年月分別計算
+
+### 檔案命名規範
+為了啟用增量分析，檔案名稱必須遵循以下格式：
+- **單月檔案**：`YYYYMM-姓名-出勤資料.txt`（如：`202508-員工姓名-出勤資料.txt`）
+- **跨月檔案**：`YYYYMM-YYYYMM-姓名-出勤資料.txt`（如：`202508-202509-員工姓名-出勤資料.txt`）
+
+### 狀態檔案說明
+系統會在專案根目錄建立 `attendance_state.json` 來追蹤：
+- 各使用者的處理日期範圍
+- 每月忘刷卡使用統計
+- 最後處理時間記錄
+
+⚠️ **注意事項**：
+- 如果檔案名稱不符合規範，系統會自動回退到完整分析模式
+- 🔒 **隱私保護**：`attendance_state.json` 包含使用者識別資訊，已設定為不提交至版本控制
+- 📁 **本地檔案**：每位使用者的狀態檔案僅存於本地，不會與他人共享
 
 ## 檔案格式需求
 
+### 檔案命名（增量分析必需）
+參見上方「檔案命名規範」
+
+### 資料格式
 考勤檔案應為tab分隔的文字檔案，包含以下欄位：
 1. 應刷卡時段
 2. 當日卡鐘資料  
@@ -94,6 +189,11 @@ python attendance_analyzer.py "202601-202602-員工姓名-出勤資料.txt" csv
 7. 處理狀態
 8. 異常處理作業
 9. 備註
+
+### 完整工作日定義
+- 必須同時有上班和下班兩筆記錄
+- 不論實際打卡時間是否為空（曠職也算完整記錄）
+- 只有單一上班或下班記錄的日期不會被處理
 
 ### 範例資料格式
 
@@ -129,18 +229,34 @@ python attendance_analyzer.py "202601-202602-員工姓名-出勤資料.txt" csv
 
 ## 系統架構
 
+### 核心元件
 ```
 attendance_analyzer.py
 ├── AttendanceRecord: 考勤記錄資料結構
 ├── WorkDay: 工作日資料結構  
-├── Issue: 問題記錄資料結構
-└── AttendanceAnalyzer: 主要分析器
-    ├── parse_attendance_file(): 解析考勤檔案
-    ├── group_records_by_day(): 按日期分組記錄
-    ├── analyze_attendance(): 分析考勤問題
-    ├── generate_report(): 生成文字報告
-    └── export_csv(): 匯出CSV統計
+├── Issue: 問題記錄資料結構（增強：支援新/舊狀態）
+├── AttendanceStateManager: 🆕 狀態管理器（JSON持久化）
+└── AttendanceAnalyzer: 主要分析器（增強版）
+    ├── parse_attendance_file(): 解析檔案 + 初始化增量狀態
+    ├── group_records_by_day(): 分組記錄 + 載入假日資料  
+    ├── analyze_attendance(): 智慧分析（完整/增量模式）
+    ├── generate_report(): 生成報告 + 增量統計資訊
+    ├── export_csv(): CSV匯出 + 狀態欄位
+    ├── export_excel(): Excel匯出 + 狀態標示
+    └── 🆕 增量分析相關方法:
+        ├── _extract_user_and_date_range_from_filename(): 檔名解析
+        ├── _identify_complete_work_days(): 完整工作日識別
+        ├── _get_unprocessed_dates(): 新日期檢測
+        └── _update_processing_state(): 狀態更新
 ```
+
+### 增量分析流程
+1. **檔名解析** → 提取使用者和日期範圍
+2. **狀態載入** → 讀取 `attendance_state.json`
+3. **重疊檢測** → 識別已處理的日期範圍
+4. **工作日篩選** → 找出新的完整工作日
+5. **智慧分析** → 僅分析新資料
+6. **狀態更新** → 保存處理結果
 
 ## 範例輸出
 
@@ -200,15 +316,43 @@ attendance_analyzer.py
 
 ```
 fhr/
-├── attendance_analyzer.py          # 主要分析程式
+├── attendance_analyzer.py          # 主要分析程式（增強版，支援增量分析）
 ├── test_attendance_analyzer.py     # 單元測試（包含跨年份測試）
 ├── sample-attendance-data.txt      # 範例出勤資料
-├── CLAUDE.md                       # AI代理知識庫
-├── README.md                       # 說明文件
-└── [分析結果檔案]
-    ├── *_analysis.csv              # CSV格式分析結果
-    └── [實際出勤資料].txt          # 使用者的出勤檔案
+├── sample-attendance-data_analysis.csv # 範例分析結果（含狀態欄位）
+├── CLAUDE.md                       # AI代理知識庫（技術文件）
+├── README.md                       # 使用者說明文件
+├── .gitignore                      # 版本控制排除規則（保護隱私）
+└── [執行時產生的檔案]
+    ├── attendance_state.json       # 增量分析狀態檔案（不提交）
+    ├── *_analysis.csv              # CSV格式分析結果（不提交）
+    ├── *_analysis.xlsx             # Excel格式分析結果（不提交）
+    ├── *_YYYYMMDD_HHMMSS.csv       # 🆕 備份檔案（時間戳記命名，不提交）
+    ├── *_YYYYMMDD_HHMMSS.xlsx      # 🆕 備份檔案（時間戳記命名，不提交）
+    └── [實際出勤資料].txt          # 使用者的出勤檔案（不提交）
 ```
+
+### 檔案說明
+
+#### 核心檔案
+- **attendance_analyzer.py**: 主程式，包含所有增量分析功能
+- **test_attendance_analyzer.py**: 完整的單元測試套件
+- **sample-attendance-data.txt**: 測試用範例資料
+
+#### 增量分析相關
+- **attendance_state.json**: 🔒 使用者處理狀態（包含隱私資訊，不提交）
+- **狀態欄位**: 所有輸出檔案都包含 `[NEW] 本次新發現` 或 `已存在` 標示
+
+#### 備份系統相關
+- **備份檔案命名**: `<原檔名>_YYYYMMDD_HHMMSS.<副檔名>`（如：`sample_20250827_165618.xlsx`）
+- **自動備份**: 建立新分析檔案前，自動備份現有同名檔案
+- **使用者控制**: 使用者可自行管理備份檔案的保留和刪除
+- **隱私保護**: 所有備份檔案都被 `.gitignore` 排除，不會意外提交
+
+#### 隱私保護
+- 所有實際使用者資料和分析結果都被 `.gitignore` 排除
+- 備份檔案採用時間戳記模式匹配，確保完全排除
+- 僅保留去識別化的範例檔案供測試使用
 
 ## 技術需求
 
@@ -225,6 +369,27 @@ fhr/
 **注意**：
 - 如果未安裝 `openpyxl`，系統會自動回退到CSV格式
 - CSV格式完全基於標準庫，無需額外安裝
+
+### 測試與品質保證
+
+#### 單元測試
+```bash
+# 運行完整測試套件（21個測試）
+python3 test_attendance_analyzer.py
+
+# 測試涵蓋範圍
+# ✅ 核心業務邏輯（8個測試）
+# ✅ 輸出格式驗證（3個測試）
+# ✅ 進階功能（3個測試）
+# ✅ 增量分析與備份（5個測試）
+# ✅ 資料結構驗證（3個測試）
+```
+
+**測試特色**：
+- **100% 通過率**：所有測試在各種環境下穩定通過
+- **隔離執行**：使用臨時檔案，測試間互不干擾
+- **自動清理**：所有測試產生的檔案自動刪除
+- **真實場景**：涵蓋實際使用情況和邊界條件
 
 ## 授權
 

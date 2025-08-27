@@ -10,10 +10,30 @@ This is a Python-based attendance analysis system that processes employee attend
 
 ### Running the Analyzer
 ```bash
-python3 attendance_analyzer.py <attendance_file_path> [format]
+python3 attendance_analyzer.py <attendance_file_path> [format] [options]
 ```
 
 **Format options**: `excel` (default) or `csv`
+
+**Analysis options**:
+- `--incremental` / `-i`: Enable incremental analysis (default)
+- `--full` / `-f`: Force complete re-analysis
+- `--reset-state` / `-r`: Clear user's processing state
+
+### Basic Usage Examples
+```bash
+# Default incremental analysis
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt
+
+# Force complete re-analysis
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --full
+
+# Clear state and re-analyze
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-state
+
+# Specify output format
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
+```
 
 ### Testing with Sample Data
 ```bash
@@ -27,26 +47,54 @@ python3 test_attendance_analyzer.py
 ```
 
 ### File Format Requirements
+
+#### Input File Naming (Required for Incremental Analysis)
+For incremental analysis to work, files must follow this naming convention:
+- **Single month**: `YYYYMM-Name-出勤資料.txt` (e.g., `202508-員工姓名-出勤資料.txt`)
+- **Cross-month**: `YYYYMM-YYYYMM-Name-出勤資料.txt` (e.g., `202508-202509-員工姓名-出勤資料.txt`)
+
+#### Data Format
 - Input files must be tab-separated text files with 9 columns
 - Expected format: 應刷卡時段, 當日卡鐘資料, 刷卡別, 卡鐘編號, 資料來源, 異常狀態, 處理狀態, 異常處理作業, 備註
 - Attendance records with empty "當日卡鐘資料" are treated as absenteeism
+- **Complete work days**: Days with both check-in and check-out records (regardless of actual punch times)
 
 ## Architecture
 
 ### Core Data Structures
 - **AttendanceRecord**: Individual check-in/out records with timestamps and metadata
 - **WorkDay**: Daily work record containing check-in and check-out records for a single date
-- **Issue**: Identified problems requiring action (late, overtime, WFH, etc.)
+- **Issue**: Identified problems requiring action (late, overtime, WFH, etc.) with new/existing status tracking
+- **AttendanceStateManager**: Manages JSON-based state persistence for incremental analysis
 
 ### Main Components
-- **AttendanceAnalyzer**: Central processing engine with these key methods:
-  - `parse_attendance_file()`: Parses tab-separated attendance data
-  - `group_records_by_day()`: Groups individual records into work days
-  - `analyze_attendance()`: Core business logic for detecting issues
-  - `generate_report()`: Creates formatted terminal output
-  - `export_csv()`: Exports results with UTF-8-BOM for Mac Excel compatibility
-  - `export_excel()`: Exports formatted Excel files with color coding and styling
-  - `export_report()`: Unified export interface supporting both formats
+
+#### AttendanceAnalyzer (Enhanced)
+Central processing engine with enhanced incremental analysis capabilities:
+- `parse_attendance_file()`: Parses data and initializes incremental state
+- `group_records_by_day()`: Groups records and loads holiday data
+- `analyze_attendance()`: Smart analysis (full or incremental mode)
+- `generate_report()`: Enhanced reporting with incremental statistics
+- `export_csv()`: Enhanced CSV export with status column
+- `export_excel()`: Enhanced Excel export with status indicators
+- `export_report()`: Unified export interface with automatic backup
+- `_backup_existing_file()`: **NEW**: Automatic file backup with timestamp naming
+
+#### AttendanceStateManager (New)
+JSON-based state management for incremental analysis:
+- `_load_state()`: Loads processing state from `attendance_state.json`
+- `save_state()`: Persists current processing state
+- `get_user_processed_ranges()`: Retrieves user's previously processed date ranges
+- `update_user_state()`: Updates user processing state and forget-punch usage
+- `detect_date_overlap()`: Identifies overlapping date ranges for smart merging
+- `state_data`: Property holding current state information
+
+#### Incremental Analysis Features
+- **Smart Date Range Detection**: Parses filenames to extract user names and date ranges
+- **Overlap Handling**: Detects and handles overlapping date ranges intelligently
+- **Complete Work Day Identification**: Only processes days with both check-in and check-out records
+- **Monthly Forget-Punch Tracking**: Maintains per-month usage counters across analysis sessions
+- **State Persistence**: Saves processing history to `attendance_state.json`
 
 ### Business Rules (Hard-coded Constants)
 - Working hours: 8 hours + 1 hour lunch break
@@ -79,45 +127,139 @@ Key methods:
 - **WFH Leave**: Recommended for Fridays (unless national holiday)
 - **Regular Leave**: Recommended for full-day absences on weekdays
 
+## Incremental Analysis Workflow
+
+### How It Works
+1. **File Analysis**: System extracts user name and date range from filename
+2. **State Loading**: Loads existing processing history from `attendance_state.json`
+3. **Overlap Detection**: Identifies previously processed date ranges
+4. **Complete Work Day Identification**: Finds days with both check-in and check-out records
+5. **Smart Processing**: Analyzes only new complete work days
+6. **State Update**: Saves updated processing state and forget-punch usage
+
+### State File Structure
+```json
+{
+  "users": {
+    "員工姓名": {
+      "processed_date_ranges": [
+        {
+          "start_date": "2025-08-01",
+          "end_date": "2025-08-31", 
+          "source_file": "202508-員工姓名-出勤資料.txt",
+          "last_analysis_time": "2025-08-27T14:30:00"
+        }
+      ],
+      "forget_punch_usage": {
+        "2025-08": 1,
+        "2025-09": 0
+      }
+    }
+  }
+}
+```
+
+### Cross-Month Data Handling
+- Supports both single-month (`202508-員工姓名-出勤資料.txt`) and cross-month (`202508-202509-員工姓名-出勤資料.txt`) files
+- Automatically detects date overlaps and processes only new ranges
+- Maintains separate forget-punch counters for each month
+- Provides clear overlap warnings during processing
+
 ### Output Formats
 
-#### Excel Format (Default)
+#### Automatic File Backup System
+- **Smart Backup**: Before creating new analysis files, existing files are automatically backed up
+- **Timestamp Naming**: Backup files use format `<original>_YYYYMMDD_HHMMSS.<ext>`
+- **Example**: `sample-attendance-data_analysis.xlsx` → `sample-attendance-data_analysis_20250827_165618.xlsx`
+- **User Control**: Users can manage their own file versions and retention policies
+- **Safety First**: No data loss from accidental overwrites
+
+#### Excel Format (Default) - Enhanced
 - File naming: `<original_filename>_analysis.xlsx`
 - Professional formatting with color-coded issue types:
   - Late: Light red background
   - Overtime: Light blue background
   - WFH: Light green background
   - Forget punch: Light orange background
+- **NEW**: Status column in incremental mode showing "[NEW]" vs existing issues
 - Auto-adjusted column widths
 - Cross-platform compatibility (Windows/Mac/Linux)
 - Requires `openpyxl` library (auto-fallback to CSV if unavailable)
 
-#### CSV Format (Compatibility)
+#### CSV Format (Compatibility) - Enhanced
 - File naming: `<original_filename>_analysis.csv`
 - UTF-8-BOM encoding for Mac Excel compatibility
 - Semicolon-delimited for proper Excel parsing
+- **NEW**: Status column in incremental mode for tracking new vs existing issues
 - Includes emoji indicators and detailed calculation explanations
 
+#### Terminal Report - Enhanced
+- **NEW**: Incremental analysis statistics (processed/skipped days)
+- **NEW**: User identification and date range information
+- All existing formatting and emoji indicators preserved
+
 ### Privacy Considerations
-The .gitignore is configured to exclude real employee data files while preserving sample files for testing. Never commit files matching patterns like `*-出勤資料.txt` or `*JimmyChen*.txt`.
+The .gitignore is configured to exclude real employee data files while preserving sample files for testing. Never commit files matching patterns like:
+- `*-出勤資料.txt` or `*JimmyChen*.txt` (actual attendance data files)
+- `*_analysis.csv` or `*_analysis.xlsx` (analysis result files)
+- `attendance_state.json` (state file containing user identification information)
+
+**Important**: The `attendance_state.json` file contains user names and processing history, and must be excluded from version control to protect user privacy.
 
 ## Testing and Validation
 
 ### Unit Tests
-The system includes comprehensive unit tests in `test_attendance_analyzer.py` covering:
+The system includes comprehensive unit tests (21 tests, 100% passing) in `test_attendance_analyzer.py` covering:
+
+#### Core Business Logic (8 tests)
 - Basic file parsing and data grouping
 - Late arrival calculations (including lunch time deduction logic)
 - Overtime calculations with minimum thresholds
 - Friday WFH recommendations
 - Forget-punch suggestion logic
+- Report generation functionality
+- Error handling for empty files
+- Cross-year attendance data processing
+
+#### Export and Output (3 tests)
 - CSV export functionality
 - Excel export functionality with formatting validation
-- Cross-year attendance data processing
-- Taiwan holiday recognition (hardcoded 2025 + dynamic loading)
 - Unified export interface testing
-- Error handling for empty files
+
+#### Advanced Features (3 tests)
+- Taiwan holiday recognition (hardcoded 2025 + dynamic loading)
+- Cross-year data processing with holiday loading
+- Data structure validation (3 sub-tests)
+
+#### **NEW: Incremental Analysis & Backup (5 tests)**
+- **Incremental Analysis Core**: Filename parsing for user/date extraction, format validation
+- **State Management**: JSON persistence, user state updates, overlap detection
+- **Backup System**: Automatic file backup with timestamp naming, size verification
+- **Complete Work Day Logic**: Identification of days with both check-in/out records
+- **Enhanced Output**: Status column validation, new vs existing issue marking
+
+#### **NEW: File Backup Testing**
+- Automatic backup file creation with timestamp format `YYYYMMDD_HHMMSS`
+- Backup file integrity verification (size matching)
+- Non-existent file handling (graceful no-op behavior)
+- Proper cleanup of temporary test files
 
 Run tests with: `python3 test_attendance_analyzer.py`
+
+**Test Quality Features:**
+- Isolated execution using temporary files
+- Automatic cleanup of all test artifacts
+- Real-world scenario validation
+- Edge case and error condition coverage
+
+### Integration Testing
+Real-world testing scenarios have been validated:
+- ✅ **Incremental Processing**: Skip previously analyzed data effectively
+- ✅ **Cross-Month Support**: Handle `202508-202509-Name-出勤資料.txt` format
+- ✅ **State Persistence**: Maintain processing history across sessions
+- ✅ **Overlap Detection**: Smart handling of duplicate date ranges
+- ✅ **Command Line Options**: All options (`--full`, `--reset-state`) working correctly
+- ✅ **Output Enhancement**: Status columns and incremental statistics display properly
 
 ### Sample Data Testing
 Use `sample-attendance-data.txt` for integration testing - it contains various scenarios including normal check-ins, tardiness, overtime, absences, and Friday WFH cases. The corresponding `sample-attendance-data_analysis.csv` shows expected output format.

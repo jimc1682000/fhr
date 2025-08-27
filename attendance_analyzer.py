@@ -6,6 +6,8 @@
 
 import re
 import sys
+import json
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
@@ -56,6 +58,111 @@ class Issue:
     description: str
     time_range: str = ""
     calculation: str = ""
+    is_new: bool = True  # 標示是否為本次新發現的問題
+
+
+class AttendanceStateManager:
+    """考勤狀態管理器 - 負責讀寫增量分析狀態"""
+    
+    def __init__(self, state_file: str = "attendance_state.json"):
+        self.state_file = state_file
+        self.state_data = self._load_state()
+    
+    def _load_state(self) -> dict:
+        """載入狀態檔案"""
+        if os.path.exists(self.state_file):
+            try:
+                with open(self.state_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, Exception) as e:
+                print(f"警告: 無法讀取狀態檔案 {self.state_file}: {e}")
+                print("將使用空白狀態")
+        
+        # 回傳預設空狀態
+        return {"users": {}}
+    
+    def save_state(self) -> None:
+        """儲存狀態到檔案"""
+        try:
+            with open(self.state_file, 'w', encoding='utf-8') as f:
+                json.dump(self.state_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"警告: 無法儲存狀態檔案 {self.state_file}: {e}")
+    
+    def get_user_processed_ranges(self, user_name: str) -> List[Dict]:
+        """取得使用者已處理的日期範圍"""
+        if user_name not in self.state_data["users"]:
+            return []
+        return self.state_data["users"][user_name].get("processed_date_ranges", [])
+    
+    def get_forget_punch_usage(self, user_name: str, year_month: str) -> int:
+        """取得使用者在特定月份的忘刷卡使用次數"""
+        if user_name not in self.state_data["users"]:
+            return 0
+        return self.state_data["users"][user_name].get("forget_punch_usage", {}).get(year_month, 0)
+    
+    def update_user_state(self, user_name: str, new_range: Dict[str, str], 
+                         forget_punch_usage: Dict[str, int] = None) -> None:
+        """更新使用者狀態
+        Args:
+            user_name: 使用者姓名
+            new_range: 新的日期範圍資訊 {'start_date': 'YYYY-MM-DD', 'end_date': 'YYYY-MM-DD', 'source_file': 'filename', 'last_analysis_time': 'ISO格式時間'}
+            forget_punch_usage: 忘刷卡使用統計 {'YYYY-MM': count}
+        """
+        if user_name not in self.state_data["users"]:
+            self.state_data["users"][user_name] = {
+                "processed_date_ranges": [],
+                "forget_punch_usage": {}
+            }
+        
+        user_data = self.state_data["users"][user_name]
+        
+        # 檢查是否有重疊的範圍需要合併或更新
+        existing_ranges = user_data["processed_date_ranges"]
+        updated = False
+        
+        for i, existing_range in enumerate(existing_ranges):
+            if existing_range["source_file"] == new_range["source_file"]:
+                # 相同來源檔案，更新資訊
+                existing_ranges[i] = new_range
+                updated = True
+                break
+        
+        if not updated:
+            # 新的來源檔案，加入清單
+            existing_ranges.append(new_range)
+        
+        # 更新忘刷卡使用統計
+        if forget_punch_usage:
+            user_data["forget_punch_usage"].update(forget_punch_usage)
+    
+    def detect_date_overlap(self, user_name: str, new_start_date: str, new_end_date: str) -> List[Tuple[str, str]]:
+        """檢測新日期範圍與現有範圍的重疊部分
+        Args:
+            user_name: 使用者姓名
+            new_start_date: 新範圍開始日期 'YYYY-MM-DD'
+            new_end_date: 新範圍結束日期 'YYYY-MM-DD'
+        Returns:
+            重疊的日期範圍清單 [(start_date, end_date), ...]
+        """
+        overlaps = []
+        existing_ranges = self.get_user_processed_ranges(user_name)
+        
+        new_start = datetime.strptime(new_start_date, "%Y-%m-%d").date()
+        new_end = datetime.strptime(new_end_date, "%Y-%m-%d").date()
+        
+        for range_info in existing_ranges:
+            existing_start = datetime.strptime(range_info["start_date"], "%Y-%m-%d").date()
+            existing_end = datetime.strptime(range_info["end_date"], "%Y-%m-%d").date()
+            
+            # 檢查是否有重疊
+            if new_start <= existing_end and new_end >= existing_start:
+                # 計算重疊範圍
+                overlap_start = max(new_start, existing_start)
+                overlap_end = min(new_end, existing_end)
+                overlaps.append((overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")))
+        
+        return overlaps
 
 
 class AttendanceAnalyzer:
@@ -80,6 +187,145 @@ class AttendanceAnalyzer:
         self.holidays: set = set()  # 存放國定假日日期
         self.forget_punch_usage: Dict[str, int] = {}  # 追蹤每月忘刷卡使用次數 {年月: 次數}
         self.loaded_holiday_years: set = set()  # 追蹤已載入假日的年份
+        self.state_manager: Optional[AttendanceStateManager] = None
+        self.current_user: Optional[str] = None
+        self.incremental_mode: bool = True
+    
+    def _extract_user_and_date_range_from_filename(self, filepath: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """從檔案名稱解析使用者姓名和日期範圍
+        支援格式: {YYYYMM}[-{YYYYMM}]-{NAME}-出勤資料.txt
+        
+        Args:
+            filepath: 檔案路徑
+        
+        Returns:
+            Tuple[使用者姓名, 開始日期YYYY-MM-DD, 結束日期YYYY-MM-DD]
+        """
+        filename = os.path.basename(filepath)
+        
+        # 匹配模式: YYYYMM[-YYYYMM]-NAME-出勤資料.txt
+        pattern = r'(\d{6})(?:-(\d{6}))?-(.+?)-出勤資料\.txt$'
+        match = re.match(pattern, filename)
+        
+        if not match:
+            print(f"警告: 檔案名稱格式不符合規範: {filename}")
+            print("預期格式: YYYYMM[-YYYYMM]-姓名-出勤資料.txt")
+            return None, None, None
+        
+        start_month_str = match.group(1)  # YYYYMM
+        end_month_str = match.group(2)    # YYYYMM 或 None
+        user_name = match.group(3)        # 姓名
+        
+        # 解析開始日期
+        try:
+            start_year = int(start_month_str[:4])
+            start_month = int(start_month_str[4:6])
+            start_date = datetime(start_year, start_month, 1).strftime("%Y-%m-%d")
+        except ValueError:
+            print(f"警告: 無法解析開始月份: {start_month_str}")
+            return None, None, None
+        
+        # 解析結束日期
+        if end_month_str:
+            # 跨月檔案
+            try:
+                end_year = int(end_month_str[:4])
+                end_month = int(end_month_str[4:6])
+                # 取該月最後一天
+                if end_month == 12:
+                    next_month = datetime(end_year + 1, 1, 1)
+                else:
+                    next_month = datetime(end_year, end_month + 1, 1)
+                end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
+            except ValueError:
+                print(f"警告: 無法解析結束月份: {end_month_str}")
+                return None, None, None
+        else:
+            # 單月檔案
+            try:
+                # 取該月最後一天
+                if start_month == 12:
+                    next_month = datetime(start_year + 1, 1, 1)
+                else:
+                    next_month = datetime(start_year, start_month + 1, 1)
+                end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
+            except ValueError:
+                print(f"警告: 無法計算月份結束日期")
+                return None, None, None
+        
+        return user_name, start_date, end_date
+    
+    def _identify_complete_work_days(self) -> List[datetime]:
+        """識別完整的工作日（有上班和下班記錄的日期）
+        Returns:
+            完整工作日的日期清單
+        """
+        complete_days = []
+        daily_records = {}
+        
+        # 按日期分組記錄
+        for record in self.records:
+            if not record.date:
+                continue
+                
+            if record.date not in daily_records:
+                daily_records[record.date] = {'checkin': False, 'checkout': False}
+            
+            if record.type == AttendanceType.CHECKIN:
+                daily_records[record.date]['checkin'] = True
+            else:
+                daily_records[record.date]['checkout'] = True
+        
+        # 找出有上班和下班記錄的完整工作日
+        for date, records in daily_records.items():
+            if records['checkin'] and records['checkout']:
+                complete_days.append(datetime.combine(date, datetime.min.time()))
+        
+        return sorted(complete_days)
+    
+    def _get_unprocessed_dates(self, user_name: str, complete_days: List[datetime]) -> List[datetime]:
+        """取得需要處理的新日期（排除已處理的重疊日期）
+        Args:
+            user_name: 使用者姓名
+            complete_days: 完整工作日清單
+        Returns:
+            需要處理的日期清單
+        """
+        if not self.state_manager or not self.incremental_mode:
+            return complete_days
+        
+        processed_ranges = self.state_manager.get_user_processed_ranges(user_name)
+        unprocessed_dates = []
+        
+        for day in complete_days:
+            day_str = day.strftime("%Y-%m-%d")
+            is_processed = False
+            
+            # 檢查這個日期是否已在之前處理過的範圍內
+            for range_info in processed_ranges:
+                if range_info["start_date"] <= day_str <= range_info["end_date"]:
+                    is_processed = True
+                    break
+            
+            if not is_processed:
+                unprocessed_dates.append(day)
+        
+        return unprocessed_dates
+    
+    def _load_previous_forget_punch_usage(self, user_name: str) -> None:
+        """載入之前的忘刷卡使用統計"""
+        if not self.state_manager or not self.incremental_mode:
+            return
+        
+        # 清空現有統計
+        self.forget_punch_usage = {}
+        
+        # 從狀態管理器載入
+        user_data = self.state_manager.state_data.get("users", {}).get(user_name, {})
+        previous_usage = user_data.get("forget_punch_usage", {})
+        
+        # 複製到本地統計
+        self.forget_punch_usage.update(previous_usage)
     
     def _get_years_from_records(self) -> set:
         """從出勤記錄中提取年份"""
@@ -198,8 +444,39 @@ class AttendanceAnalyzer:
             except ValueError:
                 print(f"警告: 無法解析基本假日日期: {holiday_str}")
     
-    def parse_attendance_file(self, filepath: str) -> None:
-        """解析考勤資料檔案"""
+    def parse_attendance_file(self, filepath: str, incremental: bool = True) -> None:
+        """解析考勤資料檔案並初始化增量處理
+        Args:
+            filepath: 檔案路徑
+            incremental: 是否啟用增量分析
+        """
+        self.incremental_mode = incremental
+        
+        # 初始化狀態管理器
+        if self.incremental_mode:
+            self.state_manager = AttendanceStateManager()
+            
+            # 解析檔名取得使用者資訊
+            user_name, start_date, end_date = self._extract_user_and_date_range_from_filename(filepath)
+            if user_name:
+                self.current_user = user_name
+                print(f"📋 識別使用者: {user_name}")
+                print(f"📅 檔案涵蓋期間: {start_date} 至 {end_date}")
+                
+                # 檢查重疊日期
+                if start_date and end_date:
+                    overlaps = self.state_manager.detect_date_overlap(user_name, start_date, end_date)
+                    if overlaps:
+                        print(f"⚠️  發現重疊日期範圍: {overlaps}")
+                        print("將以舊資料為主，僅處理新日期")
+                
+                # 載入之前的忘刷卡使用統計
+                self._load_previous_forget_punch_usage(user_name)
+            else:
+                print("⚠️  無法從檔名識別使用者，將使用完整分析模式")
+                self.incremental_mode = False
+        
+        # 解析檔案內容
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
@@ -301,10 +578,29 @@ class AttendanceAnalyzer:
         self.workdays.sort(key=lambda x: x.date)
     
     def analyze_attendance(self) -> None:
-        """分析考勤記錄"""
+        """分析考勤記錄（支援增量分析）"""
         self.issues = []
         
-        for workday in self.workdays:
+        # 增量分析模式：只分析新的完整工作日
+        if self.incremental_mode and self.current_user:
+            complete_days = self._identify_complete_work_days()
+            unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
+            
+            if unprocessed_dates:
+                print(f"🔄 增量分析: 發現 {len(unprocessed_dates)} 個新的完整工作日需要處理")
+                print(f"📊 跳過已處理的工作日: {len(complete_days) - len(unprocessed_dates)} 個")
+                
+                # 只分析未處理的工作日
+                unprocessed_date_set = {d.date() for d in unprocessed_dates}
+                workdays_to_analyze = [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
+            else:
+                print("✅ 增量分析: 沒有新的工作日需要處理")
+                workdays_to_analyze = []
+        else:
+            # 完整分析模式：分析所有工作日
+            workdays_to_analyze = self.workdays
+        
+        for workday in workdays_to_analyze:
             # 檢查是否整天沒有打卡記錄（曠職）
             if self._is_full_day_absent(workday):
                 if workday.is_friday and not workday.is_holiday:
@@ -374,6 +670,42 @@ class AttendanceAnalyzer:
                     time_range=overtime_time_range,
                     calculation=overtime_calculation
                 ))
+        
+        # 增量分析模式：更新狀態
+        if self.incremental_mode and self.current_user and workdays_to_analyze:
+            self._update_processing_state()
+    
+    def _update_processing_state(self) -> None:
+        """更新處理狀態到狀態檔案"""
+        if not self.state_manager or not self.current_user:
+            return
+        
+        # 計算處理範圍
+        complete_days = self._identify_complete_work_days()
+        if not complete_days:
+            return
+        
+        start_date = min(complete_days).strftime("%Y-%m-%d")
+        end_date = max(complete_days).strftime("%Y-%m-%d")
+        
+        # 構建範圍資訊
+        range_info = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "source_file": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "unknown",
+            "last_analysis_time": datetime.now().isoformat()
+        }
+        
+        # 更新狀態
+        self.state_manager.update_user_state(
+            self.current_user,
+            range_info,
+            self.forget_punch_usage
+        )
+        
+        # 儲存狀態檔案
+        self.state_manager.save_state()
+        print(f"💾 已更新處理狀態: {start_date} 至 {end_date}")
     
     def _calculate_late_minutes(self, workday: WorkDay) -> tuple:
         """計算遲到分鐘數，返回 (分鐘數, 時段, 計算式)"""
@@ -450,9 +782,27 @@ class AttendanceAnalyzer:
         return False
     
     def generate_report(self) -> str:
-        """生成報告"""
+        """生成報告（支援增量分析資訊顯示）"""
         report = []
         report.append("# 🎯 考勤分析報告 ✨\n")
+        
+        # 顯示增量分析資訊
+        if self.incremental_mode and self.current_user:
+            complete_days = self._identify_complete_work_days()
+            unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
+            
+            report.append("## 📈 增量分析資訊：\n")
+            report.append(f"- 👤 使用者：{self.current_user}")
+            report.append(f"- 📊 總完整工作日：{len(complete_days)} 天")
+            report.append(f"- 🔄 新處理工作日：{len(unprocessed_dates)} 天")
+            report.append(f"- ⏭️  跳過已處理：{len(complete_days) - len(unprocessed_dates)} 天")
+            
+            if unprocessed_dates:
+                new_dates_str = ", ".join([d.strftime('%Y/%m/%d') for d in unprocessed_dates[:5]])
+                if len(unprocessed_dates) > 5:
+                    new_dates_str += f" 等 {len(unprocessed_dates)} 天"
+                report.append(f"- 📅 新處理日期：{new_dates_str}")
+            report.append("")
         
         # 忘刷卡建議
         forget_punch_issues = [issue for issue in self.issues if issue.type == IssueType.FORGET_PUNCH]
@@ -518,17 +868,50 @@ class AttendanceAnalyzer:
         # 使用UTF-8-BOM編碼和分號分隔符以確保Mac Excel能正確顯示
         with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
-            writer.writerow(['日期', '類型', '時長(分鐘)', '說明', '時段', '計算式'])
+            headers = ['日期', '類型', '時長(分鐘)', '說明', '時段', '計算式']
             
+            # 增量模式下添加狀態欄位
+            if self.incremental_mode:
+                headers.append('狀態')
+            
+            writer.writerow(headers)
+            
+            # 如果是增量模式且沒有問題，至少提供一行狀態資訊
+            if self.incremental_mode and not self.issues and self.current_user:
+                complete_days = self._identify_complete_work_days()
+                if complete_days:
+                    last_date = max(complete_days).strftime('%Y/%m/%d')
+                    unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
+                    
+                    if not unprocessed_dates:  # 沒有新資料需要處理
+                        status_row = [
+                            last_date,
+                            "狀態資訊",
+                            0,
+                            f"📊 增量分析完成，已處理至 {last_date}，共 {len(complete_days)} 個完整工作日",
+                            "",
+                            "上次處理範圍內無新問題需要申請",
+                            "系統狀態"
+                        ]
+                        writer.writerow(status_row)
+            
+            # 寫入實際問題記錄
             for issue in self.issues:
-                writer.writerow([
+                row = [
                     issue.date.strftime('%Y/%m/%d'),
                     issue.type.value,
                     issue.duration_minutes,
                     issue.description,
                     issue.time_range,
                     issue.calculation
-                ])
+                ]
+                
+                # 增量模式下添加狀態資訊
+                if self.incremental_mode:
+                    status = "[NEW] 本次新發現" if issue.is_new else "已存在"
+                    row.append(status)
+                
+                writer.writerow(row)
     
     def export_excel(self, filepath: str) -> None:
         """匯出Excel格式報告"""
@@ -562,6 +945,11 @@ class AttendanceAnalyzer:
         
         # 標題列
         headers = ['日期', '類型', '時長(分鐘)', '說明', '時段', '計算式']
+        
+        # 增量模式下添加狀態欄位
+        if self.incremental_mode:
+            headers.append('狀態')
+        
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col)
             cell.value = header
@@ -570,16 +958,44 @@ class AttendanceAnalyzer:
             cell.alignment = center_alignment
             cell.border = border
         
-        # 資料列
-        for row, issue in enumerate(self.issues, 2):
+        # 如果是增量模式且沒有問題，至少提供一行狀態資訊
+        data_start_row = 2
+        if self.incremental_mode and not self.issues and self.current_user:
+            complete_days = self._identify_complete_work_days()
+            if complete_days:
+                last_date = max(complete_days).strftime('%Y/%m/%d')
+                unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
+                
+                if not unprocessed_dates:  # 沒有新資料需要處理
+                    # 狀態資訊行
+                    ws.cell(row=2, column=1).value = last_date
+                    ws.cell(row=2, column=2).value = "狀態資訊"
+                    ws.cell(row=2, column=3).value = 0
+                    ws.cell(row=2, column=4).value = f"📊 增量分析完成，已處理至 {last_date}，共 {len(complete_days)} 個完整工作日"
+                    ws.cell(row=2, column=5).value = ""
+                    ws.cell(row=2, column=6).value = "上次處理範圍內無新問題需要申請"
+                    
+                    if self.incremental_mode:
+                        ws.cell(row=2, column=7).value = "系統狀態"
+                        # 淺灰色背景表示系統狀態
+                        for col in range(1, 8):
+                            ws.cell(row=2, column=col).fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
+                            ws.cell(row=2, column=col).border = border
+                            if col in [1, 2, 3, 5, 7]:
+                                ws.cell(row=2, column=col).alignment = center_alignment
+                    
+                    data_start_row = 3
+        
+        # 實際問題記錄資料列
+        for row_idx, issue in enumerate(self.issues, data_start_row):
             # 日期
-            date_cell = ws.cell(row=row, column=1)
+            date_cell = ws.cell(row=row_idx, column=1)
             date_cell.value = issue.date.strftime('%Y/%m/%d')
             date_cell.alignment = center_alignment
             date_cell.border = border
             
             # 類型（加上顏色標示）
-            type_cell = ws.cell(row=row, column=2)
+            type_cell = ws.cell(row=row_idx, column=2)
             type_cell.value = issue.type.value
             type_cell.alignment = center_alignment
             type_cell.border = border
@@ -595,37 +1011,74 @@ class AttendanceAnalyzer:
                 type_cell.fill = PatternFill(start_color="FFF0E6", end_color="FFF0E6", fill_type="solid")
             
             # 時長
-            duration_cell = ws.cell(row=row, column=3)
+            duration_cell = ws.cell(row=row_idx, column=3)
             duration_cell.value = issue.duration_minutes
             duration_cell.alignment = center_alignment
             duration_cell.border = border
             
             # 說明
-            desc_cell = ws.cell(row=row, column=4)
+            desc_cell = ws.cell(row=row_idx, column=4)
             desc_cell.value = issue.description
             desc_cell.border = border
             
             # 時段
-            range_cell = ws.cell(row=row, column=5)
+            range_cell = ws.cell(row=row_idx, column=5)
             range_cell.value = issue.time_range
             range_cell.alignment = center_alignment
             range_cell.border = border
             
             # 計算式
-            calc_cell = ws.cell(row=row, column=6)
+            calc_cell = ws.cell(row=row_idx, column=6)
             calc_cell.value = issue.calculation
             calc_cell.border = border
+            
+            # 增量模式下添加狀態欄位
+            if self.incremental_mode:
+                status_cell = ws.cell(row=row_idx, column=7)
+                status_value = "[NEW] 本次新發現" if issue.is_new else "已存在"
+                status_cell.value = status_value
+                status_cell.alignment = center_alignment
+                status_cell.border = border
+                
+                # 新發現的項目用綠色底
+                if issue.is_new:
+                    status_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
         
         # 自動調整欄位寬度
-        for col in range(1, 7):
+        col_count = 7 if self.incremental_mode else 6
+        for col in range(1, col_count + 1):
             ws.column_dimensions[chr(64 + col)].width = 15
         
         # 說明欄位設定較寬
         ws.column_dimensions['D'].width = 30
         ws.column_dimensions['F'].width = 35
         
+        # 狀態欄位設定寬度
+        if self.incremental_mode:
+            ws.column_dimensions['G'].width = 20
+        
         # 儲存檔案
         wb.save(filepath)
+    
+    def _backup_existing_file(self, filepath: str) -> None:
+        """備份現有檔案（如果存在），使用時間戳記作為後綴
+        Args:
+            filepath: 要檢查並備份的檔案路徑
+        """
+        import os
+        from datetime import datetime
+        
+        if os.path.exists(filepath):
+            # 產生時間戳記後綴 (格式: YYYYMMDD_HHMMSS)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 分離檔名和副檔名
+            base_name, ext = os.path.splitext(filepath)
+            backup_filepath = f"{base_name}_{timestamp}{ext}"
+            
+            # 備份檔案
+            os.rename(filepath, backup_filepath)
+            print(f"📦 備份現有檔案: {os.path.basename(backup_filepath)}")
     
     def export_report(self, filepath: str, format_type: str = 'excel') -> None:
         """統一匯出介面
@@ -633,6 +1086,9 @@ class AttendanceAnalyzer:
             filepath: 檔案路徑
             format_type: 'excel' 或 'csv'
         """
+        # 匯出前先備份現有檔案
+        self._backup_existing_file(filepath)
+        
         if format_type.lower() == 'csv':
             self.export_csv(filepath)
         else:
@@ -641,25 +1097,71 @@ class AttendanceAnalyzer:
 
 def main():
     """主程式"""
-    if len(sys.argv) < 2 or len(sys.argv) > 3:
-        print("📖 使用方法: python attendance_analyzer.py <考勤檔案路徑> [格式]")
-        print("   格式選項: excel (預設) | csv")
-        print("   範例: python attendance_analyzer.py data.txt")
-        print("   範例: python attendance_analyzer.py data.txt csv")
-        sys.exit(1)
+    import argparse
     
-    filepath = sys.argv[1]
-    format_type = sys.argv[2] if len(sys.argv) == 3 else 'excel'
+    parser = argparse.ArgumentParser(
+        description='考勤分析系統 - 支援增量分析避免重複處理',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+範例用法:
+  # 預設增量分析（推薦）
+  python attendance_analyzer.py 202508-員工姓名-出勤資料.txt
+  
+  # 強制完整重新分析
+  python attendance_analyzer.py 202508-員工姓名-出勤資料.txt --full
+  
+  # 清除使用者狀態後重新分析
+  python attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-state
+  
+  # 指定輸出格式
+  python attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
+        """
+    )
     
-    # 驗證格式參數
-    if format_type.lower() not in ['excel', 'csv']:
-        print("❌ 錯誤: 格式只能是 'excel' 或 'csv'")
-        sys.exit(1)
+    parser.add_argument('filepath', help='考勤檔案路徑')
+    parser.add_argument('format', nargs='?', default='excel', 
+                       choices=['excel', 'csv'], help='輸出格式 (預設: excel)')
+    parser.add_argument('--incremental', '-i', action='store_true', default=True,
+                       help='啟用增量分析模式 (預設開啟)')
+    parser.add_argument('--full', '-f', action='store_true',
+                       help='強制完整重新分析')
+    parser.add_argument('--reset-state', '-r', action='store_true',
+                       help='清除指定使用者的狀態記錄')
+    
+    args = parser.parse_args()
+    
+    filepath = args.filepath
+    format_type = args.format
+    
+    # 處理分析模式
+    incremental_mode = args.incremental and not args.full
+    
+    # 處理狀態重設
+    if args.reset_state:
+        analyzer_temp = AttendanceAnalyzer()
+        user_name, _, _ = analyzer_temp._extract_user_and_date_range_from_filename(filepath)
+        if user_name:
+            state_manager = AttendanceStateManager()
+            if user_name in state_manager.state_data.get("users", {}):
+                del state_manager.state_data["users"][user_name]
+                state_manager.save_state()
+                print(f"🗑️  已清除 {user_name} 的處理狀態")
+            else:
+                print(f"ℹ️  使用者 {user_name} 沒有現有狀態需要清除")
+        else:
+            print("⚠️  無法從檔名識別使用者，無法執行狀態重設")
+            sys.exit(1)
     
     try:
         analyzer = AttendanceAnalyzer()
-        print("📂 正在解析考勤檔案...")
-        analyzer.parse_attendance_file(filepath)
+        
+        # 顯示分析模式
+        if incremental_mode:
+            print("📂 正在解析考勤檔案... (增量分析模式)")
+        else:
+            print("📂 正在解析考勤檔案... (完整分析模式)")
+            
+        analyzer.parse_attendance_file(filepath, incremental=incremental_mode)
         
         print("📝 正在分組記錄...")
         analyzer.group_records_by_day()
@@ -675,20 +1177,20 @@ def main():
         for line in report.split('\n'):
             print(line, flush=True)
         
-        # 根據指定格式匯出
+        # 根據指定格式匯出（使用統一介面，包含自動備份）
         if format_type.lower() == 'csv':
             output_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_csv(output_filepath)
+            analyzer.export_report(output_filepath, 'csv')
             print(f"✅ CSV報告已匯出: {output_filepath}")
         else:
             output_filepath = filepath.replace('.txt', '_analysis.xlsx')
-            analyzer.export_excel(output_filepath)
+            analyzer.export_report(output_filepath, 'excel')
             print(f"✅ Excel報告已匯出: {output_filepath}")
         
         # 同時保留CSV格式（向後相容）
         if format_type.lower() == 'excel':
             csv_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_csv(csv_filepath)
+            analyzer.export_report(csv_filepath, 'csv')
             print(f"📝 同時匯出CSV格式: {csv_filepath}")
         
     except Exception as e:

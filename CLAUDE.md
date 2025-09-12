@@ -43,7 +43,7 @@ python3 attendance_analyzer.py sample-attendance-data.txt csv
 
 ### Running Unit Tests
 ```bash
-python3 test_attendance_analyzer.py
+python3 -m unittest test.test_attendance_analyzer
 ```
 
 ### File Format Requirements
@@ -88,6 +88,15 @@ JSON-based state management for incremental analysis:
 - `update_user_state()`: Updates user processing state and forget-punch usage
 - `detect_date_overlap()`: Identifies overlapping date ranges for smart merging
 - `state_data`: Property holding current state information
+
+#### ExcelExporter (New)
+Shared helper library for Excel output:
+- `init_workbook()`: 建立工作簿與樣式
+- `write_headers()`: 寫入標題列
+- `write_status_row()`: 在增量模式寫入狀態資訊
+- `write_issue_rows()`: 逐筆寫入問題資料列
+- `set_column_widths()`: 調整欄寬
+- `save_workbook()`: 儲存分析檔案
 
 #### Incremental Analysis Features
 - **Smart Date Range Detection**: Parses filenames to extract user names and date ranges
@@ -209,7 +218,7 @@ The .gitignore is configured to exclude real employee data files while preservin
 ## Testing and Validation
 
 ### Unit Tests
-The system includes comprehensive unit tests (21 tests, 100% passing) in `test_attendance_analyzer.py` covering:
+The system includes comprehensive unit tests (21 tests, 100% passing) in `test/test_attendance_analyzer.py` covering:
 
 #### Core Business Logic (8 tests)
 - Basic file parsing and data grouping
@@ -244,7 +253,7 @@ The system includes comprehensive unit tests (21 tests, 100% passing) in `test_a
 - Non-existent file handling (graceful no-op behavior)
 - Proper cleanup of temporary test files
 
-Run tests with: `python3 test_attendance_analyzer.py`
+Run tests with: `python3 -m unittest test.test_attendance_analyzer`
 
 **Test Quality Features:**
 - Isolated execution using temporary files

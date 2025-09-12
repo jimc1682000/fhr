@@ -916,150 +916,51 @@ class AttendanceAnalyzer:
     def export_excel(self, filepath: str) -> None:
         """匯出Excel格式報告"""
         try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from lib import excel_exporter
         except ImportError:
             print("⚠️  警告: 未安裝 openpyxl，回退使用CSV格式")
             print("💡 安裝指令: pip install openpyxl")
-            # 回退到CSV格式
             csv_filepath = filepath.replace('.xlsx', '.csv')
             self.export_csv(csv_filepath)
             print(f"✅ CSV報告已匯出: {csv_filepath}")
             return
-        
-        # 建立工作簿
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "考勤分析"
-        
-        # 設定樣式
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        border = Border(
-            left=Side(style='thin'),
-            right=Side(style='thin'),
-            top=Side(style='thin'),
-            bottom=Side(style='thin')
+
+        wb, ws, header_font, header_fill, border, center_alignment = (
+            excel_exporter.init_workbook()
         )
-        center_alignment = Alignment(horizontal='center', vertical='center')
-        
-        # 標題列
+
         headers = ['日期', '類型', '時長(分鐘)', '說明', '時段', '計算式']
-        
-        # 增量模式下添加狀態欄位
         if self.incremental_mode:
             headers.append('狀態')
-        
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col)
-            cell.value = header
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = center_alignment
-            cell.border = border
-        
-        # 如果是增量模式且沒有問題，至少提供一行狀態資訊
+        excel_exporter.write_headers(
+            ws, headers, header_font, header_fill, border, center_alignment
+        )
+
         data_start_row = 2
         if self.incremental_mode and not self.issues and self.current_user:
             complete_days = self._identify_complete_work_days()
             if complete_days:
                 last_date = max(complete_days).strftime('%Y/%m/%d')
-                unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
-                
-                if not unprocessed_dates:  # 沒有新資料需要處理
-                    # 狀態資訊行
-                    ws.cell(row=2, column=1).value = last_date
-                    ws.cell(row=2, column=2).value = "狀態資訊"
-                    ws.cell(row=2, column=3).value = 0
-                    ws.cell(row=2, column=4).value = f"📊 增量分析完成，已處理至 {last_date}，共 {len(complete_days)} 個完整工作日"
-                    ws.cell(row=2, column=5).value = ""
-                    ws.cell(row=2, column=6).value = "上次處理範圍內無新問題需要申請"
-                    
-                    if self.incremental_mode:
-                        ws.cell(row=2, column=7).value = "系統狀態"
-                        # 淺灰色背景表示系統狀態
-                        for col in range(1, 8):
-                            ws.cell(row=2, column=col).fill = PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid")
-                            ws.cell(row=2, column=col).border = border
-                            if col in [1, 2, 3, 5, 7]:
-                                ws.cell(row=2, column=col).alignment = center_alignment
-                    
-                    data_start_row = 3
-        
-        # 實際問題記錄資料列
-        for row_idx, issue in enumerate(self.issues, data_start_row):
-            # 日期
-            date_cell = ws.cell(row=row_idx, column=1)
-            date_cell.value = issue.date.strftime('%Y/%m/%d')
-            date_cell.alignment = center_alignment
-            date_cell.border = border
-            
-            # 類型（加上顏色標示）
-            type_cell = ws.cell(row=row_idx, column=2)
-            type_cell.value = issue.type.value
-            type_cell.alignment = center_alignment
-            type_cell.border = border
-            
-            # 根據類型設定背景色
-            if issue.type == IssueType.LATE:
-                type_cell.fill = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
-            elif issue.type == IssueType.OVERTIME:
-                type_cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
-            elif issue.type == IssueType.WFH:
-                type_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
-            elif issue.type == IssueType.FORGET_PUNCH:
-                type_cell.fill = PatternFill(start_color="FFF0E6", end_color="FFF0E6", fill_type="solid")
-            
-            # 時長
-            duration_cell = ws.cell(row=row_idx, column=3)
-            duration_cell.value = issue.duration_minutes
-            duration_cell.alignment = center_alignment
-            duration_cell.border = border
-            
-            # 說明
-            desc_cell = ws.cell(row=row_idx, column=4)
-            desc_cell.value = issue.description
-            desc_cell.border = border
-            
-            # 時段
-            range_cell = ws.cell(row=row_idx, column=5)
-            range_cell.value = issue.time_range
-            range_cell.alignment = center_alignment
-            range_cell.border = border
-            
-            # 計算式
-            calc_cell = ws.cell(row=row_idx, column=6)
-            calc_cell.value = issue.calculation
-            calc_cell.border = border
-            
-            # 增量模式下添加狀態欄位
-            if self.incremental_mode:
-                status_cell = ws.cell(row=row_idx, column=7)
-                status_value = "[NEW] 本次新發現" if issue.is_new else "已存在"
-                status_cell.value = status_value
-                status_cell.alignment = center_alignment
-                status_cell.border = border
-                
-                # 新發現的項目用綠色底
-                if issue.is_new:
-                    status_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
-        
-        # 自動調整欄位寬度
-        col_count = 7 if self.incremental_mode else 6
-        for col in range(1, col_count + 1):
-            ws.column_dimensions[chr(64 + col)].width = 15
-        
-        # 說明欄位設定較寬
-        ws.column_dimensions['D'].width = 30
-        ws.column_dimensions['F'].width = 35
-        
-        # 狀態欄位設定寬度
-        if self.incremental_mode:
-            ws.column_dimensions['G'].width = 20
-        
-        # 儲存檔案
-        wb.save(filepath)
-    
+                unprocessed_dates = self._get_unprocessed_dates(
+                    self.current_user, complete_days
+                )
+                if not unprocessed_dates:
+                    data_start_row = excel_exporter.write_status_row(
+                        ws, last_date, len(complete_days), border, center_alignment
+                    )
+
+        excel_exporter.write_issue_rows(
+            ws,
+            self.issues,
+            data_start_row,
+            self.incremental_mode,
+            border,
+            center_alignment,
+        )
+
+        excel_exporter.set_column_widths(ws, self.incremental_mode)
+        excel_exporter.save_workbook(wb, filepath)
+
     def _backup_existing_file(self, filepath: str) -> None:
         """備份現有檔案（如果存在），使用時間戳記作為後綴
         Args:

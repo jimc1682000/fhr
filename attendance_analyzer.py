@@ -430,14 +430,21 @@ class AttendanceAnalyzer:
                 with urllib.request.urlopen(url, timeout=10) as response:
                     data = _json.loads(response.read().decode('utf-8'))
                     if 'result' in data and 'records' in data['result']:
+                        valid_found = False
                         for record in data['result']['records']:
                             if record.get('isHoliday', 0) == 1:
                                 date_str = record.get('date', '')
                                 if date_str:
-                                    holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                    self.holidays.add(holiday_date)
-                        return True
-            except (URLError, _json.JSONDecodeError) as e:
+                                    try:
+                                        holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                                        self.holidays.add(holiday_date)
+                                        valid_found = True
+                                    except ValueError as e:
+                                        logger.warning("跳過無效的日期格式 %r: %s", date_str, e)
+                        if valid_found:
+                            return True
+                        logger.warning("API 回傳資料但沒有有效的假日記錄")
+            except (URLError, _json.JSONDecodeError, ValueError) as e:
                 logger.warning("載入 %d 年假日資料失敗(%d/3): %s", year, attempt + 1, e)
                 time.sleep(1)
 

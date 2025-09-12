@@ -8,10 +8,17 @@ import re
 import sys
 import json
 import os
+import logging
+import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
+
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
 class AttendanceType(Enum):
@@ -74,9 +81,9 @@ class AttendanceStateManager:
             try:
                 with open(self.state_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except (json.JSONDecodeError, Exception) as e:
-                print(f"警告: 無法讀取狀態檔案 {self.state_file}: {e}")
-                print("將使用空白狀態")
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning("無法讀取狀態檔案 %s: %s", self.state_file, e)
+                logger.warning("將使用空白狀態")
         
         # 回傳預設空狀態
         return {"users": {}}
@@ -86,8 +93,8 @@ class AttendanceStateManager:
         try:
             with open(self.state_file, 'w', encoding='utf-8') as f:
                 json.dump(self.state_data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"警告: 無法儲存狀態檔案 {self.state_file}: {e}")
+        except OSError as e:
+            logger.warning("無法儲存狀態檔案 %s: %s", self.state_file, e)
     
     def get_user_processed_ranges(self, user_name: str) -> List[Dict]:
         """取得使用者已處理的日期範圍"""
@@ -168,7 +175,7 @@ class AttendanceStateManager:
 class AttendanceAnalyzer:
     """考勤分析器"""
     
-    # 公司規則常數
+    # 公司規則常數（可由設定檔覆蓋）
     EARLIEST_CHECKIN = "08:30"
     LATEST_CHECKIN = "10:30"
     LUNCH_START = "12:30"
@@ -179,17 +186,32 @@ class AttendanceAnalyzer:
     OVERTIME_INCREMENT_MINUTES = 60  # 改為每小時一個區間
     FORGET_PUNCH_ALLOWANCE_PER_MONTH = 2  # 每月忘刷卡次數
     FORGET_PUNCH_MAX_MINUTES = 60  # 忘刷卡最多可用於60分鐘內的遲到
-    
-    def __init__(self):
+
+    def __init__(self, config_path: str = "config.json"):
+        self._load_config(config_path)
         self.records: List[AttendanceRecord] = []
         self.workdays: List[WorkDay] = []
         self.issues: List[Issue] = []
         self.holidays: set = set()  # 存放國定假日日期
-        self.forget_punch_usage: Dict[str, int] = {}  # 追蹤每月忘刷卡使用次數 {年月: 次數}
+        self.forget_punch_usage: Dict[str, int] = defaultdict(int)  # 追蹤每月忘刷卡使用次數 {年月: 次數}
         self.loaded_holiday_years: set = set()  # 追蹤已載入假日的年份
         self.state_manager: Optional[AttendanceStateManager] = None
         self.current_user: Optional[str] = None
         self.incremental_mode: bool = True
+
+    def _load_config(self, config_path: str) -> None:
+        """載入設定檔以覆蓋預設公司規則"""
+        if not os.path.exists(config_path):
+            logger.info("找不到設定檔 %s，使用預設值", config_path)
+            return
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for key, value in data.items():
+                if hasattr(self, key):
+                    setattr(self, key, value)
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("無法讀取設定檔 %s: %s", config_path, e)
     
     def _extract_user_and_date_range_from_filename(self, filepath: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """從檔案名稱解析使用者姓名和日期範圍
@@ -208,8 +230,8 @@ class AttendanceAnalyzer:
         match = re.match(pattern, filename)
         
         if not match:
-            print(f"警告: 檔案名稱格式不符合規範: {filename}")
-            print("預期格式: YYYYMM[-YYYYMM]-姓名-出勤資料.txt")
+            logger.warning("檔案名稱格式不符合規範: %s", filename)
+            logger.warning("預期格式: YYYYMM[-YYYYMM]-姓名-出勤資料.txt")
             return None, None, None
         
         start_month_str = match.group(1)  # YYYYMM
@@ -222,7 +244,7 @@ class AttendanceAnalyzer:
             start_month = int(start_month_str[4:6])
             start_date = datetime(start_year, start_month, 1).strftime("%Y-%m-%d")
         except ValueError:
-            print(f"警告: 無法解析開始月份: {start_month_str}")
+            logger.warning("無法解析開始月份: %s", start_month_str)
             return None, None, None
         
         # 解析結束日期
@@ -238,7 +260,7 @@ class AttendanceAnalyzer:
                     next_month = datetime(end_year, end_month + 1, 1)
                 end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
             except ValueError:
-                print(f"警告: 無法解析結束月份: {end_month_str}")
+                logger.warning("無法解析結束月份: %s", end_month_str)
                 return None, None, None
         else:
             # 單月檔案
@@ -250,7 +272,7 @@ class AttendanceAnalyzer:
                     next_month = datetime(start_year, start_month + 1, 1)
                 end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
             except ValueError:
-                print(f"警告: 無法計算月份結束日期")
+                logger.warning("無法計算月份結束日期")
                 return None, None, None
         
         return user_name, start_date, end_date
@@ -261,16 +283,13 @@ class AttendanceAnalyzer:
             完整工作日的日期清單
         """
         complete_days = []
-        daily_records = {}
-        
+        daily_records = defaultdict(lambda: {'checkin': False, 'checkout': False})
+
         # 按日期分組記錄
         for record in self.records:
             if not record.date:
                 continue
-                
-            if record.date not in daily_records:
-                daily_records[record.date] = {'checkin': False, 'checkout': False}
-            
+
             if record.type == AttendanceType.CHECKIN:
                 daily_records[record.date]['checkin'] = True
             else:
@@ -318,7 +337,7 @@ class AttendanceAnalyzer:
             return
         
         # 清空現有統計
-        self.forget_punch_usage = {}
+        self.forget_punch_usage = defaultdict(int)
         
         # 從狀態管理器載入
         user_data = self.state_manager.state_data.get("users", {}).get(user_name, {})
@@ -376,14 +395,14 @@ class AttendanceAnalyzer:
                 holiday_date = datetime.strptime(holiday_str, "%Y/%m/%d").date()
                 self.holidays.add(holiday_date)
             except ValueError:
-                print(f"警告: 無法解析國定假日日期: {holiday_str}")
+                logger.warning("無法解析國定假日日期: %s", holiday_str)
     
     def _load_dynamic_holidays(self, year: int) -> None:
         """動態載入指定年份的國定假日
         Args:
             year: 要載入的年份
         """
-        print(f"資訊: 動態載入 {year} 年國定假日...")
+        logger.info("資訊: 動態載入 %d 年國定假日...", year)
         
         # 方案1: 使用政府開放資料API
         success = self._try_load_from_gov_api(year)
@@ -391,7 +410,7 @@ class AttendanceAnalyzer:
         if not success:
             # 方案2: 使用基本假日規則（元旦、國慶日等固定日期）
             self._load_basic_holidays(year)
-            print(f"警告: 無法取得 {year} 年完整假日資料，僅載入基本固定假日")
+            logger.warning("無法取得 %d 年完整假日資料，僅載入基本固定假日", year)
     
     def _try_load_from_gov_api(self, year: int) -> bool:
         """嘗試從政府開放資料API載入假日
@@ -400,31 +419,28 @@ class AttendanceAnalyzer:
         Returns:
             bool: 是否成功載入
         """
-        try:
-            import urllib.request
-            import json
-            
-            # 政府資料開放平臺 - 政府行政機關辦公日曆表
-            # 注意: 實際API可能需要調整URL格式
-            url = f"https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={{\"date\":\"{year}\"}}"
-            
-            # 設定逾時以避免長時間等待
-            with urllib.request.urlopen(url, timeout=10) as response:
-                data = json.loads(response.read().decode('utf-8'))
-                
-                # 解析API回應（需根據實際API格式調整）
-                if 'result' in data and 'records' in data['result']:
-                    for record in data['result']['records']:
-                        if record.get('isHoliday', 0) == 1:  # 假設API用isHoliday標示假日
-                            date_str = record.get('date', '')
-                            if date_str:
-                                holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                                self.holidays.add(holiday_date)
-                    return True
-                    
-        except Exception as e:
-            print(f"無法從API載入 {year} 年假日資料: {e}")
-            
+        import urllib.request
+        import json as _json
+        from urllib.error import URLError
+
+        url = f"https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={{\"date\":\"{year}\"}}"
+
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(url, timeout=10) as response:
+                    data = _json.loads(response.read().decode('utf-8'))
+                    if 'result' in data and 'records' in data['result']:
+                        for record in data['result']['records']:
+                            if record.get('isHoliday', 0) == 1:
+                                date_str = record.get('date', '')
+                                if date_str:
+                                    holiday_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                                    self.holidays.add(holiday_date)
+                        return True
+            except (URLError, _json.JSONDecodeError) as e:
+                logger.warning("載入 %d 年假日資料失敗(%d/3): %s", year, attempt + 1, e)
+                time.sleep(1)
+
         return False
     
     def _load_basic_holidays(self, year: int) -> None:
@@ -442,7 +458,7 @@ class AttendanceAnalyzer:
                 holiday_date = datetime.strptime(holiday_str, "%Y/%m/%d").date()
                 self.holidays.add(holiday_date)
             except ValueError:
-                print(f"警告: 無法解析基本假日日期: {holiday_str}")
+                logger.warning("無法解析基本假日日期: %s", holiday_str)
     
     def parse_attendance_file(self, filepath: str, incremental: bool = True) -> None:
         """解析考勤資料檔案並初始化增量處理
@@ -460,20 +476,20 @@ class AttendanceAnalyzer:
             user_name, start_date, end_date = self._extract_user_and_date_range_from_filename(filepath)
             if user_name:
                 self.current_user = user_name
-                print(f"📋 識別使用者: {user_name}")
-                print(f"📅 檔案涵蓋期間: {start_date} 至 {end_date}")
+                logger.info("📋 識別使用者: %s", user_name)
+                logger.info("📅 檔案涵蓋期間: %s 至 %s", start_date, end_date)
                 
                 # 檢查重疊日期
                 if start_date and end_date:
                     overlaps = self.state_manager.detect_date_overlap(user_name, start_date, end_date)
                     if overlaps:
-                        print(f"⚠️  發現重疊日期範圍: {overlaps}")
-                        print("將以舊資料為主，僅處理新日期")
+                        logger.warning("⚠️  發現重疊日期範圍: %s", overlaps)
+                        logger.warning("將以舊資料為主，僅處理新日期")
                 
                 # 載入之前的忘刷卡使用統計
                 self._load_previous_forget_punch_usage(user_name)
             else:
-                print("⚠️  無法從檔名識別使用者，將使用完整分析模式")
+                logger.warning("⚠️  無法從檔名識別使用者，將使用完整分析模式")
                 self.incremental_mode = False
         
         # 解析檔案內容
@@ -492,8 +508,8 @@ class AttendanceAnalyzer:
                 record = self._parse_attendance_line(line)
                 if record:
                     self.records.append(record)
-            except Exception as e:
-                print(f"警告: 第{line_num}行解析失敗: {e}")
+            except (ValueError, IndexError) as e:
+                logger.warning("第%d行解析失敗: %s", line_num, e)
     
     def _parse_attendance_line(self, line: str) -> Optional[AttendanceRecord]:
         """解析單行考勤記錄"""
@@ -541,7 +557,7 @@ class AttendanceAnalyzer:
         """解析日期時間字串"""
         try:
             return datetime.strptime(datetime_str, "%Y/%m/%d %H:%M")
-        except:
+        except ValueError:
             return None
     
     def group_records_by_day(self) -> None:
@@ -551,15 +567,12 @@ class AttendanceAnalyzer:
         if years_in_data:
             self._load_taiwan_holidays(years_in_data)
         
-        daily_records = {}
-        
+        daily_records = defaultdict(lambda: {'checkin': None, 'checkout': None})
+
         for record in self.records:
             if not record.date:
                 continue
-                
-            if record.date not in daily_records:
-                daily_records[record.date] = {'checkin': None, 'checkout': None}
-            
+
             if record.type == AttendanceType.CHECKIN:
                 daily_records[record.date]['checkin'] = record
             else:
@@ -587,14 +600,14 @@ class AttendanceAnalyzer:
             unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
             
             if unprocessed_dates:
-                print(f"🔄 增量分析: 發現 {len(unprocessed_dates)} 個新的完整工作日需要處理")
-                print(f"📊 跳過已處理的工作日: {len(complete_days) - len(unprocessed_dates)} 個")
+                logger.info("🔄 增量分析: 發現 %d 個新的完整工作日需要處理", len(unprocessed_dates))
+                logger.info("📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates))
                 
                 # 只分析未處理的工作日
                 unprocessed_date_set = {d.date() for d in unprocessed_dates}
                 workdays_to_analyze = [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
             else:
-                print("✅ 增量分析: 沒有新的工作日需要處理")
+                logger.info("✅ 增量分析: 沒有新的工作日需要處理")
                 workdays_to_analyze = []
         else:
             # 完整分析模式：分析所有工作日
@@ -633,12 +646,12 @@ class AttendanceAnalyzer:
                 month_key = workday.date.strftime('%Y-%m')
                 can_use_forget_punch = (
                     late_minutes <= self.FORGET_PUNCH_MAX_MINUTES and
-                    self.forget_punch_usage.get(month_key, 0) < self.FORGET_PUNCH_ALLOWANCE_PER_MONTH
+                    self.forget_punch_usage[month_key] < self.FORGET_PUNCH_ALLOWANCE_PER_MONTH
                 )
                 
                 if can_use_forget_punch:
                     # 使用忘刷卡
-                    self.forget_punch_usage[month_key] = self.forget_punch_usage.get(month_key, 0) + 1
+                    self.forget_punch_usage[month_key] += 1
                     self.issues.append(Issue(
                         date=workday.date,
                         type=IssueType.FORGET_PUNCH,
@@ -705,7 +718,7 @@ class AttendanceAnalyzer:
         
         # 儲存狀態檔案
         self.state_manager.save_state()
-        print(f"💾 已更新處理狀態: {start_date} 至 {end_date}")
+        logger.info("💾 已更新處理狀態: %s 至 %s", start_date, end_date)
     
     def _calculate_late_minutes(self, workday: WorkDay) -> tuple:
         """計算遲到分鐘數，返回 (分鐘數, 時段, 計算式)"""
@@ -918,11 +931,11 @@ class AttendanceAnalyzer:
         try:
             from lib import excel_exporter
         except ImportError:
-            print("⚠️  警告: 未安裝 openpyxl，回退使用CSV格式")
-            print("💡 安裝指令: pip install openpyxl")
+            logger.warning("⚠️  警告: 未安裝 openpyxl，回退使用CSV格式")
+            logger.info("💡 安裝指令: pip install openpyxl")
             csv_filepath = filepath.replace('.xlsx', '.csv')
             self.export_csv(csv_filepath)
-            print(f"✅ CSV報告已匯出: {csv_filepath}")
+            logger.info("✅ CSV報告已匯出: %s", csv_filepath)
             return
 
         wb, ws, header_font, header_fill, border, center_alignment = (
@@ -979,7 +992,7 @@ class AttendanceAnalyzer:
             
             # 備份檔案
             os.rename(filepath, backup_filepath)
-            print(f"📦 備份現有檔案: {os.path.basename(backup_filepath)}")
+            logger.info("📦 備份現有檔案: %s", os.path.basename(backup_filepath))
     
     def export_report(self, filepath: str, format_type: str = 'excel') -> None:
         """統一匯出介面
@@ -1046,11 +1059,11 @@ def main():
             if user_name in state_manager.state_data.get("users", {}):
                 del state_manager.state_data["users"][user_name]
                 state_manager.save_state()
-                print(f"🗑️  已清除 {user_name} 的處理狀態")
+                logger.info("🗑️  已清除 %s 的處理狀態", user_name)
             else:
-                print(f"ℹ️  使用者 {user_name} 沒有現有狀態需要清除")
+                logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
         else:
-            print("⚠️  無法從檔名識別使用者，無法執行狀態重設")
+            logger.warning("⚠️  無法從檔名識別使用者，無法執行狀態重設")
             sys.exit(1)
     
     try:
@@ -1058,44 +1071,44 @@ def main():
         
         # 顯示分析模式
         if incremental_mode:
-            print("📂 正在解析考勤檔案... (增量分析模式)")
+            logger.info("📂 正在解析考勤檔案... (增量分析模式)")
         else:
-            print("📂 正在解析考勤檔案... (完整分析模式)")
+            logger.info("📂 正在解析考勤檔案... (完整分析模式)")
             
         analyzer.parse_attendance_file(filepath, incremental=incremental_mode)
         
-        print("📝 正在分組記錄...")
+        logger.info("📝 正在分組記錄...")
         analyzer.group_records_by_day()
         
-        print("🔍 正在分析考勤...")
+        logger.info("🔍 正在分析考勤...")
         analyzer.analyze_attendance()
         
-        print("📊 正在生成報告...")
+        logger.info("📊 正在生成報告...")
         report = analyzer.generate_report()
         
         # 強制顯示完整報告，每行單獨輸出
-        print("\n")
+        logger.info("\n")
         for line in report.split('\n'):
-            print(line, flush=True)
+            logger.info(line)
         
         # 根據指定格式匯出（使用統一介面，包含自動備份）
         if format_type.lower() == 'csv':
             output_filepath = filepath.replace('.txt', '_analysis.csv')
             analyzer.export_report(output_filepath, 'csv')
-            print(f"✅ CSV報告已匯出: {output_filepath}")
+            logger.info("✅ CSV報告已匯出: %s", output_filepath)
         else:
             output_filepath = filepath.replace('.txt', '_analysis.xlsx')
             analyzer.export_report(output_filepath, 'excel')
-            print(f"✅ Excel報告已匯出: {output_filepath}")
+            logger.info("✅ Excel報告已匯出: %s", output_filepath)
         
         # 同時保留CSV格式（向後相容）
         if format_type.lower() == 'excel':
             csv_filepath = filepath.replace('.txt', '_analysis.csv')
             analyzer.export_report(csv_filepath, 'csv')
-            print(f"📝 同時匯出CSV格式: {csv_filepath}")
+            logger.info("📝 同時匯出CSV格式: %s", csv_filepath)
         
     except Exception as e:
-        print(f"❌ 錯誤: {e}")
+        logger.error("❌ 錯誤: %s", e)
         sys.exit(1)
 
 

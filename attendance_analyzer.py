@@ -10,11 +10,13 @@ import json
 import os
 import logging
 import time
+import ssl
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlparse
 
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -424,10 +426,15 @@ class AttendanceAnalyzer:
         from urllib.error import URLError
 
         url = f"https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={{\"date\":\"{year}\"}}"
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            logger.warning("不支援的 URL scheme: %s", parsed.scheme)
+            return False
+        context = ssl.create_default_context()
 
         for attempt in range(3):
             try:
-                with urllib.request.urlopen(url, timeout=10) as response:
+                with urllib.request.urlopen(url, timeout=10, context=context) as response:  # nosec B310
                     data = _json.loads(response.read().decode('utf-8'))
                     if 'result' in data and 'records' in data['result']:
                         valid_found = False

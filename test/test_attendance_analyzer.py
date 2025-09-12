@@ -51,6 +51,19 @@ class TestHolidayLoading(unittest.TestCase):
         self.assertFalse(success)
         self.assertEqual(len(analyzer.holidays), 0)
 
+    def test_try_load_from_gov_api_rejects_non_http_scheme(self) -> None:
+        analyzer = AttendanceAnalyzer()
+        from urllib.parse import ParseResult
+
+        def fake_urlparse(_url: str) -> ParseResult:
+            return ParseResult(scheme='file', netloc='', path='', params='', query='', fragment='')
+
+        with patch('attendance_analyzer.urlparse', side_effect=fake_urlparse), \
+                patch('urllib.request.urlopen') as mock_urlopen:
+            success = analyzer._try_load_from_gov_api(2025)
+            mock_urlopen.assert_not_called()
+        self.assertFalse(success)
+
 
 if __name__ == '__main__':
     unittest.main()

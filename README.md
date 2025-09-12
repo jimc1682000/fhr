@@ -317,7 +317,11 @@ attendance_analyzer.py
 ```
 fhr/
 ├── attendance_analyzer.py          # 主要分析程式（增強版，支援增量分析）
-├── test_attendance_analyzer.py     # 單元測試（包含跨年份測試）
+├── test/                           # 測試目錄
+│   └── test_attendance_analyzer.py # 單元測試（包含跨年份測試）
+├── lib/                            # 共用模組
+│   ├── __init__.py
+│   └── excel_exporter.py           # Excel 匯出共用函式庫
 ├── sample-attendance-data.txt      # 範例出勤資料
 ├── sample-attendance-data_analysis.csv # 範例分析結果（含狀態欄位）
 ├── CLAUDE.md                       # AI代理知識庫（技術文件）
@@ -336,7 +340,8 @@ fhr/
 
 #### 核心檔案
 - **attendance_analyzer.py**: 主程式，包含所有增量分析功能
-- **test_attendance_analyzer.py**: 完整的單元測試套件
+- **test/test_attendance_analyzer.py**: 完整的單元測試套件
+- **lib/excel_exporter.py**: 共用 Excel 匯出工具
 - **sample-attendance-data.txt**: 測試用範例資料
 
 #### 增量分析相關
@@ -375,7 +380,7 @@ fhr/
 #### 單元測試
 ```bash
 # 運行完整測試套件（21個測試）
-python3 test_attendance_analyzer.py
+python3 -m unittest test.test_attendance_analyzer
 
 # 測試涵蓋範圍
 # ✅ 核心業務邏輯（8個測試）

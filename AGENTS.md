@@ -4,13 +4,13 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 
 ## Project Structure & Module Organization
 - `attendance_analyzer.py` — main CLI and core logic (parsing, analysis, export).
-- `test_attendance_analyzer.py` — unittest suite; runs end‑to‑end and unit tests.
+- `test/` — test suite directory (contains `test_attendance_analyzer.py`).
 - `sample-attendance-data.txt` — example input.
 - Generated (ignored): `*_analysis.(xlsx|csv)`, timestamped backups, `attendance_state.json`.
 
 ## Build, Test, and Development Commands
 - Run analysis: `python attendance_analyzer.py "202508-姓名-出勤資料.txt" [excel|csv] [--incremental|--full|--reset-state]`.
-- Run tests: `python3 test_attendance_analyzer.py` (uses `unittest`).
+- Run tests: `python3 -m unittest test.test_attendance_analyzer` (uses `unittest`).
 - Optional Excel support: `pip install openpyxl`.
 - Quick local check: `python attendance_analyzer.py sample-attendance-data.txt csv`.
 
@@ -21,7 +21,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Prefer standard library; add deps only when necessary and documented.
 
 ## Testing Guidelines
-- Framework: `unittest`. Place new tests in `test_attendance_analyzer.py` or additional `test_*.py` files.
+- Framework: `unittest`. Place new tests in the `test/` directory using `test_*.py` files.
 - Name tests `test_*` and cover: parsing, business rules (late/OT/WFH), exports, and state handling.
 - Run full suite before PRs; include edge cases for date ranges and Friday/WFH logic.
 

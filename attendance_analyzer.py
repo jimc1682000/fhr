@@ -75,19 +75,13 @@ class Issue:
 class AttendanceAnalyzer:
     """考勤分析器"""
     
-    # 公司規則常數（可由設定檔覆蓋）
-    EARLIEST_CHECKIN = "08:30"
-    LATEST_CHECKIN = "10:30"
-    LUNCH_START = "12:30"
-    LUNCH_END = "13:30"
-    WORK_HOURS = 8
-    LUNCH_HOURS = 1
-    MIN_OVERTIME_MINUTES = 60
-    OVERTIME_INCREMENT_MINUTES = 60  # 改為每小時一個區間
-    FORGET_PUNCH_ALLOWANCE_PER_MONTH = 2  # 每月忘刷卡次數
-    FORGET_PUNCH_MAX_MINUTES = 60  # 忘刷卡最多可用於60分鐘內的遲到
+    # 規則配置（AttendanceConfig 封裝，可由設定檔覆蓋）
+    
 
     def __init__(self, config_path: str = "config.json"):
+        # 初始化配置
+        from lib.config import AttendanceConfig
+        self.config = AttendanceConfig()
         self._load_config(config_path)
         self.records: List[AttendanceRecord] = []
         self.workdays: List[WorkDay] = []
@@ -108,8 +102,8 @@ class AttendanceAnalyzer:
             with open(config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             for key, value in data.items():
-                if hasattr(self, key):
-                    setattr(self, key, value)
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
         except (OSError, json.JSONDecodeError) as e:
             logger.warning("無法讀取設定檔 %s: %s", config_path, e)
     
@@ -276,114 +270,106 @@ class AttendanceAnalyzer:
     def analyze_attendance(self) -> None:
         """分析考勤記錄（支援增量分析）"""
         self.issues = []
-        
-        # 增量分析模式：只分析新的完整工作日
-        if self.incremental_mode and self.current_user:
-            complete_days = self._identify_complete_work_days()
-            unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
-            
-            if unprocessed_dates:
-                logger.info("🔄 增量分析: 發現 %d 個新的完整工作日需要處理", len(unprocessed_dates))
-                logger.info("📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates))
-                
-                # 只分析未處理的工作日
-                unprocessed_date_set = {d.date() for d in unprocessed_dates}
-                workdays_to_analyze = [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
-            else:
-                logger.info("✅ 增量分析: 沒有新的工作日需要處理")
-                workdays_to_analyze = []
-        else:
-            # 完整分析模式：分析所有工作日
-            workdays_to_analyze = self.workdays
-        
-        from lib.policy import Rules, is_full_day_absent, calculate_late_minutes, calculate_overtime_minutes
+
+        workdays_to_analyze = self._get_workdays_to_analyze()
+
+        from lib.policy import Rules
         rules = Rules(
-            earliest_checkin=self.EARLIEST_CHECKIN,
-            latest_checkin=self.LATEST_CHECKIN,
-            lunch_start=self.LUNCH_START,
-            lunch_end=self.LUNCH_END,
-            work_hours=self.WORK_HOURS,
-            lunch_hours=self.LUNCH_HOURS,
-            min_overtime_minutes=self.MIN_OVERTIME_MINUTES,
-            overtime_increment_minutes=self.OVERTIME_INCREMENT_MINUTES,
-            forget_punch_allowance_per_month=self.FORGET_PUNCH_ALLOWANCE_PER_MONTH,
-            forget_punch_max_minutes=self.FORGET_PUNCH_MAX_MINUTES,
+            earliest_checkin=self.config.earliest_checkin,
+            latest_checkin=self.config.latest_checkin,
+            lunch_start=self.config.lunch_start,
+            lunch_end=self.config.lunch_end,
+            work_hours=self.config.work_hours,
+            lunch_hours=self.config.lunch_hours,
+            min_overtime_minutes=self.config.min_overtime_minutes,
+            overtime_increment_minutes=self.config.overtime_increment_minutes,
+            forget_punch_allowance_per_month=self.config.forget_punch_allowance_per_month,
+            forget_punch_max_minutes=self.config.forget_punch_max_minutes,
         )
 
         for workday in workdays_to_analyze:
-            # 檢查是否整天沒有打卡記錄（曠職）
-            if is_full_day_absent(workday):
-                if workday.is_friday and not workday.is_holiday:
-                    # 週五且非國定假日建議WFH假
-                    self.issues.append(Issue(
-                        date=workday.date,
-                        type=IssueType.WFH,
-                        duration_minutes=9 * 60,  # 9小時
-                        description="建議申請整天WFH假 🏠💻"
-                    ))
-                elif not workday.is_holiday:
-                    # 非國定假日的週一到週四建議請假
-                    self.issues.append(Issue(
-                        date=workday.date,
-                        type=IssueType.WEEKDAY_LEAVE,
-                        duration_minutes=8 * 60,  # 8小時
-                        description="整天沒進公司，建議請假 📝🏠"
-                    ))
-                # 如果是國定假日，則不需要任何申請建議
-                continue
-            
-            if workday.is_friday:
-                # 週五已處理，跳過分析
-                continue
-            
-            # 分析遲到
-            late_minutes, late_time_range, late_calculation = calculate_late_minutes(workday, rules)
-            if late_minutes > 0:
-                # 檢查是否可以使用忘刷卡
-                month_key = workday.date.strftime('%Y-%m')
-                can_use_forget_punch = (
-                    late_minutes <= self.FORGET_PUNCH_MAX_MINUTES and
-                    self.forget_punch_usage[month_key] < self.FORGET_PUNCH_ALLOWANCE_PER_MONTH
-                )
-                
-                if can_use_forget_punch:
-                    # 使用忘刷卡
-                    self.forget_punch_usage[month_key] += 1
-                    self.issues.append(Issue(
-                        date=workday.date,
-                        type=IssueType.FORGET_PUNCH,
-                        duration_minutes=0,  # 忘刷卡不需要請假
-                        description=f"遲到{late_minutes}分鐘，建議使用忘刷卡 🔄✅",
-                        time_range=late_time_range,
-                        calculation=f"{late_calculation} (使用忘刷卡，本月剩餘: {self.FORGET_PUNCH_ALLOWANCE_PER_MONTH - self.forget_punch_usage[month_key]}次)"
-                    ))
-                else:
-                    # 需要請遲到假
-                    reason = "超過1小時" if late_minutes > self.FORGET_PUNCH_MAX_MINUTES else f"本月忘刷卡額度已用完"
-                    self.issues.append(Issue(
-                        date=workday.date,
-                        type=IssueType.LATE,
-                        duration_minutes=late_minutes,
-                        description=f"遲到{late_minutes}分鐘 ⏱️ ({reason})",
-                        time_range=late_time_range,
-                        calculation=late_calculation
-                    ))
-            
-            # 分析加班
-            actual_overtime, applicable_overtime, overtime_time_range, overtime_calculation = calculate_overtime_minutes(workday, rules)
-            if applicable_overtime >= self.MIN_OVERTIME_MINUTES:
-                self.issues.append(Issue(
-                    date=workday.date,
-                    type=IssueType.OVERTIME,
-                    duration_minutes=applicable_overtime,
-                    description=f"加班{applicable_overtime // 60}小時{applicable_overtime % 60}分鐘 💼",
-                    time_range=overtime_time_range,
-                    calculation=overtime_calculation
-                ))
-        
-        # 增量分析模式：更新狀態
+            self._analyze_single_workday(workday, rules)
+
         if self.incremental_mode and self.current_user and workdays_to_analyze:
             self._update_processing_state()
+
+    def _get_workdays_to_analyze(self) -> List[WorkDay]:
+        if self.incremental_mode and self.current_user:
+            complete_days = self._identify_complete_work_days()
+            unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
+            if unprocessed_dates:
+                logger.info("🔄 增量分析: 發現 %d 個新的完整工作日需要處理", len(unprocessed_dates))
+                logger.info("📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates))
+                unprocessed_date_set = {d.date() for d in unprocessed_dates}
+                return [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
+            logger.info("✅ 增量分析: 沒有新的工作日需要處理")
+            return []
+        return self.workdays
+
+    def _handle_absent_day(self, workday: WorkDay) -> bool:
+        from lib.policy import is_full_day_absent
+        if is_full_day_absent(workday):
+            if workday.is_friday and not workday.is_holiday:
+                self.issues.append(Issue(
+                    date=workday.date,
+                    type=IssueType.WFH,
+                    duration_minutes=9 * 60,
+                    description="建議申請整天WFH假 🏠💻",
+                ))
+            elif not workday.is_holiday:
+                self.issues.append(Issue(
+                    date=workday.date,
+                    type=IssueType.WEEKDAY_LEAVE,
+                    duration_minutes=8 * 60,
+                    description="整天沒進公司，建議請假 📝🏠",
+                ))
+            return True
+        return False
+
+    def _analyze_single_workday(self, workday: WorkDay, rules) -> None:
+        from lib.policy import calculate_late_minutes, calculate_overtime_minutes
+        if self._handle_absent_day(workday):
+            return
+        if workday.is_friday:
+            return
+        late_minutes, late_time_range, late_calculation = calculate_late_minutes(workday, rules)
+        if late_minutes > 0:
+            month_key = workday.date.strftime('%Y-%m')
+            can_use_forget_punch = (
+                late_minutes <= self.config.forget_punch_max_minutes and
+                self.forget_punch_usage[month_key] < self.config.forget_punch_allowance_per_month
+            )
+            if can_use_forget_punch:
+                self.forget_punch_usage[month_key] += 1
+                remaining = self.config.forget_punch_allowance_per_month - self.forget_punch_usage[month_key]
+                self.issues.append(Issue(
+                    date=workday.date,
+                    type=IssueType.FORGET_PUNCH,
+                    duration_minutes=0,
+                    description=f"遲到{late_minutes}分鐘，建議使用忘刷卡 🔄✅",
+                    time_range=late_time_range,
+                    calculation=f"{late_calculation} (使用忘刷卡，本月剩餘: {remaining}次)",
+                ))
+            else:
+                reason = "超過1小時" if late_minutes > self.config.forget_punch_max_minutes else "本月忘刷卡額度已用完"
+                self.issues.append(Issue(
+                    date=workday.date,
+                    type=IssueType.LATE,
+                    duration_minutes=late_minutes,
+                    description=f"遲到{late_minutes}分鐘 ⏱️ ({reason})",
+                    time_range=late_time_range,
+                    calculation=late_calculation,
+                ))
+        actual_overtime, applicable_overtime, overtime_time_range, overtime_calculation = calculate_overtime_minutes(workday, rules)
+        if applicable_overtime >= self.config.min_overtime_minutes:
+            self.issues.append(Issue(
+                date=workday.date,
+                type=IssueType.OVERTIME,
+                duration_minutes=applicable_overtime,
+                description=f"加班{applicable_overtime // 60}小時{applicable_overtime % 60}分鐘 💼",
+                time_range=overtime_time_range,
+                calculation=overtime_calculation,
+            ))
     
     def _update_processing_state(self) -> None:
         """更新處理狀態到狀態檔案"""
@@ -493,27 +479,25 @@ class AttendanceAnalyzer:
 
         status_tuple = None
         if self.incremental_mode and not self.issues and self.current_user:
-            complete_days = self._identify_complete_work_days()
-            if complete_days:
-                last_date = max(complete_days).strftime('%Y/%m/%d')
-                unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
-                # 讀取上次分析時間
-                last_analysis_time = ""
-                if self.state_manager and self.current_user:
-                    user_data = self.state_manager.state_data.get("users", {}).get(self.current_user, {})
-                    ranges = user_data.get("processed_date_ranges", [])
-                    if ranges:
-                        last_analysis_time = max((r.get("last_analysis_time", "") for r in ranges), default="")
-                if not unprocessed_dates:
-                    status_tuple = (last_date, len(complete_days), last_analysis_time)
+            status_tuple = self._compute_incremental_status_row()
 
         csv_exporter.save_csv(filepath, self.issues, self.incremental_mode, status_tuple)
     
     def export_excel(self, filepath: str) -> None:
-        """匯出Excel格式報告"""
+        """匯出Excel格式報告（直接使用 openpyxl，避免循環導入）"""
+        # Probe legacy exporter availability to keep warning behavior for tests
         try:
-            from lib import excel_exporter
-        except ImportError:
+            from lib import excel_exporter  # noqa: F401
+        except Exception:
+            logger.warning("⚠️  警告: 未安裝 openpyxl，回退使用CSV格式")
+            logger.info("💡 安裝指令: pip install openpyxl")
+            csv_filepath = filepath.replace('.xlsx', '.csv')
+            self.export_csv(csv_filepath)
+            logger.info("✅ CSV報告已匯出: %s", csv_filepath)
+            return
+        try:
+            from openpyxl import Workbook  # type: ignore
+        except Exception:
             logger.warning("⚠️  警告: 未安裝 openpyxl，回退使用CSV格式")
             logger.info("💡 安裝指令: pip install openpyxl")
             csv_filepath = filepath.replace('.xlsx', '.csv')
@@ -521,48 +505,60 @@ class AttendanceAnalyzer:
             logger.info("✅ CSV報告已匯出: %s", csv_filepath)
             return
 
-        wb, ws, header_font, header_fill, border, center_alignment = (
-            excel_exporter.init_workbook()
-        )
-
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "考勤分析"
         headers = ['日期', '類型', '時長(分鐘)', '說明', '時段', '計算式']
         if self.incremental_mode:
             headers.append('狀態')
-        excel_exporter.write_headers(
-            ws, headers, header_font, header_fill, border, center_alignment
-        )
+        ws.append(headers)
 
-        data_start_row = 2
+        data_start_appended = False
         if self.incremental_mode and not self.issues and self.current_user:
-            complete_days = self._identify_complete_work_days()
-            if complete_days:
-                last_date = max(complete_days).strftime('%Y/%m/%d')
-                unprocessed_dates = self._get_unprocessed_dates(
-                    self.current_user, complete_days
-                )
-                # 讀取上次分析時間
-                last_analysis_time = ""
-                if self.state_manager and self.current_user:
-                    user_data = self.state_manager.state_data.get("users", {}).get(self.current_user, {})
-                    ranges = user_data.get("processed_date_ranges", [])
-                    if ranges:
-                        last_analysis_time = max((r.get("last_analysis_time", "") for r in ranges), default="")
-                if not unprocessed_dates:
-                    data_start_row = excel_exporter.write_status_row(
-                        ws, last_date, len(complete_days), last_analysis_time, border, center_alignment
-                    )
+            status_tuple = self._compute_incremental_status_row()
+            if status_tuple:
+                last_date, total, last_time = status_tuple
+                ws.append([
+                    last_date, '狀態資訊', 0,
+                    f"📊 增量分析完成，已處理至 {last_date}，共 {total} 個完整工作日 | 上次分析時間: {last_time}",
+                    '', '','系統狀態'
+                ])
+                data_start_appended = True
 
-        excel_exporter.write_issue_rows(
-            ws,
-            self.issues,
-            data_start_row,
-            self.incremental_mode,
-            border,
-            center_alignment,
-        )
+        for issue in self.issues:
+            row = [
+                issue.date.strftime('%Y/%m/%d'),
+                issue.type.value,
+                issue.duration_minutes,
+                issue.description,
+                issue.time_range,
+                issue.calculation,
+            ]
+            if self.incremental_mode:
+                row.append('[NEW] 本次新發現' if issue.is_new else '已存在')
+            ws.append(row)
 
-        excel_exporter.set_column_widths(ws, self.incremental_mode)
-        excel_exporter.save_workbook(wb, filepath)
+        # Atomic write
+        tmp_path = filepath + '.tmp'
+        wb.save(tmp_path)
+        import os as _os
+        _os.replace(tmp_path, filepath)
+        return
+
+    def _compute_incremental_status_row(self) -> Optional[Tuple[str, int, str]]:
+        complete_days = self._identify_complete_work_days()
+        if not complete_days:
+            return None
+        unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days) if self.current_user else []
+        if unprocessed_dates:
+            return None
+        last_date = max(complete_days).strftime('%Y/%m/%d')
+        last_time = ""
+        if self.state_manager and self.current_user:
+            last_time = self.state_manager.get_last_analysis_time(self.current_user)
+        return (last_date, len(complete_days), last_time)
+
+        
 
     def export_report(self, filepath: str, format_type: str = 'excel') -> None:
         """統一匯出介面

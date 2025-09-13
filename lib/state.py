@@ -42,6 +42,12 @@ class AttendanceStateManager:
             return 0
         return self.state_data["users"][user_name].get("forget_punch_usage", {}).get(year_month, 0)
 
+    def get_last_analysis_time(self, user_name: str) -> str:
+        if user_name not in self.state_data.get("users", {}):
+            return ""
+        ranges = self.state_data["users"][user_name].get("processed_date_ranges", [])
+        return max((r.get("last_analysis_time", "") for r in ranges), default="")
+
     def update_user_state(self, user_name: str, new_range: Dict[str, str],
                           forget_punch_usage: Dict[str, int] = None) -> None:
         if user_name not in self.state_data["users"]:
@@ -96,9 +102,23 @@ def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
             # skip malformed range
             continue
 
+    # Merge ranges for faster membership checks
+    norm_ranges.sort(key=lambda t: t[0])
+    merged: List[Tuple[datetime, datetime]] = []
+    for s, e in norm_ranges:
+        if not merged or s > merged[-1][1]:
+            merged.append((s, e))
+        else:
+            prev_s, prev_e = merged[-1]
+            merged[-1] = (prev_s, max(prev_e, e))
+
+    # Binary search membership over merged ranges
+    import bisect
+    starts = [s for s, _ in merged]
     for day_dt in complete_days:
         day = day_dt.date()
-        if any(s <= day <= e for s, e in norm_ranges):
+        i = bisect.bisect_right(starts, day) - 1
+        if i >= 0 and merged[i][0] <= day <= merged[i][1]:
             continue
         out.append(day_dt)
     return out

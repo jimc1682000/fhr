@@ -115,29 +115,9 @@ class AttendanceAnalyzer:
     
     
     def _identify_complete_work_days(self) -> List[datetime]:
-        """識別完整的工作日（有上班和下班記錄的日期）
-        Returns:
-            完整工作日的日期清單
-        """
-        complete_days = []
-        daily_records = defaultdict(lambda: {'checkin': False, 'checkout': False})
-
-        # 按日期分組記錄
-        for record in self.records:
-            if not record.date:
-                continue
-
-            if record.type == AttendanceType.CHECKIN:
-                daily_records[record.date]['checkin'] = True
-            else:
-                daily_records[record.date]['checkout'] = True
-        
-        # 找出有上班和下班記錄的完整工作日
-        for date, records in daily_records.items():
-            if records['checkin'] and records['checkout']:
-                complete_days.append(datetime.combine(date, datetime.min.time()))
-        
-        return sorted(complete_days)
+        """識別完整的工作日（委派至 lib.dates）"""
+        from lib.dates import identify_complete_work_days
+        return identify_complete_work_days(self.records)
     
     def _get_unprocessed_dates(self, user_name: str, complete_days: List[datetime]) -> List[datetime]:
         """取得需要處理的新日期（排除已處理的重疊日期）
@@ -184,12 +164,9 @@ class AttendanceAnalyzer:
         self.forget_punch_usage.update(previous_usage)
     
     def _get_years_from_records(self) -> set:
-        """從出勤記錄中提取年份"""
-        years = set()
-        for record in self.records:
-            if record.date:
-                years.add(record.date.year)
-        return years
+        """從出勤記錄中提取年份（委派至 lib.dates）"""
+        from lib.dates import years_from_records
+        return years_from_records(self.records)
     
     def _load_taiwan_holidays(self, years: set = None) -> None:
         """載入台灣國定假日資料

@@ -34,8 +34,6 @@ def parse_line(line: str) -> Optional[Tuple[Optional[datetime], Optional[datetim
     """
     line = clean_line(line)
     fields = split_fields(line)
-    if len(fields) < 3:
-        return None
     scheduled_str, actual_str, type_str = fields[0], fields[1], fields[2]
     card_num, source, status = fields[3], fields[4], fields[5]
     processed, operation, note = fields[6], fields[7], fields[8]
@@ -59,4 +57,3 @@ def parse_line(line: str) -> Optional[Tuple[Optional[datetime], Optional[datetim
         operation,
         note,
     )
-

@@ -67,3 +67,5 @@ class TestStatusRowTimestamp(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+"""Category: Export/StatusRow
+Purpose: Status row includes last analysis timestamp for CSV/Excel."""

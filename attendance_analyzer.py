@@ -700,7 +700,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# Typing-time imports to satisfy static analyzers without importing at runtime.
-if TYPE_CHECKING:  # pragma: no cover
-    from lib.state import AttendanceStateManager  # noqa: F401

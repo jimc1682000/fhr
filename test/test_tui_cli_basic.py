@@ -83,6 +83,26 @@ class TestTuiCliBasic(unittest.TestCase):
 
         cli.run(["prog", "sample-attendance-data.txt", "csv"])
 
+    def test_tui_missing_top_level_tui_module(self):
+        # Force 'from tui import launch_tui' to fail to cover lib.cli except-branch
+        import builtins
+        from lib import cli
+        from unittest import mock as _mock
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "tui":
+                raise ImportError("no tui")
+            return real_import(name, *args, **kwargs)
+
+        argv = ["prog", "sample-attendance-data.txt", "csv", "--tui"]
+
+        with _mock.patch("builtins.__import__", side_effect=fake_import):
+            with self.assertRaises(SystemExit) as cm:
+                cli.run(argv)
+            self.assertEqual(cm.exception.code, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

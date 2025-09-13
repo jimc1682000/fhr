@@ -2,7 +2,7 @@ import json
 import os
 import logging
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Iterable
 
 
 logger = logging.getLogger(__name__)
@@ -76,3 +76,29 @@ class AttendanceStateManager:
                 overlaps.append((overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")))
         return overlaps
 
+
+def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
+                             complete_days: Iterable[datetime]) -> List[datetime]:
+    """Return dates in complete_days not covered by any processed range.
+
+    processed_ranges: List of dicts with 'start_date'/'end_date' in YYYY-MM-DD.
+    complete_days: Iterable of datetime (date at 00:00).
+    Inclusive range check: start <= day <= end.
+    """
+    out: List[datetime] = []
+    norm_ranges: List[Tuple[datetime, datetime]] = []
+    for r in processed_ranges or []:
+        try:
+            s = datetime.strptime(r["start_date"], "%Y-%m-%d").date()
+            e = datetime.strptime(r["end_date"], "%Y-%m-%d").date()
+            norm_ranges.append((s, e))
+        except Exception:
+            # skip malformed range
+            continue
+
+    for day_dt in complete_days:
+        day = day_dt.date()
+        if any(s <= day <= e for s, e in norm_ranges):
+            continue
+        out.append(day_dt)
+    return out

@@ -120,33 +120,12 @@ class AttendanceAnalyzer:
         return identify_complete_work_days(self.records)
     
     def _get_unprocessed_dates(self, user_name: str, complete_days: List[datetime]) -> List[datetime]:
-        """取得需要處理的新日期（排除已處理的重疊日期）
-        Args:
-            user_name: 使用者姓名
-            complete_days: 完整工作日清單
-        Returns:
-            需要處理的日期清單
-        """
+        """取得需要處理的新日期（委派至 lib.state.filter_unprocessed_dates）"""
         if not self.state_manager or not self.incremental_mode:
             return complete_days
-        
+        from lib.state import filter_unprocessed_dates
         processed_ranges = self.state_manager.get_user_processed_ranges(user_name)
-        unprocessed_dates = []
-        
-        for day in complete_days:
-            day_str = day.strftime("%Y-%m-%d")
-            is_processed = False
-            
-            # 檢查這個日期是否已在之前處理過的範圍內
-            for range_info in processed_ranges:
-                if range_info["start_date"] <= day_str <= range_info["end_date"]:
-                    is_processed = True
-                    break
-            
-            if not is_processed:
-                unprocessed_dates.append(day)
-        
-        return unprocessed_dates
+        return filter_unprocessed_dates(processed_ranges, complete_days)
     
     def _load_previous_forget_punch_usage(self, user_name: str) -> None:
         """載入之前的忘刷卡使用統計"""

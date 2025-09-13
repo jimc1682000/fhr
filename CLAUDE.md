@@ -43,7 +43,11 @@ python3 attendance_analyzer.py sample-attendance-data.txt csv
 
 ### Running Unit Tests
 ```bash
-python3 -m unittest test.test_attendance_analyzer
+# full suite (quiet)
+python3 -m unittest -q
+
+# run a specific test module
+python3 -m unittest -q test.test_holiday_api_resilience
 ```
 
 ### File Format Requirements
@@ -191,7 +195,10 @@ Key methods:
   - WFH: Light green background
   - Forget punch: Light orange background
 - **NEW**: Status column in incremental mode showing "[NEW]" vs existing issues
-- Auto-adjusted column widths
+- **NEW**: If no new issues in incremental mode, row 2 outputs a status row including
+  the last processed date and the "last_analysis_time"
+- Auto-adjusted column widths (incremental mode widens Calculation column to 40 and
+  Status column to 24 for readability)
 - Cross-platform compatibility (Windows/Mac/Linux)
 - Requires `openpyxl` library (auto-fallback to CSV if unavailable)
 
@@ -199,13 +206,24 @@ Key methods:
 - File naming: `<original_filename>_analysis.csv`
 - UTF-8-BOM encoding for Mac Excel compatibility
 - Semicolon-delimited for proper Excel parsing
-- **NEW**: Status column in incremental mode for tracking new vs existing issues
+- **NEW**: Status column in incremental mode for tracking new vs existing issues;
+  if no new issues, outputs a status row including "last_analysis_time"
 - Includes emoji indicators and detailed calculation explanations
 
 #### Terminal Report - Enhanced
 - **NEW**: Incremental analysis statistics (processed/skipped days)
 - **NEW**: User identification and date range information
 - All existing formatting and emoji indicators preserved
+
+### Holiday API Resilience (Important)
+- Dynamic holiday loading uses retries with exponential backoff and jitter; non‑retryable
+  4xx (e.g., 403) fails fast. On persistent failure it falls back to basic holidays.
+- Environment variables (override defaults):
+  - `HOLIDAY_API_MAX_RETRIES` (default: 3)
+  - `HOLIDAY_API_BACKOFF_BASE` (default: 0.5)
+  - `HOLIDAY_API_MAX_BACKOFF` (default: 8)
+- Tests must mock `urllib.request.urlopen`; do not perform real network calls. To keep
+  tests fast/deterministic, set the backoff env vars to 0 in test setup.
 
 ### Privacy Considerations
 The .gitignore is configured to exclude real employee data files while preserving sample files for testing. Never commit files matching patterns like:
@@ -218,7 +236,7 @@ The .gitignore is configured to exclude real employee data files while preservin
 ## Testing and Validation
 
 ### Unit Tests
-The system includes comprehensive unit tests (21 tests, 100% passing) in `test/test_attendance_analyzer.py` covering:
+The system includes comprehensive unit tests across multiple files under `test/` covering:
 
 #### Core Business Logic (8 tests)
 - Basic file parsing and data grouping
@@ -230,14 +248,21 @@ The system includes comprehensive unit tests (21 tests, 100% passing) in `test/t
 - Error handling for empty files
 - Cross-year attendance data processing
 
-#### Export and Output (3 tests)
-- CSV export functionality
-- Excel export functionality with formatting validation
-- Unified export interface testing
+#### Export and Output
+- CSV export functionality (status column and status row when applicable)
+- Excel export with formatting/headers/status row
+- Column widths in incremental mode (calculation/status columns wider)
 
-#### Advanced Features (3 tests)
+#### Advanced Features
 - Taiwan holiday recognition (hardcoded 2025 + dynamic loading)
+- Holiday API retry/timeout/5xx fallback scenarios
+- Friday WFH on national holiday edge case
+- Overtime hourly rounding edges
 - Cross-year data processing with holiday loading
+
+## Logging & Privacy Notes
+- Use `logging` (info/warning/error) for user‑visible messages; avoid `print`.
+- Prefer absolute dates (YYYY‑MM‑DD) in logs to avoid ambiguity.
 - Data structure validation (3 sub-tests)
 
 #### **NEW: Incremental Analysis & Backup (5 tests)**

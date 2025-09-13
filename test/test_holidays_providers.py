@@ -91,4 +91,5 @@ class TestHolidaysProviders(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Holidays/Providers
+Purpose: Validate hardcoded/basic providers and service fallbacks."""

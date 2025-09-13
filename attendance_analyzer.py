@@ -9,10 +9,7 @@ import sys
 import json
 import os
 import logging
-import time
-import ssl
-import random
-import socket
+import time  # unused; kept previously, now removed for clarity
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
@@ -210,22 +207,6 @@ class AttendanceAnalyzer:
                 self.holidays |= service.load_year(year)
                 self.loaded_holiday_years.add(year)
     
-    def _load_hardcoded_2025_holidays(self) -> None:
-        """載入硬編碼的2025年國定假日（委派 lib.holidays）"""
-        from lib.holidays import Hardcoded2025Provider
-        self.holidays |= Hardcoded2025Provider().load(2025)
-    
-    def _load_dynamic_holidays(self, year: int) -> None:
-        """動態載入指定年份的國定假日
-        Args:
-            year: 要載入的年份
-        """
-        logger.info("資訊: 動態載入 %d 年國定假日...", year)
-        success = self._try_load_from_gov_api(year)
-        if not success:
-            self._load_basic_holidays(year)
-            logger.warning("無法取得 %d 年完整假日資料，僅載入基本固定假日", year)
-    
     def _try_load_from_gov_api(self, year: int) -> bool:
         # 向後相容：保留本模組內的 scheme 檢查（供單元測試 patch）
         url = "https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={\"date\":\"%s\"}" % year
@@ -239,10 +220,6 @@ class AttendanceAnalyzer:
             self.holidays |= out
             return True
         return False
-
-    def _load_basic_holidays(self, year: int) -> None:
-        from lib.holidays import BasicFixedProvider
-        self.holidays |= BasicFixedProvider().load(year)
     
     def parse_attendance_file(self, filepath: str, incremental: bool = True) -> None:
         """解析考勤資料檔案並初始化增量處理
@@ -520,65 +497,6 @@ class AttendanceAnalyzer:
         self.state_manager.save_state()
         logger.info("💾 已更新處理狀態: %s 至 %s", start_date, end_date)
     
-    def _calculate_late_minutes(self, workday: WorkDay) -> tuple:
-        """計算遲到分鐘數，返回 (分鐘數, 時段, 計算式)"""
-        if not workday.checkin_record or not workday.checkin_record.actual_time:
-            return 0, "", ""
-        
-        latest_checkin = datetime.strptime(f"{workday.date.strftime('%Y/%m/%d')} {self.LATEST_CHECKIN}", "%Y/%m/%d %H:%M")
-        actual_checkin = workday.checkin_record.actual_time
-        
-        if actual_checkin > latest_checkin:
-            delta = actual_checkin - latest_checkin
-            late_minutes = int(delta.total_seconds() // 60)
-            
-            # 如果遲到超過2小時，需要扣除午休時間
-            if late_minutes > 120:  # 超過2小時
-                lunch_start = datetime.strptime(f"{workday.date.strftime('%Y/%m/%d')} {self.LUNCH_START}", "%Y/%m/%d %H:%M")
-                lunch_end = datetime.strptime(f"{workday.date.strftime('%Y/%m/%d')} {self.LUNCH_END}", "%Y/%m/%d %H:%M")
-                
-                # 如果上班時間跨越午休時段，扣除午休時間
-                if actual_checkin > lunch_start:
-                    late_minutes -= 60  # 扣除1小時午休
-                    calculation = f"實際上班: {actual_checkin.strftime('%H:%M')}, 最晚上班: {self.LATEST_CHECKIN}, 遲到: {int(delta.total_seconds() // 60)}分鐘 - 60分鐘午休 = {late_minutes}分鐘"
-                else:
-                    calculation = f"實際上班: {actual_checkin.strftime('%H:%M')}, 最晚上班: {self.LATEST_CHECKIN}, 遲到: {late_minutes}分鐘"
-            else:
-                calculation = f"實際上班: {actual_checkin.strftime('%H:%M')}, 最晚上班: {self.LATEST_CHECKIN}, 遲到: {late_minutes}分鐘"
-            
-            time_range = f"{self.LATEST_CHECKIN}~{actual_checkin.strftime('%H:%M')}"
-            return late_minutes, time_range, calculation
-        
-        return 0, "", ""
-    
-    def _calculate_overtime_minutes(self, workday: WorkDay) -> tuple:
-        """計算加班分鐘數，返回 (實際分鐘數, 可申請分鐘數, 時段, 計算式)"""
-        if (not workday.checkin_record or not workday.checkin_record.actual_time or
-            not workday.checkout_record or not workday.checkout_record.actual_time):
-            return 0, 0, "", ""
-        
-        checkin_time = workday.checkin_record.actual_time
-        checkout_time = workday.checkout_record.actual_time
-        
-        # 計算應下班時間 = 上班時間 + 8小時工作 + 1小時午休
-        expected_checkout = checkin_time + timedelta(hours=self.WORK_HOURS + self.LUNCH_HOURS)
-        
-        if checkout_time > expected_checkout:
-            delta = checkout_time - expected_checkout
-            actual_overtime_minutes = int(delta.total_seconds() // 60)
-            
-            # 按半小時間隔計算可申請時數
-            if actual_overtime_minutes >= self.MIN_OVERTIME_MINUTES:
-                # 計算可申請的半小時間隔數
-                intervals = (actual_overtime_minutes - self.MIN_OVERTIME_MINUTES) // self.OVERTIME_INCREMENT_MINUTES
-                applicable_minutes = self.MIN_OVERTIME_MINUTES + (intervals * self.OVERTIME_INCREMENT_MINUTES)
-                
-                time_range = f"{expected_checkout.strftime('%H:%M')}~{checkout_time.strftime('%H:%M')}"
-                calculation = f"預期下班: {expected_checkout.strftime('%H:%M')}, 實際下班: {checkout_time.strftime('%H:%M')}, 實際加班: {actual_overtime_minutes}分鐘, 可申請: {applicable_minutes}分鐘"
-                
-                return actual_overtime_minutes, applicable_minutes, time_range, calculation
-        
-        return 0, 0, "", ""
     
     
     def generate_report(self) -> str:
@@ -738,26 +656,6 @@ class AttendanceAnalyzer:
         excel_exporter.set_column_widths(ws, self.incremental_mode)
         excel_exporter.save_workbook(wb, filepath)
 
-    def _backup_existing_file(self, filepath: str) -> None:
-        """備份現有檔案（如果存在），使用時間戳記作為後綴
-        Args:
-            filepath: 要檢查並備份的檔案路徑
-        """
-        import os
-        from datetime import datetime
-        
-        if os.path.exists(filepath):
-            # 產生時間戳記後綴 (格式: YYYYMMDD_HHMMSS)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            
-            # 分離檔名和副檔名
-            base_name, ext = os.path.splitext(filepath)
-            backup_filepath = f"{base_name}_{timestamp}{ext}"
-            
-            # 備份檔案
-            os.rename(filepath, backup_filepath)
-            logger.info("📦 備份現有檔案: %s", os.path.basename(backup_filepath))
-    
     def export_report(self, filepath: str, format_type: str = 'excel') -> None:
         """統一匯出介面
         Args:
@@ -768,7 +666,7 @@ class AttendanceAnalyzer:
         from lib.backup import backup_with_timestamp
         backup_path = backup_with_timestamp(filepath)
         if backup_path:
-            print(f"📦 備份現有檔案: {os.path.basename(backup_path)}")
+            logger.info("📦 備份現有檔案: %s", os.path.basename(backup_path))
         
         if format_type.lower() == 'csv':
             self.export_csv(filepath)

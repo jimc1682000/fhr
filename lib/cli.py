@@ -47,13 +47,21 @@ def run(argv: Optional[list] = None) -> None:
                         help='清除指定使用者的狀態記錄')
     parser.add_argument('--tui', action='store_true', help='啟動 Textual TUI（需 Python 3.8+）')
 
-    args = parser.parse_args(argv[1:] if argv is not None else None)
+    raw = argv[1:] if argv is not None else None
+    use_tui_flag = False
+    if raw is None:
+        import sys as _sys
+        raw = _sys.argv[1:]
+    if '--tui' in raw:
+        use_tui_flag = True
+
+    args = parser.parse_args(raw)
 
     filepath = args.filepath
     format_type = args.format
     incremental_mode = args.incremental and not args.full
 
-    if args.tui:
+    if args.tui or use_tui_flag:
         # Lazy import textual via tui.launch_tui; provide friendly message if missing
         prefill = {
             'filepath': filepath,
@@ -70,7 +78,13 @@ def run(argv: Optional[list] = None) -> None:
             )
             sys.exit(1)
         # Do not run analysis here; hand off to TUI
-        launch_tui(prefill)
+        try:
+            launch_tui(prefill)
+        except ImportError:
+            logging.getLogger(__name__).error(
+                "未安裝 Textual，請先執行可選安裝：pip install .[tui]"
+            )
+            sys.exit(1)
         return
 
     if args.reset_state:

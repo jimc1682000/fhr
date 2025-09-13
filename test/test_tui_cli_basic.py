@@ -57,7 +57,7 @@ class TestTuiCliBasic(unittest.TestCase):
         def fake_launch(prefill):
             called['prefill'] = prefill
 
-        with mock.patch('tui.__init__.launch_tui', side_effect=fake_launch):
+        with mock.patch('tui.launch_tui', side_effect=fake_launch):
             # Avoid importing textual inside launcher during this test
             from lib import cli
             # Should not SystemExit when launcher exists
@@ -73,4 +73,3 @@ class TestTuiCliBasic(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

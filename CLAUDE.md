@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Python-based attendance analysis system that processes employee attendance records from HR portals and calculates late arrivals, overtime, work-from-home (WFH) recommendations, and forget-punch suggestions. The system is designed for companies with flexible working hours in Taiwan.
 
+## Requirements
+
+- Python 3.8+ (project baseline)
+- Optional: `openpyxl` for Excel export
+- Upcoming TUI (Textual) requires Python 3.8+ and the `textual` package
+
 ## Core Commands
 
 ### Running the Analyzer

@@ -17,7 +17,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Optional Excel support: `pip install openpyxl`.
 
 ## Coding Style & Naming Conventions
-- Python 3.6+; follow PEP 8 (4‑space indentation, 100‑char soft wrap).
+- Python 3.8+; follow PEP 8 (4‑space indentation, 100‑char soft wrap).
 - Names: functions `snake_case`, classes `PascalCase`, constants `UPPER_SNAKE_CASE`.
 - Prefer standard library; add deps only when necessary and documented.
 - Use `logging` (logger.info/warning/error) for user‑visible messages; avoid `print`.

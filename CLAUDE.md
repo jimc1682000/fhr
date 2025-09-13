@@ -303,3 +303,8 @@ Real-world testing scenarios have been validated:
 
 ### Sample Data Testing
 Use `sample-attendance-data.txt` for integration testing - it contains various scenarios including normal check-ins, tardiness, overtime, absences, and Friday WFH cases. The corresponding `sample-attendance-data_analysis.csv` shows expected output format.
+# TUI (Preview)
+
+- Optional dependency via extras: `pip install .[tui]`
+- Start with: `python3 attendance_analyzer.py <file> [format] --tui`
+- Env for language override: `FHR_LANG=zh_TW` or `FHR_LANG=en`

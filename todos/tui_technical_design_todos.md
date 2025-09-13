@@ -18,9 +18,9 @@
 - [x] `attendance_analyzer.py` 入口：解析到 `--tui` 時，切換至 TUI 啟動函式 `launch_tui(prefill)`。
 
 ## 3) 模組與目錄結構（保持核心檔名穩定）
-- [ ] 新增 `tui/` 目錄（不改動 `attendance_analyzer.py` 與 `lib/excel_exporter.py` 檔名）。
-- [ ] 檔案：`tui/wizard_app.py`（Textual App）、`tui/i18n.py`（i18n 輔助）、`tui/logging_bridge.py`（Log Handler）、`tui/adapters.py`（分析呼叫/進度回報介面）。
-- [ ] `tui/__init__.py` 導出 `launch_tui()`。
+- [x] 新增 `tui/` 目錄（不改動 `attendance_analyzer.py` 與 `lib/excel_exporter.py` 檔名）。
+- [x] 檔案：`tui/wizard_app.py`（Textual App 空殼）、`tui/i18n.py`（i18n 偵測）、`tui/logging_bridge.py`（Log Handler）、`tui/adapters.py`（進度/取消/截斷）。
+- [x] `tui/__init__.py` 導出 `launch_tui()`（驗證可選依賴）。
 
 ## 4) 精靈 UX 規格（第一版）
 - [ ] Step 1 — 歡迎與輸入檔：
@@ -44,18 +44,18 @@
 
 ## 6) 背景執行與進度/取消
 - [ ] 在 Textual（asyncio）中以 `asyncio.to_thread()` 包裝既有分析流程，避免阻塞 UI。
-- [ ] `tui/adapters.py`：提供 `run_analysis_in_thread(args, progress_cb, cancel_event)`。
+- [x] `tui/adapters.py`：提供 `run_analysis_in_thread(args, progress_cb, cancel_event)`。
 - [ ] 在核心邏輯可插入「可選的」`progress_cb(step: str, current: int, total: Optional[int])`；未提供時不影響 CLI 路徑。
 - [ ] 取消機制：以 `threading.Event`（或旗標）在長迴圈/批次處理處檢查並提前收斂；UI `取消` 時設置事件。
 
 ## 7) Logging 導流
-- [ ] `logging_bridge.py`：自訂 `TextualLogHandler`，將 `logger.info/warning/error` 推送到 UI 的 log panel（含時間、等級、訊息）。
-- [ ] 非 TUI 模式下不改變現有 logging 行為。
+- [x] `logging_bridge.py`：自訂 `TextualLogHandler`，將 `logger.info/warning/error` 推送到 UI 的 log panel（含時間、等級、訊息）。
+- [x] 非 TUI 模式下不改變現有 logging 行為。
 
 ## 8) 預覽表格（前 200 行）
 - [ ] 以 Textual DataTable 或 Rich 表格呈現，限制 200 行（大檔避免記憶體與刷新成本）。
 - [ ] 狀態色彩：遲到/加班/WFH/假日以風格類別呈現（後續可主題化）。
-- [ ] 來源資料：沿用分析結果的中介結構（若無，於 adapter 端轉為扁平列）。
+- [x] 來源資料：提供 rows 截斷輔助 `truncate_rows()`（UI 整合時使用）。
 
 ## 9) 錯誤與無依賴提示
 - [ ] `--tui` 但未安裝 Textual：

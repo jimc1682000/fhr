@@ -34,7 +34,7 @@ class TestHolidayApiRetry(unittest.TestCase):
         os.environ["HOLIDAY_API_MAX_RETRIES"] = "3"
         calls = {"count": 0}
 
-        def flaky_urlopen(url, timeout=10, context=None):
+        def flaky_urlopen(url, timeout=10):
             calls["count"] += 1
             if calls["count"] < 3:
                 raise Exception("temporary failure")
@@ -62,7 +62,7 @@ class TestHolidayApiRetry(unittest.TestCase):
 
         calls = {"count": 0}
 
-        def always_fail(url, timeout=10, context=None):
+        def always_fail(url, timeout=10):
             calls["count"] += 1
             raise Exception("network down")
 
@@ -85,7 +85,7 @@ class TestHolidayApiRetry(unittest.TestCase):
             })
         ]
 
-        def seq_urlopen(url, timeout=10, context=None):
+        def seq_urlopen(url, timeout=10):
             v = seq.pop(0)
             if isinstance(v, Exception):
                 raise v
@@ -95,4 +95,3 @@ class TestHolidayApiRetry(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", side_effect=seq_urlopen):
             ok = analyzer._try_load_from_gov_api(2027)
         self.assertTrue(ok)
-

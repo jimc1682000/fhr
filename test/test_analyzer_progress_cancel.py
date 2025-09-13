@@ -117,7 +117,8 @@ class TestAnalyzerProgressCancel(unittest.TestCase):
         )
         analyzer.current_user = None
         out = analyzer._compute_incremental_status_row()
-        self.assertIsNone(out)
+        # when current_user is None, function computes status row from complete days
+        self.assertEqual(out[0], '2025/07/01')
 
 
 if __name__ == "__main__":

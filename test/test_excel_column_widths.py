@@ -20,4 +20,5 @@ class TestExcelColumnWidths(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Export/Excel
+Purpose: Column width rules for incremental and full modes."""

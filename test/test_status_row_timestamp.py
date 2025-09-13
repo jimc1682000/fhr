@@ -9,14 +9,10 @@ from attendance_analyzer import AttendanceAnalyzer
 
 class TestStatusRowTimestamp(unittest.TestCase):
     def _run_clean_case(self):
-        text = (
-            "應刷卡時段	當日卡鐘資料	刷卡別	卡鐘編號	資料來源	異常狀態	處理狀態	異常處理作業	備註
-"
-            "2025/07/01 08:00	2025/07/01 09:00	上班	1	刷卡匯入				
-"
-            "2025/07/01 17:00	2025/07/01 18:00	下班	1	刷卡匯入				
-"
-        )
+        text = """應刷卡時段	當日卡鐘資料	刷卡別	卡鐘編號	資料來源	異常狀態	處理狀態	異常處理作業	備註
+2025/07/01 08:00	2025/07/01 09:00	上班	1	刷卡匯入				
+2025/07/01 17:00	2025/07/01 18:00	下班	1	刷卡匯入				
+"""
         tmpdir = tempfile.mkdtemp()
         valid_named = os.path.join(tmpdir, '202507-王小明-出勤資料.txt')
         with open(valid_named, 'w', encoding='utf-8') as f:

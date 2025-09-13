@@ -10,7 +10,7 @@
 ## 1) 依賴與安裝（可選 extras）
 - [ ] 新增 extras：`[tui]`，包含 `textual`（版本大於等於一個穩定小版，例如 `textual>=0.50`；實際鎖定待驗證）。
 - [ ] `pip install .[tui]` 指南加入 `README.md`，不影響非 TUI 使用者。
-- [ ] 非 TUI 路徑不 import Textual；`--tui` 才延遲 import，缺少依賴時提供友善錯誤訊息與安裝指引。
+- [x] 非 TUI 路徑不 import Textual；`--tui` 才延遲 import，缺少依賴時提供友善錯誤訊息與安裝指引。
 
 ## 2) CLI 整合（不破壞既有）
 - [ ] 新增旗標：`--tui`（預設關閉）。

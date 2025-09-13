@@ -46,6 +46,7 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 - 即將導入 Textual TUI（逐步精靈）。
 - TUI 僅支援 Python 3.8+。
 - 初版將以 `--tui` 旗標啟動；缺少依賴時提供安裝指引（`textual`）。
+- 可選安裝（TUI）：`pip install .[tui]`
 
 ### 常見錯誤提示
 

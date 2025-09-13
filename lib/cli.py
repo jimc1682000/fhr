@@ -45,12 +45,33 @@ def run(argv: Optional[list] = None) -> None:
                         help='強制完整重新分析')
     parser.add_argument('--reset-state', '-r', action='store_true',
                         help='清除指定使用者的狀態記錄')
+    parser.add_argument('--tui', action='store_true', help='啟動 Textual TUI（需 Python 3.8+）')
 
     args = parser.parse_args(argv[1:] if argv is not None else None)
 
     filepath = args.filepath
     format_type = args.format
     incremental_mode = args.incremental and not args.full
+
+    if args.tui:
+        # Lazy import textual via tui.launch_tui; provide friendly message if missing
+        prefill = {
+            'filepath': filepath,
+            'format': format_type,
+            'incremental': incremental_mode,
+            'full': args.full,
+            'reset_state': args.reset_state,
+        }
+        try:
+            from tui import launch_tui  # type: ignore
+        except Exception:
+            logging.getLogger(__name__).error(
+                "未安裝 Textual，請先執行可選安裝：pip install .[tui]"
+            )
+            sys.exit(1)
+        # Do not run analysis here; hand off to TUI
+        launch_tui(prefill)
+        return
 
     if args.reset_state:
         analyzer_temp = AttendanceAnalyzer()
@@ -107,4 +128,3 @@ def run(argv: Optional[list] = None) -> None:
     except Exception as e:
         logger.error("❌ 錯誤: %s", e)
         sys.exit(1)
-

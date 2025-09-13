@@ -114,7 +114,10 @@ python attendance_analyzer.py "sample-attendance-data.txt" csv
 - 檔案名：`<原檔名>_analysis.xlsx`
 - 包含精美格式化的分析報告
 - 類型色彩標示：遲到(紅)、加班(藍)、WFH(綠)、忘刷卡(橙)
-- 自動欄位寬度調整
+- 自動欄位寬度調整（增量模式時計算欄與狀態欄更寬，便於閱讀）
+- 增量模式下：
+  - 若本次無新問題，第二列會輸出「狀態資訊」列，內容包含「已處理至」與「上次分析時間」
+  - 若有新問題，會在「狀態」欄顯示 `[NEW] 本次新發現` 或 `已存在`
 - 跨平台相容（Windows/Mac/Linux）
 
 #### CSV格式（相容性選項）
@@ -130,6 +133,7 @@ python attendance_analyzer.py "sample-attendance-data.txt" csv
 - 時段資訊
 - 計算公式
 - **NEW**: 狀態（在增量模式下標示 `[NEW] 本次新發現` 或 `已存在`）
+  - 若本次無新問題，會輸出「狀態資訊」列並包含「上次分析時間」
 
 ### 實際使用範例
 
@@ -315,6 +319,7 @@ attendance_analyzer.py
 - API不可用時載入基本假日（元旦、國慶日）
 - 系統會顯示載入狀態資訊
   - 內建「重試 + 退避」機制：逾時/429/5xx 會自動重試數次，之後回退到基本假日
+  - 可透過環境變數調整重試策略（見「環境變數」章節）
 
 ### 載入過程
 ```
@@ -423,6 +428,18 @@ python3 -m unittest test.test_attendance_analyzer
 - `HOLIDAY_API_MAX_BACKOFF`：每次重試的最大等待秒數上限（預設 `8`）
 
 行為說明：在逾時、連線錯誤、HTTP 429/5xx 時進行重試，採用指數退避並加入少量抖動；重試失敗後會自動回退載入基本固定假日（元旦/國慶）。
+
+## Contributing
+
+- 規範與細節請見根目錄的 `AGENTS.md`（包含開發流程、測試覆蓋、假日 API 退避/回退策略）。
+- 進一步的實作細節（特別給 AI/自動化工具）請參考 `CLAUDE.md`：
+  - 假日 API 韌性策略與環境變數設定：參見 `CLAUDE.md` 的「Holiday API Resilience」
+  - 測試執行與單檔測試範例：參見「Running Unit Tests」
+  - Logging 與隱私注意事項：參見「Logging & Privacy Notes」
+- Commit 標題建議使用 Conventional Commits（可中英雙語），並在敘述附上 `Fixes #<issue>`。
+- 開 PR 時：摘要、動機、（如有）格式變更的輸出截圖/樣例、測試重點與回退方案。
+- 已開啟 PR 的分支，避免 force-push；若需要整理歷史，請以 `-v2` 新分支另開 PR 並在描述註明 supersedes。
+- Stacked PR 請設定正確 base 分支並保持差異最小。
 
 ## 疑難排解（Troubleshooting）
 

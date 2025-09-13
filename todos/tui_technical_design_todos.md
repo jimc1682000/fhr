@@ -13,9 +13,9 @@
 - [x] 非 TUI 路徑不 import Textual；`--tui` 才延遲 import，缺少依賴時提供友善錯誤訊息與安裝指引。
 
 ## 2) CLI 整合（不破壞既有）
-- [ ] 新增旗標：`--tui`（預設關閉）。
-- [ ] `--tui` 模式下，原本的「輸入檔、輸出格式、模式」可選擇性提供，若提供則作為精靈預填值（不立即執行）。
-- [ ] `attendance_analyzer.py` 入口：解析到 `--tui` 時，切換至 TUI 啟動函式 `launch_tui(prefill)`。
+- [x] 新增旗標：`--tui`（預設關閉）。
+- [x] `--tui` 模式下，原本的「輸入檔、輸出格式、模式」可選擇性提供，若提供則作為精靈預填值（不立即執行）。
+- [x] `attendance_analyzer.py` 入口：解析到 `--tui` 時，切換至 TUI 啟動函式 `launch_tui(prefill)`。
 
 ## 3) 模組與目錄結構（保持核心檔名穩定）
 - [ ] 新增 `tui/` 目錄（不改動 `attendance_analyzer.py` 與 `lib/excel_exporter.py` 檔名）。

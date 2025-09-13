@@ -69,9 +69,6 @@ jobs:
       - name: Ruff (critical rules only)
         run: |
           ruff check --select E9,F63,F7,F82 .
-      - name: Black (format new modules)
+      - name: Black (verify repository)
         run: |
-          black tui tools
-      - name: Black (verify)
-        run: |
-          black --check tui tools
+          black --check .

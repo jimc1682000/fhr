@@ -12,7 +12,7 @@ import logging
 import time  # unused; kept previously, now removed for clarity
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional, Callable, TYPE_CHECKING
+from typing import List, Dict, Tuple, Optional, Callable
 from dataclasses import dataclass
 from enum import Enum
 from urllib.parse import urlparse
@@ -90,7 +90,7 @@ class AttendanceAnalyzer:
             int
         )  # 追蹤每月忘刷卡使用次數 {年月: 次數}
         self.loaded_holiday_years: set = set()  # 追蹤已載入假日的年份
-        self.state_manager: Optional["AttendanceStateManager"] = None
+        self.state_manager: Optional[object] = None
         self.current_user: Optional[str] = None
         self.incremental_mode: bool = True
         self._progress_cb: Optional[Callable[[str, int, Optional[int]], None]] = None

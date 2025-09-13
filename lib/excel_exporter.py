@@ -1,5 +1,5 @@
 """Excel export helpers for attendance analyzer."""
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 from openpyxl import Workbook
 from openpyxl.styles import (
@@ -13,7 +13,7 @@ from openpyxl.styles import (
 from attendance_analyzer import Issue, IssueType
 
 
-def init_workbook() -> Tuple[Workbook, 'Worksheet', Font, PatternFill, Border, Alignment]:
+def init_workbook() -> Tuple[Workbook, Any, Font, PatternFill, Border, Alignment]:
     """Initialize workbook, worksheet, and basic styles."""
     wb = Workbook()
     ws = wb.active

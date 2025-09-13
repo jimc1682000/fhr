@@ -89,7 +89,7 @@ class AttendanceAnalyzer:
         self.holidays: set = set()  # 存放國定假日日期
         self.forget_punch_usage: Dict[str, int] = defaultdict(int)  # 追蹤每月忘刷卡使用次數 {年月: 次數}
         self.loaded_holiday_years: set = set()  # 追蹤已載入假日的年份
-        self.state_manager: Optional[AttendanceStateManager] = None
+        self.state_manager: Optional['AttendanceStateManager'] = None
         self.current_user: Optional[str] = None
         self.incremental_mode: bool = True
         self._progress_cb: Optional[Callable[[str, int, Optional[int]], None]] = None

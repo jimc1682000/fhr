@@ -14,12 +14,16 @@ import sys
 
 
 def compute_percent(coverdir: Path) -> float:
-    files = [p for p in coverdir.glob('*.cover') if p.name.startswith(('attendance_analyzer', 'lib.'))]
+    files = [
+        p
+        for p in coverdir.glob("*.cover")
+        if p.name.startswith(("attendance_analyzer", "lib."))
+    ]
     executed = missing = 0
     for p in files:
-        text = p.read_text(encoding='utf-8', errors='ignore').splitlines()
-        executed += sum(1 for line in text if re.match(r'^\s*\d+\s*:', line))
-        missing += sum(1 for line in text if line.strip().startswith('>>>>>>'))
+        text = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+        executed += sum(1 for line in text if re.match(r"^\s*\d+\s*:", line))
+        missing += sum(1 for line in text if line.strip().startswith(">>>>>>"))
     total = executed + missing
     if total == 0:
         return 100.0
@@ -28,8 +32,16 @@ def compute_percent(coverdir: Path) -> float:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--min', dest='minimum', type=float, default=95.0, help='minimum coverage percent required')
-    ap.add_argument('--dir', dest='coverdir', default='coverage_report', help='coverage directory')
+    ap.add_argument(
+        "--min",
+        dest="minimum",
+        type=float,
+        default=95.0,
+        help="minimum coverage percent required",
+    )
+    ap.add_argument(
+        "--dir", dest="coverdir", default="coverage_report", help="coverage directory"
+    )
     args = ap.parse_args()
 
     coverdir = Path(args.coverdir)
@@ -45,6 +57,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -14,8 +14,8 @@ class TestStatusRowTimestamp(unittest.TestCase):
 2025/07/01 17:00	2025/07/01 18:00	下班	1	刷卡匯入				
 """
         tmpdir = tempfile.mkdtemp()
-        valid_named = os.path.join(tmpdir, '202507-王小明-出勤資料.txt')
-        with open(valid_named, 'w', encoding='utf-8') as f:
+        valid_named = os.path.join(tmpdir, "202507-王小明-出勤資料.txt")
+        with open(valid_named, "w", encoding="utf-8") as f:
             f.write(text)
         analyzer = AttendanceAnalyzer()
         analyzer.incremental_mode = True
@@ -26,15 +26,15 @@ class TestStatusRowTimestamp(unittest.TestCase):
 
     def test_csv_status_has_timestamp(self):
         analyzer, named_path = self._run_clean_case()
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             out_csv = f.name
         try:
             analyzer.export_csv(out_csv)
-            with open(out_csv, encoding='utf-8-sig') as f:
-                rows = list(csv.reader(f, delimiter=';'))
+            with open(out_csv, encoding="utf-8-sig") as f:
+                rows = list(csv.reader(f, delimiter=";"))
             self.assertGreaterEqual(len(rows), 2)
             status_line = rows[1]
-            self.assertIn('上次分析時間:', status_line[3])
+            self.assertIn("上次分析時間:", status_line[3])
         finally:
             if os.path.exists(out_csv):
                 os.unlink(out_csv)
@@ -47,13 +47,13 @@ class TestStatusRowTimestamp(unittest.TestCase):
 
     def test_excel_status_has_timestamp(self):
         analyzer, named_path = self._run_clean_case()
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.xlsx', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".xlsx", delete=False) as f:
             out_xlsx = f.name
         try:
             analyzer.export_excel(out_xlsx)
             wb = load_workbook(out_xlsx)
             ws = wb.active
-            self.assertIn('上次分析時間:', ws['D2'].value)
+            self.assertIn("上次分析時間:", ws["D2"].value)
         finally:
             if os.path.exists(out_xlsx):
                 os.unlink(out_xlsx)
@@ -65,7 +65,7 @@ class TestStatusRowTimestamp(unittest.TestCase):
                 pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: Export/StatusRow
 Purpose: Status row includes last analysis timestamp for CSV/Excel."""

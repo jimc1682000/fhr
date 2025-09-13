@@ -9,37 +9,42 @@ class TestI18n(unittest.TestCase):
     def test_detect_language_env_override(self):
         with mock.patch.dict(os.environ, {"FHR_LANG": "en"}, clear=False):
             from tui.i18n import detect_language
-            self.assertEqual(detect_language(), 'en')
+
+            self.assertEqual(detect_language(), "en")
 
     def test_detect_language_default_chinese_for_zh_locale(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             import locale
-            with mock.patch('locale.getdefaultlocale', return_value=("zh_TW", "UTF-8")):
+
+            with mock.patch("locale.getdefaultlocale", return_value=("zh_TW", "UTF-8")):
                 from tui.i18n import detect_language
-                self.assertEqual(detect_language(), 'zh_TW')
+
+                self.assertEqual(detect_language(), "zh_TW")
 
     def test_translator_fallback_returns_msgid(self):
         from tui.i18n import get_translator
+
         _ = get_translator()
-        self.assertEqual(_('UNKNOWN_KEY'), 'UNKNOWN_KEY')
+        self.assertEqual(_("UNKNOWN_KEY"), "UNKNOWN_KEY")
 
 
 class TestLoggingBridge(unittest.TestCase):
     def test_textual_log_handler_appends_messages(self):
         from tui.logging_bridge import TextualLogHandler
         import logging
+
         sink = []
         handler = TextualLogHandler(sink)
-        handler.setFormatter(logging.Formatter('%(levelname)s:%(message)s'))
-        logger = logging.getLogger('tui-test')
+        handler.setFormatter(logging.Formatter("%(levelname)s:%(message)s"))
+        logger = logging.getLogger("tui-test")
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         try:
-            logger.info('hello')
-            logger.warning('warn')
+            logger.info("hello")
+            logger.warning("warn")
         finally:
             logger.removeHandler(handler)
-        self.assertEqual(sink, ['INFO:hello', 'WARNING:warn'])
+        self.assertEqual(sink, ["INFO:hello", "WARNING:warn"])
 
 
 class TestAdapters(unittest.TestCase):
@@ -53,7 +58,7 @@ class TestAdapters(unittest.TestCase):
             for i in range(total):
                 if cancel_event.is_set():
                     return
-                progress_cb('step', i + 1, total)
+                progress_cb("step", i + 1, total)
             return
 
         cancel = threading.Event()
@@ -68,6 +73,7 @@ class TestAdapters(unittest.TestCase):
 
     def test_truncate_rows_limits_to_200(self):
         from tui.adapters import truncate_rows
+
         rows = list(range(5000))
         out = truncate_rows(rows, 200)
         self.assertEqual(len(out), 200)
@@ -95,5 +101,5 @@ class TestAdapters(unittest.TestCase):
         self.assertFalse(th.is_alive())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -35,4 +35,3 @@ def truncate_rows(rows: Iterable[Any], limit: int = 200) -> list:
             break
         out.append(r)
     return out
-

@@ -6,7 +6,7 @@ from attendance_analyzer import AttendanceAnalyzer, IssueType
 
 class TestWfhHolidayEdge(unittest.TestCase):
     def _run_analyze(self, text: str):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(text)
             path = f.name
         try:
@@ -38,7 +38,7 @@ class TestWfhHolidayEdge(unittest.TestCase):
         self.assertIn(IssueType.WFH, types)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: Policy/Holidays
 Purpose: WFH suggestion behavior on holidays vs normal Fridays."""

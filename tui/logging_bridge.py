@@ -18,4 +18,3 @@ class TextualLogHandler(logging.Handler):
         except Exception:  # pragma: no cover - formatting error should not crash
             msg = record.getMessage()
         self.sink.append(msg)
-

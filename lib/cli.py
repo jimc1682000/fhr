@@ -3,6 +3,7 @@
 Keeps behavior-compatible semantics: normal runs do not call sys.exit,
 error paths may call sys.exit(1) to match prior tests.
 """
+
 import os
 import sys
 import logging
@@ -18,7 +19,7 @@ def run(argv: Optional[list] = None) -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='考勤分析系統 - 支援增量分析避免重複處理',
+        description="考勤分析系統 - 支援增量分析避免重複處理",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 範例用法:
@@ -33,26 +34,39 @@ def run(argv: Optional[list] = None) -> None:
   
   # 指定輸出格式
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
-        """
+        """,
     )
 
-    parser.add_argument('filepath', help='考勤檔案路徑')
-    parser.add_argument('format', nargs='?', default='excel',
-                        choices=['excel', 'csv'], help='輸出格式 (預設: excel)')
-    parser.add_argument('--incremental', '-i', action='store_true', default=True,
-                        help='啟用增量分析模式 (預設開啟)')
-    parser.add_argument('--full', '-f', action='store_true',
-                        help='強制完整重新分析')
-    parser.add_argument('--reset-state', '-r', action='store_true',
-                        help='清除指定使用者的狀態記錄')
-    parser.add_argument('--tui', action='store_true', help='啟動 Textual TUI（需 Python 3.8+）')
+    parser.add_argument("filepath", help="考勤檔案路徑")
+    parser.add_argument(
+        "format",
+        nargs="?",
+        default="excel",
+        choices=["excel", "csv"],
+        help="輸出格式 (預設: excel)",
+    )
+    parser.add_argument(
+        "--incremental",
+        "-i",
+        action="store_true",
+        default=True,
+        help="啟用增量分析模式 (預設開啟)",
+    )
+    parser.add_argument("--full", "-f", action="store_true", help="強制完整重新分析")
+    parser.add_argument(
+        "--reset-state", "-r", action="store_true", help="清除指定使用者的狀態記錄"
+    )
+    parser.add_argument(
+        "--tui", action="store_true", help="啟動 Textual TUI（需 Python 3.8+）"
+    )
 
     raw = argv[1:] if argv is not None else None
     use_tui_flag = False
     if raw is None:
         import sys as _sys
+
         raw = _sys.argv[1:]
-    if '--tui' in raw:
+    if "--tui" in raw:
         use_tui_flag = True
 
     args = parser.parse_args(raw)
@@ -64,11 +78,11 @@ def run(argv: Optional[list] = None) -> None:
     if args.tui or use_tui_flag:
         # Lazy import textual via tui.launch_tui; provide friendly message if missing
         prefill = {
-            'filepath': filepath,
-            'format': format_type,
-            'incremental': incremental_mode,
-            'full': args.full,
-            'reset_state': args.reset_state,
+            "filepath": filepath,
+            "format": format_type,
+            "incremental": incremental_mode,
+            "full": args.full,
+            "reset_state": args.reset_state,
         }
         try:
             from tui import launch_tui  # type: ignore
@@ -95,7 +109,11 @@ def run(argv: Optional[list] = None) -> None:
             if user_name in state_manager.state_data.get("users", {}):
                 del state_manager.state_data["users"][user_name]
                 state_manager.save_state()
-                logger.info("🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s", user_name, datetime.now().isoformat())
+                logger.info(
+                    "🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s",
+                    user_name,
+                    datetime.now().isoformat(),
+                )
             else:
                 logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
         else:
@@ -122,21 +140,21 @@ def run(argv: Optional[list] = None) -> None:
         report = analyzer.generate_report()
 
         logger.info("\n")
-        for line in report.split('\n'):
+        for line in report.split("\n"):
             logger.info(line)
 
-        if format_type.lower() == 'csv':
-            output_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_report(output_filepath, 'csv')
+        if format_type.lower() == "csv":
+            output_filepath = filepath.replace(".txt", "_analysis.csv")
+            analyzer.export_report(output_filepath, "csv")
             logger.info("✅ CSV報告已匯出: %s", output_filepath)
         else:
-            output_filepath = filepath.replace('.txt', '_analysis.xlsx')
-            analyzer.export_report(output_filepath, 'excel')
+            output_filepath = filepath.replace(".txt", "_analysis.xlsx")
+            analyzer.export_report(output_filepath, "excel")
             logger.info("✅ Excel報告已匯出: %s", output_filepath)
 
-        if format_type.lower() == 'excel':
-            csv_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_report(csv_filepath, 'csv')
+        if format_type.lower() == "excel":
+            csv_filepath = filepath.replace(".txt", "_analysis.csv")
+            analyzer.export_report(csv_filepath, "csv")
             logger.info("📝 同時匯出CSV格式: %s", csv_filepath)
 
     except Exception as e:

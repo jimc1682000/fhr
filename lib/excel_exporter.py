@@ -1,4 +1,5 @@
 """Excel export helpers for attendance analyzer."""
+
 from typing import List, Tuple, Any
 
 from openpyxl import Workbook
@@ -20,7 +21,9 @@ def init_workbook() -> Tuple[Workbook, Any, Font, PatternFill, Border, Alignment
     ws.title = "考勤分析"
 
     header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    header_fill = PatternFill(
+        start_color="366092", end_color="366092", fill_type="solid"
+    )
     border = Border(
         left=Side(style="thin"),
         right=Side(style="thin"),
@@ -32,9 +35,14 @@ def init_workbook() -> Tuple[Workbook, Any, Font, PatternFill, Border, Alignment
     return wb, ws, header_font, header_fill, border, center_alignment
 
 
-def write_headers(ws, headers: List[str], header_font: Font,
-                  header_fill: PatternFill, border: Border,
-                  alignment: Alignment) -> None:
+def write_headers(
+    ws,
+    headers: List[str],
+    header_font: Font,
+    header_fill: PatternFill,
+    border: Border,
+    alignment: Alignment,
+) -> None:
     """Write header row with styles."""
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col)
@@ -45,9 +53,14 @@ def write_headers(ws, headers: List[str], header_font: Font,
         cell.border = border
 
 
-def write_status_row(ws, last_date: str, complete_days: int,
-                     last_analysis_time: str, border: Border,
-                     alignment: Alignment) -> int:
+def write_status_row(
+    ws,
+    last_date: str,
+    complete_days: int,
+    last_analysis_time: str,
+    border: Border,
+    alignment: Alignment,
+) -> int:
     """Write incremental status row and return next data row."""
     ws.cell(row=2, column=1).value = last_date
     ws.cell(row=2, column=2).value = "狀態資訊"
@@ -68,9 +81,14 @@ def write_status_row(ws, last_date: str, complete_days: int,
     return 3
 
 
-def write_issue_rows(ws, issues: List[Issue], start_row: int,
-                     incremental_mode: bool, border: Border,
-                     alignment: Alignment) -> None:
+def write_issue_rows(
+    ws,
+    issues: List[Issue],
+    start_row: int,
+    incremental_mode: bool,
+    border: Border,
+    alignment: Alignment,
+) -> None:
     """Write issue rows into the worksheet."""
     for row_idx, issue in enumerate(issues, start_row):
         date_cell = ws.cell(row=row_idx, column=1)
@@ -83,13 +101,21 @@ def write_issue_rows(ws, issues: List[Issue], start_row: int,
         type_cell.alignment = alignment
         type_cell.border = border
         if issue.type == IssueType.LATE:
-            type_cell.fill = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="FFE6E6", end_color="FFE6E6", fill_type="solid"
+            )
         elif issue.type == IssueType.OVERTIME:
-            type_cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="E6F3FF", end_color="E6F3FF", fill_type="solid"
+            )
         elif issue.type == IssueType.WFH:
-            type_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="E6FFE6", end_color="E6FFE6", fill_type="solid"
+            )
         elif issue.type == IssueType.FORGET_PUNCH:
-            type_cell.fill = PatternFill(start_color="FFF0E6", end_color="FFF0E6", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="FFF0E6", end_color="FFF0E6", fill_type="solid"
+            )
 
         duration_cell = ws.cell(row=row_idx, column=3)
         duration_cell.value = issue.duration_minutes
@@ -115,7 +141,9 @@ def write_issue_rows(ws, issues: List[Issue], start_row: int,
             status_cell.alignment = alignment
             status_cell.border = border
             if issue.is_new:
-                status_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
+                status_cell.fill = PatternFill(
+                    start_color="E6FFE6", end_color="E6FFE6", fill_type="solid"
+                )
 
 
 def set_column_widths(ws, incremental_mode: bool) -> None:
@@ -128,10 +156,10 @@ def set_column_widths(ws, incremental_mode: bool) -> None:
     col_count = 7 if incremental_mode else 6
     for col in range(1, col_count + 1):
         ws.column_dimensions[chr(64 + col)].width = 15
-    ws.column_dimensions['D'].width = 30
-    ws.column_dimensions['F'].width = 40 if incremental_mode else 35
+    ws.column_dimensions["D"].width = 30
+    ws.column_dimensions["F"].width = 40 if incremental_mode else 35
     if incremental_mode:
-        ws.column_dimensions['G'].width = 24
+        ws.column_dimensions["G"].width = 24
 
 
 def save_workbook(wb: Workbook, filepath: str) -> None:

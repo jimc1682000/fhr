@@ -12,7 +12,7 @@ import logging
 import time  # unused; kept previously, now removed for clarity
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Callable
 from dataclasses import dataclass
 from enum import Enum
 from urllib.parse import urlparse
@@ -92,6 +92,15 @@ class AttendanceAnalyzer:
         self.state_manager: Optional[AttendanceStateManager] = None
         self.current_user: Optional[str] = None
         self.incremental_mode: bool = True
+        self._progress_cb: Optional[Callable[[str, int, Optional[int]], None]] = None
+        self._cancel_check: Optional[Callable[[], bool]] = None
+
+    # 可選：供 TUI/外部注入進度與取消機制（不影響 CLI 舊行為）
+    def set_progress_callback(self, cb: Optional[Callable[[str, int, Optional[int]], None]] = None) -> None:
+        self._progress_cb = cb
+
+    def set_cancel_check(self, fn: Optional[Callable[[], bool]] = None) -> None:
+        self._cancel_check = fn
 
     def _load_config(self, config_path: str) -> None:
         """載入設定檔以覆蓋預設公司規則"""
@@ -287,8 +296,16 @@ class AttendanceAnalyzer:
             forget_punch_max_minutes=self.config.forget_punch_max_minutes,
         )
 
-        for workday in workdays_to_analyze:
+        total = len(workdays_to_analyze)
+        for idx, workday in enumerate(workdays_to_analyze, 1):
+            if self._cancel_check and self._cancel_check():
+                break
             self._analyze_single_workday(workday, rules)
+            if self._progress_cb:
+                try:
+                    self._progress_cb("analyze", idx, total)
+                except Exception:
+                    pass
 
         if self.incremental_mode and self.current_user and workdays_to_analyze:
             self._update_processing_state()

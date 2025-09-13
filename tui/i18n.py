@@ -1,5 +1,6 @@
 import os
 import locale
+import gettext
 from typing import Callable, Dict
 
 
@@ -20,9 +21,16 @@ def detect_language() -> str:
 def get_translator() -> Callable[[str], str]:
     lang = detect_language()
 
+    # Try gettext catalogs if available
+    try:
+        trans = gettext.translation('fhr', localedir='locales', languages=[lang], fallback=True)
+        _ = trans.gettext  # type: ignore[attr-defined]
+        # Return gettext if catalogs exist; if fallback True and no catalogs, gettext returns msgid
+        return _  # type: ignore[return-value]
+    except Exception:
+        pass
+
     # Minimal in-repo dictionary until gettext catalogs are provided.
-    # msgid uses English; zh_TW provides Chinese text. Unmapped keys
-    # fall back to msgid.
     ZH_TW: Dict[str, str] = {
         'Wizard': '精靈',
         'Next': '下一步',

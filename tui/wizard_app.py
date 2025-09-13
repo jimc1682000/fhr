@@ -3,7 +3,7 @@ import os
 
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Button, Label, DataTable, Input, Static, TextLog
+from textual.widgets import Button, Label, DataTable, Input, Static, TextLog, DirectoryTree
 from textual.reactive import reactive
 
 from .i18n import get_translator
@@ -61,6 +61,8 @@ class WizardApp(App):
                 with Horizontal(id="recent"):
                     for idx, p in enumerate(load_recent_files()):
                         yield Button(os.path.basename(p), id=f"recent-{idx}", variant="primary")
+                # Simple directory tree rooted at CWD
+                yield DirectoryTree(os.getcwd(), id="tree")
             with Horizontal():
                 yield Static(id="stage")
                 yield TextLog(id="log", highlight=False)
@@ -88,6 +90,9 @@ class WizardApp(App):
             # Set filepath from recent button label
             btn = event.button
             self.query_one("#filepath", Input).value = btn.renderable
+
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:  # type: ignore
+        self.query_one("#filepath", Input).value = event.path
 
     def action_next(self) -> None:
         if self.step == 1:
@@ -219,6 +224,8 @@ class WizardApp(App):
             return
         from attendance_analyzer import AttendanceAnalyzer
         analyzer = AttendanceAnalyzer()
+        analyzer.set_progress_callback(lambda *_: None)
+        analyzer.set_cancel_check(lambda: self._cancel_event.is_set())
         logger = logging.getLogger(__name__)
         logger.info('解析檔案...')
         analyzer.parse_attendance_file(path, incremental=inc)

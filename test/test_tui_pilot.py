@@ -43,6 +43,8 @@ class TestWizardPilot(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(getattr(table, 'row_count', 0) <= 200)
             # Log sink should have captured analyzer logs
             self.assertGreater(len(app.log_sink), 0)
+            # Styles applied for first rows should reflect mapping
+            self.assertTrue(len(getattr(app, '_styles_applied', [])) > 0)
             # Next -> Done
             await pilot.press("enter")
             self.assertEqual(app.step, 5)

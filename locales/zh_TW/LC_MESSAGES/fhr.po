@@ -1,0 +1,67 @@
+# zh_TW translations for fhr
+msgid ""
+msgstr ""
+
+msgid "Wizard"
+msgstr "精靈"
+
+msgid "Next"
+msgstr "下一步"
+
+msgid "Back"
+msgstr "上一步"
+
+msgid "Run"
+msgstr "執行"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Quit"
+msgstr "離開"
+
+msgid "Welcome"
+msgstr "歡迎"
+
+msgid "File"
+msgstr "檔案"
+
+msgid "Recent"
+msgstr "最近"
+
+msgid "Format"
+msgstr "格式"
+
+msgid "Options"
+msgstr "選項"
+
+msgid "Confirm & Run"
+msgstr "確認與執行"
+
+msgid "Preview"
+msgstr "預覽"
+
+msgid "Done"
+msgstr "完成"
+
+msgid "Excel"
+msgstr "Excel"
+
+msgid "CSV"
+msgstr "CSV"
+
+msgid "Incremental"
+msgstr "增量模式"
+
+msgid "Full Re-Analyze"
+msgstr "完整重跑"
+
+msgid "Reset State"
+msgstr "重置狀態"
+
+msgid "Output"
+msgstr "輸出"
+
+msgid "Rows Previewed"
+msgstr "預覽列數"
+

@@ -116,69 +116,6 @@ class AttendanceAnalyzer:
         except (OSError, json.JSONDecodeError) as e:
             logger.warning("無法讀取設定檔 %s: %s", config_path, e)
     
-    def _extract_user_and_date_range_from_filename(self, filepath: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        """從檔案名稱解析使用者姓名和日期範圍
-        支援格式: {YYYYMM}[-{YYYYMM}]-{NAME}-出勤資料.txt
-        
-        Args:
-            filepath: 檔案路徑
-        
-        Returns:
-            Tuple[使用者姓名, 開始日期YYYY-MM-DD, 結束日期YYYY-MM-DD]
-        """
-        filename = os.path.basename(filepath)
-        
-        # 匹配模式: YYYYMM[-YYYYMM]-NAME-出勤資料.txt
-        pattern = r'(\d{6})(?:-(\d{6}))?-(.+?)-出勤資料\.txt$'
-        match = re.match(pattern, filename)
-        
-        if not match:
-            logger.warning("檔案名稱格式不符合規範: %s", filename)
-            logger.warning("預期格式: YYYYMM[-YYYYMM]-姓名-出勤資料.txt")
-            return None, None, None
-        
-        start_month_str = match.group(1)  # YYYYMM
-        end_month_str = match.group(2)    # YYYYMM 或 None
-        user_name = match.group(3)        # 姓名
-        
-        # 解析開始日期
-        try:
-            start_year = int(start_month_str[:4])
-            start_month = int(start_month_str[4:6])
-            start_date = datetime(start_year, start_month, 1).strftime("%Y-%m-%d")
-        except ValueError:
-            logger.warning("無法解析開始月份: %s", start_month_str)
-            return None, None, None
-        
-        # 解析結束日期
-        if end_month_str:
-            # 跨月檔案
-            try:
-                end_year = int(end_month_str[:4])
-                end_month = int(end_month_str[4:6])
-                # 取該月最後一天
-                if end_month == 12:
-                    next_month = datetime(end_year + 1, 1, 1)
-                else:
-                    next_month = datetime(end_year, end_month + 1, 1)
-                end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
-            except ValueError:
-                logger.warning("無法解析結束月份: %s", end_month_str)
-                return None, None, None
-        else:
-            # 單月檔案
-            try:
-                # 取該月最後一天
-                if start_month == 12:
-                    next_month = datetime(start_year + 1, 1, 1)
-                else:
-                    next_month = datetime(start_year, start_month + 1, 1)
-                end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
-            except ValueError:
-                logger.warning("無法計算月份結束日期")
-                return None, None, None
-        
-        return user_name, start_date, end_date
     
     def _identify_complete_work_days(self) -> List[datetime]:
         """識別完整的工作日（有上班和下班記錄的日期）
@@ -643,19 +580,6 @@ class AttendanceAnalyzer:
         
         return 0, 0, "", ""
     
-    def _is_full_day_absent(self, workday: WorkDay) -> bool:
-        """檢查是否整天沒有打卡記錄"""
-        # 如果沒有上班記錄或上班記錄沒有實際打卡時間，視為整天曠職
-        if (not workday.checkin_record or 
-            not workday.checkin_record.actual_time):
-            return True
-        
-        # 如果沒有下班記錄或下班記錄沒有實際打卡時間，也視為曠職
-        if (not workday.checkout_record or 
-            not workday.checkout_record.actual_time):
-            return True
-            
-        return False
     
     def generate_report(self) -> str:
         """生成報告（支援增量分析資訊顯示）"""

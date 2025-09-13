@@ -70,6 +70,11 @@ class TestTuiCliBasic(unittest.TestCase):
         self.assertTrue(pre['full'])
         self.assertFalse(pre['incremental'])
 
+    def test_cli_compatibility_without_tui(self):
+        # Should execute normal flow without raising SystemExit
+        from lib import cli
+        cli.run(['prog', 'sample-attendance-data.txt', 'csv'])
+
 
 if __name__ == '__main__':
     unittest.main()

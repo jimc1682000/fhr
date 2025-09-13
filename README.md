@@ -48,6 +48,17 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 - 初版將以 `--tui` 旗標啟動；缺少依賴時提供安裝指引（`textual`）。
 - 可選安裝（TUI）：`pip install .[tui]`
 
+### 程式碼風格與 Lint 規範
+
+- 全專案採用 Black 預設格式（行寬 88），CI 以 `black --check .` 驗證。
+- 另外使用 Ruff（僅語法級錯誤規則：E9/F63/F7/F82）阻擋明顯問題。
+- 提交前建議執行：
+
+```bash
+black .
+ruff check --select E9,F63,F7,F82 .
+```
+
 ### 國際化（i18n）
 
 - 預設依據系統語言自動選擇（`zh*` → 中文，其他 → 英文）。

@@ -308,3 +308,13 @@ Use `sample-attendance-data.txt` for integration testing - it contains various s
 - Optional dependency via extras: `pip install .[tui]`
 - Start with: `python3 attendance_analyzer.py <file> [format] --tui`
 - Env for language override: `FHR_LANG=zh_TW` or `FHR_LANG=en`
+# Lint & Formatting
+
+- Formatting: Black (default settings, repository-wide). CI runs `black --check .`.
+- Lint: Ruff with critical rules only (`E9,F63,F7,F82`).
+
+Suggested pre-push:
+```bash
+black .
+ruff check --select E9,F63,F7,F82 .
+```

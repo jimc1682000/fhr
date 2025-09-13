@@ -105,7 +105,9 @@ class TestAnalyzerProgressCancel(unittest.TestCase):
 
         analyzer._analyze_single_workday(wd, Rules())
         late_issues = [i for i in analyzer.issues if i.type.name == "LATE"]
-        self.assertTrue(any("本月忘刷卡額度已用完" in i.description for i in late_issues))
+        self.assertTrue(
+            any("本月忘刷卡額度已用完" in i.description for i in late_issues)
+        )
 
     def test_status_row_when_no_current_user(self):
         from attendance_analyzer import AttendanceAnalyzer
@@ -118,7 +120,7 @@ class TestAnalyzerProgressCancel(unittest.TestCase):
         analyzer.current_user = None
         out = analyzer._compute_incremental_status_row()
         # when current_user is None, function computes status row from complete days
-        self.assertEqual(out[0], '2025/07/01')
+        self.assertEqual(out[0], "2025/07/01")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Run tests (full): `python3 -m unittest -q`.
 - Run specific test: `python3 -m unittest -q test.test_holiday_api_resilience`.
 - Optional Excel support: `pip install openpyxl`.
+- Lint/format: `black .` and `ruff check --select E9,F63,F7,F82 .` (CI enforces both).
 
 ## Coding Style & Naming Conventions
 - Python 3.8+; follow PEP 8 (4‑space indentation, 100‑char soft wrap).
@@ -51,4 +52,5 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - When changing CLI behavior or output schema (e.g., status column, last_analysis_time), update `README.md` and add tests.
 - For holiday behavior changes, use existing `_try_load_from_gov_api` and fallback hooks; update docs and add tests for new scenarios.
 - Excel export: maintain widths (F=40, G=24 when incremental), headers, and status row semantics; keep tests aligned.
+- Formatting policy: repository uses Black (default). Please format before committing to avoid CI failures.
 - TUI is optional; import Textual only under `--tui`. Provide a friendly message if not installed. i18n via `FHR_LANG`.

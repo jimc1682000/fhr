@@ -4,6 +4,7 @@ import os
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Button, Label, DataTable, Input, Static, DirectoryTree
+
 # Textual compatibility: some versions expose Log instead of TextLog
 try:  # pragma: no cover - import compatibility
     from textual.widgets import TextLog as LogWidget

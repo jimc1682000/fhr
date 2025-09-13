@@ -528,7 +528,8 @@ class AttendanceAnalyzer:
             self.state_manager = AttendanceStateManager()
             
             # 解析檔名取得使用者資訊
-            user_name, start_date, end_date = self._extract_user_and_date_range_from_filename(filepath)
+            from lib.filename import parse_range_and_user
+            user_name, start_date, end_date = parse_range_and_user(filepath)
             if user_name:
                 self.current_user = user_name
                 logger.info("📋 識別使用者: %s", user_name)
@@ -668,9 +669,23 @@ class AttendanceAnalyzer:
             # 完整分析模式：分析所有工作日
             workdays_to_analyze = self.workdays
         
+        from lib.policy import Rules, is_full_day_absent, calculate_late_minutes, calculate_overtime_minutes
+        rules = Rules(
+            earliest_checkin=self.EARLIEST_CHECKIN,
+            latest_checkin=self.LATEST_CHECKIN,
+            lunch_start=self.LUNCH_START,
+            lunch_end=self.LUNCH_END,
+            work_hours=self.WORK_HOURS,
+            lunch_hours=self.LUNCH_HOURS,
+            min_overtime_minutes=self.MIN_OVERTIME_MINUTES,
+            overtime_increment_minutes=self.OVERTIME_INCREMENT_MINUTES,
+            forget_punch_allowance_per_month=self.FORGET_PUNCH_ALLOWANCE_PER_MONTH,
+            forget_punch_max_minutes=self.FORGET_PUNCH_MAX_MINUTES,
+        )
+
         for workday in workdays_to_analyze:
             # 檢查是否整天沒有打卡記錄（曠職）
-            if self._is_full_day_absent(workday):
+            if is_full_day_absent(workday):
                 if workday.is_friday and not workday.is_holiday:
                     # 週五且非國定假日建議WFH假
                     self.issues.append(Issue(
@@ -695,7 +710,7 @@ class AttendanceAnalyzer:
                 continue
             
             # 分析遲到
-            late_minutes, late_time_range, late_calculation = self._calculate_late_minutes(workday)
+            late_minutes, late_time_range, late_calculation = calculate_late_minutes(workday, rules)
             if late_minutes > 0:
                 # 檢查是否可以使用忘刷卡
                 month_key = workday.date.strftime('%Y-%m')
@@ -728,7 +743,7 @@ class AttendanceAnalyzer:
                     ))
             
             # 分析加班
-            actual_overtime, applicable_overtime, overtime_time_range, overtime_calculation = self._calculate_overtime_minutes(workday)
+            actual_overtime, applicable_overtime, overtime_time_range, overtime_calculation = calculate_overtime_minutes(workday, rules)
             if applicable_overtime >= self.MIN_OVERTIME_MINUTES:
                 self.issues.append(Issue(
                     date=workday.date,
@@ -1068,8 +1083,11 @@ class AttendanceAnalyzer:
             filepath: 檔案路徑
             format_type: 'excel' 或 'csv'
         """
-        # 匯出前先備份現有檔案
-        self._backup_existing_file(filepath)
+        # 匯出前先備份現有檔案（移至 lib.backup）
+        from lib.backup import backup_with_timestamp
+        backup_path = backup_with_timestamp(filepath)
+        if backup_path:
+            print(f"📦 備份現有檔案: {os.path.basename(backup_path)}")
         
         if format_type.lower() == 'csv':
             self.export_csv(filepath)
@@ -1121,7 +1139,8 @@ def main():
     # 處理狀態重設
     if args.reset_state:
         analyzer_temp = AttendanceAnalyzer()
-        user_name, _, _ = analyzer_temp._extract_user_and_date_range_from_filename(filepath)
+        from lib.filename import parse_range_and_user
+        user_name, _, _ = parse_range_and_user(filepath)
         if user_name:
             state_manager = AttendanceStateManager()
             if user_name in state_manager.state_data.get("users", {}):

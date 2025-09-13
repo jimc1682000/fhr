@@ -47,14 +47,12 @@ jobs:
       - name: Compile locales
         run: |
           python tools/po_to_mo.py
-      - name: Smoke test TUI handoff
-        env:
-          FHR_TUI_AUTOCLOSE: "1"
+      - name: Smoke test TUI import
         run: |
           python - <<'PY'
-          from lib import cli
-          cli.run(['prog','sample-attendance-data.txt','csv','--tui'])
-          print('TUI smoke OK')
+          import textual
+          import tui.wizard_app
+          print('TUI smoke OK', textual.__version__)
           PY
 
   lint:

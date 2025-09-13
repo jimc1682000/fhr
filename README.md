@@ -48,6 +48,12 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 - 初版將以 `--tui` 旗標啟動；缺少依賴時提供安裝指引（`textual`）。
 - 可選安裝（TUI）：`pip install .[tui]`
 
+### 國際化（i18n）
+
+- 預設依據系統語言自動選擇（`zh*` → 中文，其他 → 英文）。
+- 以環境變數覆寫：`FHR_LANG=zh_TW` 或 `FHR_LANG=en`。
+- 第一版 UI 使用英文 msgid；後續將提供 zh_TW 翻譯檔。
+
 ### 常見錯誤提示
 
 - 看不到 Excel 輸出 → 未安裝 `openpyxl`，請先安裝或改用 `csv` 格式。

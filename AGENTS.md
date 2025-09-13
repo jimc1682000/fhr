@@ -51,3 +51,4 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - When changing CLI behavior or output schema (e.g., status column, last_analysis_time), update `README.md` and add tests.
 - For holiday behavior changes, use existing `_try_load_from_gov_api` and fallback hooks; update docs and add tests for new scenarios.
 - Excel export: maintain widths (F=40, G=24 when incremental), headers, and status row semantics; keep tests aligned.
+- TUI is optional; import Textual only under `--tui`. Provide a friendly message if not installed. i18n via `FHR_LANG`.

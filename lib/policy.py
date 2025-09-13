@@ -18,11 +18,15 @@ class Rules:
 
 
 def is_full_day_absent(workday: Any) -> bool:
-    """True if both checkin and checkout records exist but actual times are missing (absent)."""
+    """True if checkin or checkout record is missing or lacks an actual time."""
     ch = workday.checkin_record
     co = workday.checkout_record
-    return (ch is not None and co is not None and
-            (not getattr(ch, 'actual_time', None)) and (not getattr(co, 'actual_time', None)))
+    return (
+        ch is None
+        or co is None
+        or not getattr(ch, "actual_time", None)
+        or not getattr(co, "actual_time", None)
+    )
 
 
 def calculate_late_minutes(workday: Any, rules: Rules) -> Tuple[int, str, str]:

@@ -34,7 +34,7 @@
 
 ## 5) 國際化（預設中文，非中文語系顯示英文）
 - [x] 決策：採用 `gettext`（標準庫，無額外依賴），找不到目錄時 fallback 至內建字典/英文字串。
-- [ ] 準備目錄：`locales/<lang>/LC_MESSAGES/fhr.mo`（`zh_TW`、`en`）— 後續補上翻譯檔。
+- [x] 準備目錄：`locales/<lang>/LC_MESSAGES/fhr.mo`（`zh_TW`、`en`）— 以 tools/po_to_mo.py 於 CI/本地產生 .mo；.po 已提供。
 - [x] 偵測語系：
   - [x] 先讀環境變數 `FHR_LANG`（如 `zh_TW`、`en`）。
   - [x] 否則讀 `locale.getdefaultlocale()` 或 `locale.getlocale()`。
@@ -68,7 +68,7 @@
 
 ## 11) CI 與品質
 - [x] 在 CI 新增一個包含 `[tui]` 的 job（Python 3.8+），但保留原有非 TUI job。
-- [ ] linters/格式化與既有設定一致；遵循 100 字寬軟換行。（專案尚未配置 linters）
+- [x] linters/格式化：新增 Ruff（語法級）與 Black（格式檢查，預設設定）。
 
 ## 12) 非目標（第一版不做）
 - [ ] 全量虛擬化表格與數十萬列平滑滾動。

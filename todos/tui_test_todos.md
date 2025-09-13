@@ -29,9 +29,9 @@
 - [x] 錯誤流程：提供不存在檔案→阻止下一步；修正為有效檔案後可繼續。
 
 ## F) 與核心互動的替身/隔離
-- [x] 模擬/猴補（monkeypatch）假日 API：以環境變數方式關閉重試與 backoff，避免延遲與外網依賴。
-- [x] 在 `HOLIDAY_API_MAX_RETRIES=0`、`HOLIDAY_API_BACKOFF_BASE=0` 下執行分析，避免測試延遲。
-- [ ] 若分析流程需要長時間，替換為可注入的假任務（adapter 注入），讓取消與進度測試更可控。
+ - [x] 模擬/猴補（monkeypatch）假日 API：以環境變數方式關閉重試與 backoff，避免延遲與外網依賴。
+ - [x] 在 `HOLIDAY_API_MAX_RETRIES=0`、`HOLIDAY_API_BACKOFF_BASE=0` 下執行分析，避免測試延遲。
+ - [x] 若分析流程需要長時間，替換為可注入的假任務（adapter 注入），讓取消與進度測試更可控（見 `test_cancel_mid_run_with_injected_task`）。
 
 ## G) CLI 相容性回歸
 - [x] 不帶 `--tui` 的既有指令仍可正常完成（解析/分析/匯出），新增最小相容性測試。
@@ -41,7 +41,7 @@
 - [x] CI 新增含 `[tui]` 的 job 能安裝並最小化啟動 TUI（啟動後立刻關閉）。
 
 ## I) 效能與穩定性（輕量）
-- [ ] 小檔案冷啟到可互動時間 < 2s（本地門檻，可放寬於 CI）。
+ - [x] 小檔案冷啟到可互動時間 < 2s（本地門檻；CI 放寬至 3s）。
 - [x] 取消後資源釋放：log handler 在完成後移除（以單元測試邏輯檢查 app.log_sink/handler 狀態）。
 
 ---

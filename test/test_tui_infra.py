@@ -72,7 +72,28 @@ class TestAdapters(unittest.TestCase):
         out = truncate_rows(rows, 200)
         self.assertEqual(len(out), 200)
 
+    def test_cancel_mid_run_with_injected_task(self):
+        from tui.adapters import run_in_thread
+        import threading
+        import time
+
+        cancel = threading.Event()
+        ticks = []
+
+        def long_task():
+            # simulate long work
+            for i in range(1000):
+                if cancel.is_set():
+                    break
+                ticks.append(i)
+                time.sleep(0.001)
+
+        th = run_in_thread(long_task)
+        time.sleep(0.02)
+        cancel.set()
+        th.join(timeout=0.5)
+        self.assertFalse(th.is_alive())
+
 
 if __name__ == '__main__':
     unittest.main()
-

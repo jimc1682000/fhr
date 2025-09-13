@@ -44,10 +44,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install '.[tui]'
       - name: Smoke test TUI handoff
+        env:
+          FHR_TUI_AUTOCLOSE: "1"
         run: |
           python - <<'PY'
           from lib import cli
-          # should import textual and then return immediately from placeholder app
           cli.run(['prog','sample-attendance-data.txt','csv','--tui'])
           print('TUI smoke OK')
           PY

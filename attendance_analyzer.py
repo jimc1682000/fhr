@@ -950,13 +950,19 @@ class AttendanceAnalyzer:
                 if complete_days:
                     last_date = max(complete_days).strftime('%Y/%m/%d')
                     unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
-                    
+                    # 讀取上次分析時間
+                    last_analysis_time = ""
+                    if self.state_manager and self.current_user:
+                        user_data = self.state_manager.state_data.get("users", {}).get(self.current_user, {})
+                        ranges = user_data.get("processed_date_ranges", [])
+                        if ranges:
+                            last_analysis_time = max((r.get("last_analysis_time", "") for r in ranges), default="")
                     if not unprocessed_dates:  # 沒有新資料需要處理
                         status_row = [
                             last_date,
                             "狀態資訊",
                             0,
-                            f"📊 增量分析完成，已處理至 {last_date}，共 {len(complete_days)} 個完整工作日",
+                            f"📊 增量分析完成，已處理至 {last_date}，共 {len(complete_days)} 個完整工作日 | 上次分析時間: {last_analysis_time}",
                             "",
                             "上次處理範圍內無新問題需要申請",
                             "系統狀態"
@@ -1012,9 +1018,16 @@ class AttendanceAnalyzer:
                 unprocessed_dates = self._get_unprocessed_dates(
                     self.current_user, complete_days
                 )
+                # 讀取上次分析時間
+                last_analysis_time = ""
+                if self.state_manager and self.current_user:
+                    user_data = self.state_manager.state_data.get("users", {}).get(self.current_user, {})
+                    ranges = user_data.get("processed_date_ranges", [])
+                    if ranges:
+                        last_analysis_time = max((r.get("last_analysis_time", "") for r in ranges), default="")
                 if not unprocessed_dates:
                     data_start_row = excel_exporter.write_status_row(
-                        ws, last_date, len(complete_days), border, center_alignment
+                        ws, last_date, len(complete_days), last_analysis_time, border, center_alignment
                     )
 
         excel_exporter.write_issue_rows(

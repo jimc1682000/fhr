@@ -7,6 +7,7 @@ Utilities:
 - urlopen_sequence: build a side_effect for urlopen that yields exceptions
   or DummyResp-wrapped payloads in order.
 """
+
 import json
 import os
 from contextlib import contextmanager
@@ -19,11 +20,12 @@ class DummyResp:
         with urllib.request.urlopen(...) as resp:
             resp.read() -> bytes
     """
+
     def __init__(self, payload: dict):
         self._payload = payload
 
     def read(self):
-        return json.dumps(self._payload).encode('utf-8')
+        return json.dumps(self._payload).encode("utf-8")
 
     def __enter__(self):
         return self

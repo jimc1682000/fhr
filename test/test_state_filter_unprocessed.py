@@ -38,7 +38,7 @@ class TestFilterUnprocessed(unittest.TestCase):
         self.assertEqual(out, days)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: State/Dates
 Purpose: Range merging and membership checks for unprocessed date filter."""

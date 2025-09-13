@@ -2,6 +2,7 @@
 
 No dependency on analyzer types; operate on duck-typed records.
 """
+
 from collections import defaultdict
 from datetime import datetime
 from typing import Iterable, List, Set
@@ -36,4 +37,3 @@ def identify_complete_work_days(records: Iterable) -> List[datetime]:
         if flags["checkin"] and flags["checkout"]:
             out.append(datetime.combine(d, datetime.min.time()))
     return sorted(out)
-

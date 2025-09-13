@@ -35,6 +35,36 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 
 提示：如需 Excel 匯出，建議安裝 `openpyxl`：`pip install openpyxl`。
 
+### 系統需求
+
+- Python 3.8+
+- 標準庫（無強制第三方依賴）
+- Excel 匯出（可選）：`openpyxl`
+
+### TUI 預告與版本需求
+
+- 即將導入 Textual TUI（逐步精靈）。
+- TUI 僅支援 Python 3.8+。
+- 初版將以 `--tui` 旗標啟動；缺少依賴時提供安裝指引（`textual`）。
+- 可選安裝（TUI）：`pip install .[tui]`
+
+### 程式碼風格與 Lint 規範
+
+- 全專案採用 Black 預設格式（行寬 88），CI 以 `black --check .` 驗證。
+- 另外使用 Ruff（僅語法級錯誤規則：E9/F63/F7/F82）阻擋明顯問題。
+- 提交前建議執行：
+
+```bash
+black .
+ruff check --select E9,F63,F7,F82 .
+```
+
+### 國際化（i18n）
+
+- 預設依據系統語言自動選擇（`zh*` → 中文，其他 → 英文）。
+- 以環境變數覆寫：`FHR_LANG=zh_TW` 或 `FHR_LANG=en`。
+- 第一版 UI 使用英文 msgid；後續將提供 zh_TW 翻譯檔。
+
 ### 常見錯誤提示
 
 - 看不到 Excel 輸出 → 未安裝 `openpyxl`，請先安裝或改用 `csv` 格式。

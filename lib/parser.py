@@ -2,6 +2,7 @@
 
 Designed to be dependency-light and avoid importing analyzer types.
 """
+
 from datetime import datetime
 from typing import Optional, Tuple, List
 import re
@@ -27,7 +28,11 @@ def parse_datetime_str(s: str) -> Optional[datetime]:
         return None
 
 
-def parse_line(line: str) -> Optional[Tuple[Optional[datetime], Optional[datetime], str, str, str, str, str, str, str]]:
+def parse_line(
+    line: str,
+) -> Optional[
+    Tuple[Optional[datetime], Optional[datetime], str, str, str, str, str, str, str]
+]:
     """Return parsed tuple for a single attendance line or None if invalid.
 
     Output tuple: (scheduled_dt, actual_dt, type_str, card_num, source, status, processed, operation, note)

@@ -10,7 +10,7 @@ def run_case(checkin, checkout):
         f"2025/07/01 08:00\t{checkin}\t上班\t1\t刷卡匯入\t\t\t\t\n"
         f"2025/07/01 17:00\t{checkout}\t下班\t1\t刷卡匯入\t\t\t\t\n"
     )
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
         f.write(text)
         path = f.name
     try:
@@ -39,7 +39,7 @@ class TestOvertimeRounding(unittest.TestCase):
         self.assertEqual(run_case("2025/07/01 09:00", "2025/07/01 20:01"), 120)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: Policy/Overtime
 Purpose: Overtime rounding thresholds and increments."""

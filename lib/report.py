@@ -2,10 +2,13 @@
 
 Pure string assembly; no dependency on analyzer types.
 """
+
 from typing import Iterable, List
 
 
-def build_incremental_lines(user: str, total_complete: int, unprocessed_count: int, unprocessed_dates: List[str]) -> List[str]:
+def build_incremental_lines(
+    user: str, total_complete: int, unprocessed_count: int, unprocessed_dates: List[str]
+) -> List[str]:
     lines: List[str] = []
     lines.append("## 📈 增量分析資訊：\n")
     lines.append(f"- 👤 使用者：{user}")
@@ -21,13 +24,17 @@ def build_incremental_lines(user: str, total_complete: int, unprocessed_count: i
     return lines
 
 
-def build_issue_section(title: str, prefix_icon: str, issues: Iterable, show_calc: bool = True) -> List[str]:
+def build_issue_section(
+    title: str, prefix_icon: str, issues: Iterable, show_calc: bool = True
+) -> List[str]:
     lines: List[str] = []
     if not issues:
         return lines
     lines.append(f"{title}\n")
     for i, issue in enumerate(issues, 1):
-        lines.append(f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - {prefix_icon} {issue.description}")
+        lines.append(
+            f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - {prefix_icon} {issue.description}"
+        )
         if getattr(issue, "time_range", ""):
             lines.append(f"   ⏰ 時段: {issue.time_range}")
         if show_calc and getattr(issue, "calculation", ""):
@@ -36,7 +43,9 @@ def build_issue_section(title: str, prefix_icon: str, issues: Iterable, show_cal
     return lines
 
 
-def build_summary(forget: int, late: int, overtime: int, weekday_leave: int, wfh: int) -> List[str]:
+def build_summary(
+    forget: int, late: int, overtime: int, weekday_leave: int, wfh: int
+) -> List[str]:
     return [
         "## 📊 統計摘要：\n",
         f"- 🔄 建議忘刷卡天數：{forget} 天",
@@ -45,4 +54,3 @@ def build_summary(forget: int, late: int, overtime: int, weekday_leave: int, wfh
         f"- 📝 需要請假天數：{weekday_leave} 天",
         f"- 🏠 建議WFH天數：{wfh} 天",
     ]
-

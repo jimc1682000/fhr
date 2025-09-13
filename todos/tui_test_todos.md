@@ -1,0 +1,52 @@
+# Textual「逐步精靈」TUI 測試計畫 TODO
+
+目標：在不觸碰真網路與不破壞既有 CLI 的前提下，為 TUI 導入足夠的單元與互動測試，確保相容、穩定與可取消。
+
+## A) 基礎相容性與匯入路徑
+- [x] `--tui` 旗標解析：與既有參數並存，不提供時行為不變。
+- [x] 未安裝 Textual 時的錯誤訊息（截斷但可比對字串關鍵片段，含安裝指引）。
+- [x] `--tui` 搭配預填參數（輸入檔/輸出格式/模式）能在 UI 初始狀態反映（先驗證傳入 `launch_tui()` 的 prefill）。
+
+## B) i18n 行為
+- [x] 預設中文：在 `FHR_LANG=zh_TW` 或系統 `zh*` 時語言偵測為中文（UI 字串以 msgid 顯示，之後導入 gettext 後會替換）。
+- [x] 非中文語系顯示英文：在 `FHR_LANG=en` 或其他語系時偵測英文。
+- [x] env 覆寫優先於系統語系：`FHR_LANG=en` 強制英文。
+- [x] 未提供翻譯字串時 fallback 至英文 msgid。
+
+## C) Logging 與進度/取消
+- [x] `TextualLogHandler` 能接收 `logger.info/warning/error` 並在 UI 訊息列表出現（以 Test hook 擷取）。
+- [x] 進度回報：模擬 `progress_cb` 連續呼叫，紀錄回呼計數。
+- [x] 取消：提供 cancel 旗標且 worker 檢查即可提前返回（UI 善後留待整合測試）。
+
+## D) 預覽表格（前 200 行）
+- [x] 對虛擬資料列進行截斷，預覽列數 ≤ 200。
+- [x] 5k 行資料僅保留 200 行；以函式行為為單元測試（整合效能留待 Textual）。
+- [x] 狀態色彩：以 `row_styles` 類別名彙整，Pilot 測試可檢查類別名存在（之後可連結 DataTable 樣式）。
+
+## E) Textual 互動測試（Pilot）
+- [x] 開啟 App、透過 Pilot 依序操作 Step 1→5；驗證預覽 ≤200 行。
+- [x] 鍵位：`Enter`、`R`、`Q` 路徑驗證（Esc/C 後續補更多情境）。
+- [x] 錯誤流程：提供不存在檔案→阻止下一步；修正為有效檔案後可繼續。
+
+## F) 與核心互動的替身/隔離
+ - [x] 模擬/猴補（monkeypatch）假日 API：以環境變數方式關閉重試與 backoff，避免延遲與外網依賴。
+ - [x] 在 `HOLIDAY_API_MAX_RETRIES=0`、`HOLIDAY_API_BACKOFF_BASE=0` 下執行分析，避免測試延遲。
+ - [x] 若分析流程需要長時間，替換為可注入的假任務（adapter 注入），讓取消與進度測試更可控（見 `test_cancel_mid_run_with_injected_task`）。
+
+## G) CLI 相容性回歸
+- [x] 不帶 `--tui` 的既有指令仍可正常完成（解析/分析/匯出），新增最小相容性測試。
+
+## H) 文件與 CI
+- [x] `README.md` 新增 `--tui` 章節存在性測試（簡單字串包含即可）。
+- [x] CI 新增含 `[tui]` 的 job 能安裝並最小化啟動 TUI（啟動後立刻關閉）。
+
+## I) 效能與穩定性（輕量）
+ - [x] 小檔案冷啟到可互動時間 < 2s（本地門檻；CI 放寬至 3s）。
+- [x] 取消後資源釋放：log handler 在完成後移除（以單元測試邏輯檢查 app.log_sink/handler 狀態）。
+
+---
+
+### 測試實作備忘
+- 測試框架：`unittest`（維持專案慣例）；Textual 互動採 `textual.testing.Pilot`。
+- 檔案位置：新增 `test/test_tui_*.py`；避免碰觸既有測試命名。
+- 網路：一律 mock；若需時間相關 backoff，透過環境變數置零以確保 deterministic。

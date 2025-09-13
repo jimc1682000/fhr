@@ -13,4 +13,3 @@ class AttendanceConfig:
     overtime_increment_minutes: int = 60
     forget_punch_allowance_per_month: int = 2
     forget_punch_max_minutes: int = 60
-

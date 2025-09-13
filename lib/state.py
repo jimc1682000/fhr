@@ -18,7 +18,7 @@ class AttendanceStateManager:
     def _load_state(self) -> dict:
         if os.path.exists(self.state_file):
             try:
-                with open(self.state_file, 'r', encoding='utf-8') as f:
+                with open(self.state_file, "r", encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("無法讀取狀態檔案 %s: %s", self.state_file, e)
@@ -27,7 +27,7 @@ class AttendanceStateManager:
 
     def save_state(self) -> None:
         try:
-            with open(self.state_file, 'w', encoding='utf-8') as f:
+            with open(self.state_file, "w", encoding="utf-8") as f:
                 json.dump(self.state_data, f, ensure_ascii=False, indent=2)
         except OSError as e:
             logger.warning("無法儲存狀態檔案 %s: %s", self.state_file, e)
@@ -40,7 +40,11 @@ class AttendanceStateManager:
     def get_forget_punch_usage(self, user_name: str, year_month: str) -> int:
         if user_name not in self.state_data["users"]:
             return 0
-        return self.state_data["users"][user_name].get("forget_punch_usage", {}).get(year_month, 0)
+        return (
+            self.state_data["users"][user_name]
+            .get("forget_punch_usage", {})
+            .get(year_month, 0)
+        )
 
     def get_last_analysis_time(self, user_name: str) -> str:
         if user_name not in self.state_data.get("users", {}):
@@ -48,12 +52,16 @@ class AttendanceStateManager:
         ranges = self.state_data["users"][user_name].get("processed_date_ranges", [])
         return max((r.get("last_analysis_time", "") for r in ranges), default="")
 
-    def update_user_state(self, user_name: str, new_range: Dict[str, str],
-                          forget_punch_usage: Dict[str, int] = None) -> None:
+    def update_user_state(
+        self,
+        user_name: str,
+        new_range: Dict[str, str],
+        forget_punch_usage: Dict[str, int] = None,
+    ) -> None:
         if user_name not in self.state_data["users"]:
             self.state_data["users"][user_name] = {
                 "processed_date_ranges": [],
-                "forget_punch_usage": {}
+                "forget_punch_usage": {},
             }
         user_data = self.state_data["users"][user_name]
         existing_ranges = user_data["processed_date_ranges"]
@@ -68,23 +76,33 @@ class AttendanceStateManager:
         if forget_punch_usage:
             user_data["forget_punch_usage"].update(forget_punch_usage)
 
-    def detect_date_overlap(self, user_name: str, new_start_date: str, new_end_date: str) -> List[Tuple[str, str]]:
+    def detect_date_overlap(
+        self, user_name: str, new_start_date: str, new_end_date: str
+    ) -> List[Tuple[str, str]]:
         overlaps = []
         existing_ranges = self.get_user_processed_ranges(user_name)
         new_start = datetime.strptime(new_start_date, "%Y-%m-%d").date()
         new_end = datetime.strptime(new_end_date, "%Y-%m-%d").date()
         for range_info in existing_ranges:
-            existing_start = datetime.strptime(range_info["start_date"], "%Y-%m-%d").date()
+            existing_start = datetime.strptime(
+                range_info["start_date"], "%Y-%m-%d"
+            ).date()
             existing_end = datetime.strptime(range_info["end_date"], "%Y-%m-%d").date()
             if new_start <= existing_end and new_end >= existing_start:
                 overlap_start = max(new_start, existing_start)
                 overlap_end = min(new_end, existing_end)
-                overlaps.append((overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")))
+                overlaps.append(
+                    (
+                        overlap_start.strftime("%Y-%m-%d"),
+                        overlap_end.strftime("%Y-%m-%d"),
+                    )
+                )
         return overlaps
 
 
-def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
-                             complete_days: Iterable[datetime]) -> List[datetime]:
+def filter_unprocessed_dates(
+    processed_ranges: List[Dict[str, str]], complete_days: Iterable[datetime]
+) -> List[datetime]:
     """Return dates in complete_days not covered by any processed range.
 
     processed_ranges: List of dicts with 'start_date'/'end_date' in YYYY-MM-DD.
@@ -114,6 +132,7 @@ def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
 
     # Binary search membership over merged ranges
     import bisect
+
     starts = [s for s, _ in merged]
     for day_dt in complete_days:
         day = day_dt.date()

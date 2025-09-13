@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Python-based attendance analysis system that processes employee attendance records from HR portals and calculates late arrivals, overtime, work-from-home (WFH) recommendations, and forget-punch suggestions. The system is designed for companies with flexible working hours in Taiwan.
 
+## Requirements
+
+- Python 3.8+ (project baseline)
+- Optional: `openpyxl` for Excel export
+- Upcoming TUI (Textual) requires Python 3.8+ and the `textual` package
+
 ## Core Commands
 
 ### Running the Analyzer
@@ -297,3 +303,18 @@ Real-world testing scenarios have been validated:
 
 ### Sample Data Testing
 Use `sample-attendance-data.txt` for integration testing - it contains various scenarios including normal check-ins, tardiness, overtime, absences, and Friday WFH cases. The corresponding `sample-attendance-data_analysis.csv` shows expected output format.
+# TUI (Preview)
+
+- Optional dependency via extras: `pip install .[tui]`
+- Start with: `python3 attendance_analyzer.py <file> [format] --tui`
+- Env for language override: `FHR_LANG=zh_TW` or `FHR_LANG=en`
+# Lint & Formatting
+
+- Formatting: Black (default settings, repository-wide). CI runs `black --check .`.
+- Lint: Ruff with critical rules only (`E9,F63,F7,F82`).
+
+Suggested pre-push:
+```bash
+black .
+ruff check --select E9,F63,F7,F82 .
+```

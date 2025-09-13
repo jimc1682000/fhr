@@ -11,9 +11,8 @@ def backup_with_timestamp(filepath: str) -> Optional[str]:
     if not os.path.exists(filepath):
         return None
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_name, ext = os.path.splitext(filepath)
     backup_filepath = f"{base_name}_{timestamp}{ext}"
     os.rename(filepath, backup_filepath)
     return backup_filepath
-

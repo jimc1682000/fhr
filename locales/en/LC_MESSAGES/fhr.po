@@ -1,0 +1,67 @@
+# en translations (identity) for fhr
+msgid ""
+msgstr ""
+
+msgid "Wizard"
+msgstr "Wizard"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Run"
+msgstr "Run"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Quit"
+msgstr "Quit"
+
+msgid "Welcome"
+msgstr "Welcome"
+
+msgid "File"
+msgstr "File"
+
+msgid "Recent"
+msgstr "Recent"
+
+msgid "Format"
+msgstr "Format"
+
+msgid "Options"
+msgstr "Options"
+
+msgid "Confirm & Run"
+msgstr "Confirm & Run"
+
+msgid "Preview"
+msgstr "Preview"
+
+msgid "Done"
+msgstr "Done"
+
+msgid "Excel"
+msgstr "Excel"
+
+msgid "CSV"
+msgstr "CSV"
+
+msgid "Incremental"
+msgstr "Incremental"
+
+msgid "Full Re-Analyze"
+msgstr "Full Re-Analyze"
+
+msgid "Reset State"
+msgstr "Reset State"
+
+msgid "Output"
+msgstr "Output"
+
+msgid "Rows Previewed"
+msgstr "Rows Previewed"
+

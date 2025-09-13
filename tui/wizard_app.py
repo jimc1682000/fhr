@@ -156,12 +156,23 @@ class WizardApp(App):
         elif self.step == 4:
             table = DataTable(id="preview")
             table.add_columns("date", "type", "minutes", "desc")
+            style_map = {
+                'late': 'red',
+                'ot': 'cyan',
+                'wfh': 'green',
+                'leave': 'yellow',
+                'other': 'white',
+            }
+            self._styles_applied = []
             for idx, r in enumerate(truncate_rows(self.rows, 200)):
+                style_name = style_map.get(self.row_styles[idx] if idx < len(self.row_styles) else 'other', 'white')
+                self._styles_applied.append(style_name)
                 table.add_row(
                     r.get('date', ''),
                     r.get('type', ''),
                     str(r.get('minutes', 0)),
                     r.get('desc', ''),
+                    style=style_name,
                 )
             stage.update("")
             stage.mount(table)

@@ -19,6 +19,7 @@ jobs:
           pip install openpyxl
       - name: Run tests with coverage (stdlib trace)
         run: |
+          python tools/po_to_mo.py
           make coverage
       - name: Enforce coverage >= 100%
         run: |
@@ -43,6 +44,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install '.[tui]'
+      - name: Compile locales
+        run: |
+          python tools/po_to_mo.py
       - name: Smoke test TUI handoff
         env:
           FHR_TUI_AUTOCLOSE: "1"
@@ -52,3 +56,18 @@ jobs:
           cli.run(['prog','sample-attendance-data.txt','csv','--tui'])
           print('TUI smoke OK')
           PY
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install linters
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+      - name: Ruff (critical rules only)
+        run: |
+          ruff check --select E9,F63,F7,F82 .

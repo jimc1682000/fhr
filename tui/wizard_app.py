@@ -3,12 +3,15 @@ import os
 
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Button, Label, DataTable, Input, Static
+from textual.widgets import Button, Label, DataTable, Input, Static, TextLog
 from textual.reactive import reactive
 
 from .i18n import get_translator
-from .adapters import truncate_rows
-from .recent import load_recent_files
+from .adapters import truncate_rows, run_in_thread
+from .recent import load_recent_files, add_recent_file
+from .logging_bridge import TextualLogHandler
+import logging
+import threading
 
 
 _ = get_translator()
@@ -35,6 +38,11 @@ class WizardApp(App):
         self.auto_close = auto_close
         self.step = reactive(1)
         self.rows: List[dict] = []
+        self.row_styles: List[str] = []
+        self.log_sink: List[str] = []
+        self._log_handler: TextualLogHandler | None = None
+        self._cancel_event = threading.Event()
+        self._running = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="content"):
@@ -49,11 +57,13 @@ class WizardApp(App):
             with Vertical(id="step1"):
                 yield Label(_("File"))
                 yield Input(self.prefill.get("filepath", ""), id="filepath")
-                yield Label("Recent")
+                yield Label(_("Recent"))
                 with Horizontal(id="recent"):
                     for idx, p in enumerate(load_recent_files()):
                         yield Button(os.path.basename(p), id=f"recent-{idx}", variant="primary")
-            yield Static(id="stage")
+            with Horizontal():
+                yield Static(id="stage")
+                yield TextLog(id="log", highlight=False)
 
     def on_mount(self) -> None:
         # Auto-quit for CI smoke if requested
@@ -80,6 +90,15 @@ class WizardApp(App):
             self.query_one("#filepath", Input).value = btn.renderable
 
     def action_next(self) -> None:
+        if self.step == 1:
+            # validate filepath exists
+            path = self.query_one("#filepath", Input).value.strip()
+            if not path or not os.path.exists(path):
+                self._show_error("File not found")
+                return
+            # clear error and store prefill
+            self.prefill['filepath'] = path
+            self._clear_error()
         self.step = min(5, self.step + 1)
         self._render_step()
 
@@ -88,9 +107,22 @@ class WizardApp(App):
         self._render_step()
 
     def action_run(self) -> None:
-        self._simulate_run()
-        self.step = 4
-        self._render_step()
+        if self._running:
+            return
+        self._running = True
+        self._cancel_event.clear()
+        self._attach_logger()
+        # run real analysis in background, then move to preview
+        def work():
+            try:
+                self._do_analysis()
+                if not self._cancel_event.is_set():
+                    self.call_from_thread(self._go_preview)
+            finally:
+                self._detach_logger()
+                self._running = False
+
+        run_in_thread(work)
 
     def action_cancel(self) -> None:
         # For now, cancel returns to confirm step
@@ -119,7 +151,7 @@ class WizardApp(App):
         elif self.step == 4:
             table = DataTable(id="preview")
             table.add_columns("date", "type", "minutes", "desc")
-            for r in truncate_rows(self.rows, 200):
+            for idx, r in enumerate(truncate_rows(self.rows, 200)):
                 table.add_row(
                     r.get('date', ''),
                     r.get('type', ''),
@@ -131,11 +163,90 @@ class WizardApp(App):
         else:
             stage.update(_("Done"))
 
-    def _simulate_run(self) -> None:
-        self.rows = [
-            {"date": f"2025/07/{i:02d}", "type": "LATE", "minutes": i, "desc": "mock"}
-            for i in range(1, 251)
-        ]
+    def _go_preview(self) -> None:
+        self.step = 4
+        self._render_step()
+
+    def _attach_logger(self) -> None:
+        if self._log_handler is not None:
+            return
+        self._log_handler = TextualLogHandler(self.log_sink)
+        self._log_handler.setFormatter(logging.Formatter('%(levelname)s:%(message)s'))
+        logging.getLogger().addHandler(self._log_handler)
+        logging.getLogger().setLevel(logging.INFO)
+
+    def _detach_logger(self) -> None:
+        if self._log_handler is not None:
+            try:
+                logging.getLogger().removeHandler(self._log_handler)
+            except Exception:
+                pass
+            self._log_handler = None
+
+    def _show_error(self, msg: str) -> None:
+        stage = self.query_one("#stage", Static)
+        stage.update(f"ERROR: {msg}")
+
+    def _clear_error(self) -> None:
+        stage = self.query_one("#stage", Static)
+        stage.update("")
+
+    def _type_class(self, t: str) -> str:
+        t = t.lower()
+        if 'late' in t or '遲到' in t:
+            return 'late'
+        if 'overtime' in t or '加班' in t:
+            return 'ot'
+        if 'wfh' in t:
+            return 'wfh'
+        if 'leave' in t or '請假' in t:
+            return 'leave'
+        return 'other'
+
+    def _do_analysis(self) -> None:
+        # Early cancel check
+        if self._cancel_event.is_set():
+            return
+        # Clear previous rows/styles
+        self.rows = []
+        self.row_styles = []
+        # Obtain path
+        path = self.prefill.get('filepath') or ''
+        fmt = self.prefill.get('format', 'excel')
+        inc = self.prefill.get('incremental', True) and not self.prefill.get('full', False)
+        if not path or not os.path.exists(path):
+            self.call_from_thread(lambda: self._show_error('File not found'))
+            return
+        from attendance_analyzer import AttendanceAnalyzer
+        analyzer = AttendanceAnalyzer()
+        logger = logging.getLogger(__name__)
+        logger.info('解析檔案...')
+        analyzer.parse_attendance_file(path, incremental=inc)
+        if self._cancel_event.is_set():
+            return
+        logger.info('分組記錄...')
+        analyzer.group_records_by_day()
+        if self._cancel_event.is_set():
+            return
+        logger.info('分析考勤...')
+        analyzer.analyze_attendance()
+        if self._cancel_event.is_set():
+            return
+        # Build preview rows from issues
+        preview = []
+        styles = []
+        for issue in analyzer.issues:
+            preview.append({
+                'date': issue.date.strftime('%Y/%m/%d'),
+                'type': issue.type.value if hasattr(issue.type, 'value') else str(issue.type),
+                'minutes': issue.duration_minutes,
+                'desc': issue.description,
+            })
+            styles.append(self._type_class(issue.type.value if hasattr(issue.type, 'value') else str(issue.type)))
+        self.rows = preview
+        self.row_styles = styles
+        # Add to recent list
+        add_recent_file(path)
 
 
 def run_app(prefill: Dict[str, Any]) -> None:

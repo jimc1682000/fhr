@@ -32,6 +32,19 @@
 
 ## 安裝與使用
 
+### Quickstart
+
+```bash
+# 1) 最常用：增量分析 + 預設Excel
+python attendance_analyzer.py "202508-姓名-出勤資料.txt"
+
+# 2) 產生CSV
+python attendance_analyzer.py "202508-姓名-出勤資料.txt" csv
+
+# 3) 跨月資料
+python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
+```
+
 ### 基本使用
 
 ```bash
@@ -301,6 +314,7 @@ attendance_analyzer.py
 - 嘗試從政府開放資料API動態載入假日
 - API不可用時載入基本假日（元旦、國慶日）
 - 系統會顯示載入狀態資訊
+  - 內建「重試 + 退避」機制：逾時/429/5xx 會自動重試數次，之後回退到基本假日
 
 ### 載入過程
 ```
@@ -315,6 +329,10 @@ attendance_analyzer.py
 - 加班時間未滿1小時不會列入申請建議
 - 系統僅分析工作日，不處理週末和國定假日
 - 跨年份資料會自動載入相應年份的國定假日
+
+### 日期顯示與解釋（Absolute Dates）
+- 本工具的輸出與日誌均使用「絕對日期」格式 `YYYY-MM-DD`（例：`2025-09-13`）。
+- 說明文件若提到「今天/昨天」等相對時間，僅作概念說明；實際程式輸出仍為絕對日期，避免混淆。
 
 ## 專案結構
 
@@ -383,15 +401,11 @@ fhr/
 
 #### 單元測試
 ```bash
-# 運行完整測試套件（21個測試）
-python3 -m unittest test.test_attendance_analyzer
+# 運行完整測試套件（多個測試檔）
+python3 -m unittest -q
 
-# 測試涵蓋範圍
-# ✅ 核心業務邏輯（8個測試）
-# ✅ 輸出格式驗證（3個測試）
-# ✅ 進階功能（3個測試）
-# ✅ 增量分析與備份（5個測試）
-# ✅ 資料結構驗證（3個測試）
+# 或只跑單一測試檔
+python3 -m unittest test.test_attendance_analyzer
 ```
 
 **測試特色**：
@@ -399,6 +413,22 @@ python3 -m unittest test.test_attendance_analyzer
 - **隔離執行**：使用臨時檔案，測試間互不干擾
 - **自動清理**：所有測試產生的檔案自動刪除
 - **真實場景**：涵蓋實際使用情況和邊界條件
+
+## 環境變數（可選）
+
+為了提升在網路不穩定情況下載入國定假日的成功率，支援以下環境變數調整重試策略：
+
+- `HOLIDAY_API_MAX_RETRIES`：最大重試次數（預設 `3`）
+- `HOLIDAY_API_BACKOFF_BASE`：指數退避基準秒數（預設 `0.5`）
+- `HOLIDAY_API_MAX_BACKOFF`：每次重試的最大等待秒數上限（預設 `8`）
+
+行為說明：在逾時、連線錯誤、HTTP 429/5xx 時進行重試，採用指數退避並加入少量抖動；重試失敗後會自動回退載入基本固定假日（元旦/國慶）。
+
+## 疑難排解（Troubleshooting）
+
+- 看不到Excel輸出？請安裝 `openpyxl` 或改用 `csv`：`pip install openpyxl`
+- 檔名不符規範導致未啟用增量分析？請使用 `YYYYMM-姓名-出勤資料.txt` 或 `YYYYMM-YYYYMM-姓名-出勤資料.txt`。
+- 假日載入常失敗？可調整重試相關環境變數（見上）；若最終仍失敗，系統會自動回退到基本假日以確保分析可繼續。
 
 ## 授權
 

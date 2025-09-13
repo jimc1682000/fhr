@@ -26,4 +26,5 @@ class TestBackup(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Backup
+Purpose: Ensure timestamped backup behavior and no-op when missing."""

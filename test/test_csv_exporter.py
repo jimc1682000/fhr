@@ -51,4 +51,5 @@ class TestCsvExporter(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Export/CSV
+Purpose: CSV headers, status row, and issue rows with incremental flag."""

@@ -1,47 +1,29 @@
-import os
-import json
 import unittest
 from unittest import mock
 
 from lib.holidays import TaiwanGovOpenDataProvider
+from test.test_helpers import DummyResp, temp_env
 
 
-class DummyResp:
-    def __init__(self, payload: dict):
-        self._payload = payload
-    def read(self):
-        return json.dumps(self._payload).encode('utf-8')
-    def __enter__(self):
-        return self
-    def __exit__(self, *args):
-        return False
+"""Use shared DummyResp from test_helpers to avoid local duplication."""
 
 
 class TestHolidaysMissingRecords(unittest.TestCase):
-    def setUp(self):
-        self._env = dict(os.environ)
-        os.environ['HOLIDAY_API_MAX_RETRIES'] = '1'
-        os.environ['HOLIDAY_API_BACKOFF_BASE'] = '0'
-        os.environ['HOLIDAY_API_MAX_BACKOFF'] = '0'
-
-    def tearDown(self):
-        os.environ.clear()
-        os.environ.update(self._env)
-
     def test_missing_result_or_records_returns_empty(self):
-        # First attempt: no 'result' key
-        payload1 = {}
-        # Second attempt: 'result' present but no 'records'
-        payload2 = {'result': {}}
-        seq = [DummyResp(payload1), DummyResp(payload2)]
+        # Speed up tests by removing backoff and limiting retries
+        with temp_env({'HOLIDAY_API_MAX_RETRIES': '1', 'HOLIDAY_API_BACKOFF_BASE': '0', 'HOLIDAY_API_MAX_BACKOFF': '0'}):
+            # First attempt: no 'result' key
+            payload1 = {}
+            # Second attempt: 'result' present but no 'records'
+            payload2 = {'result': {}}
+            seq = [DummyResp(payload1), DummyResp(payload2)]
+            def urlopen_side(url, timeout=10, context=None):
+                return seq.pop(0)
 
-        def urlopen_side(url, timeout=10, context=None):
-            return seq.pop(0)
-
-        p = TaiwanGovOpenDataProvider()
-        with mock.patch('urllib.request.urlopen', side_effect=urlopen_side):
-            with self.assertLogs('lib.holidays', level='INFO') as cm:
-                out = p.load(2026)
+            p = TaiwanGovOpenDataProvider()
+            with mock.patch('urllib.request.urlopen', side_effect=urlopen_side):
+                with self.assertLogs('lib.holidays', level='INFO') as cm:
+                    out = p.load(2026)
         # Should gracefully return empty set after retries exhausted
         self.assertEqual(out, set())
         logs = "\n".join(cm.output)
@@ -51,4 +33,5 @@ class TestHolidaysMissingRecords(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Holidays/API
+Purpose: Missing 'result' / 'records' handling with retry exhaustion."""

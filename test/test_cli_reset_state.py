@@ -37,3 +37,5 @@ class TestCliResetState(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+"""Category: CLI
+Purpose: Reset-state command path and logs."""

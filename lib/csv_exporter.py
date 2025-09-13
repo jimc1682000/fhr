@@ -49,9 +49,5 @@ def save_csv(filepath: str, issues: Iterable, incremental_mode: bool,
         if status and incremental_mode and (not list(issues)):
             last_date, complete_days, last_analysis_time = status
             write_status_row(writer, last_date, complete_days, last_analysis_time)
-        # 即使存在 status，但 issues 仍可能為空；此時僅有狀態列
-        for _ in ():
-            pass
         # 寫入資料列
         write_issue_rows(writer, issues, incremental_mode)
-

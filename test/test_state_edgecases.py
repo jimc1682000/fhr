@@ -56,4 +56,5 @@ class TestStateEdgeCases(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: State
+Purpose: Corrupt state file, save failure warnings, and merge logic."""

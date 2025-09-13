@@ -67,3 +67,5 @@ class TestHolidayLoading(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+"""Category: Excel Exporter
+Purpose: Validate styled Excel writing and analyzer gov API helper behavior."""

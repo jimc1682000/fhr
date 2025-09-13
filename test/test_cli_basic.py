@@ -45,4 +45,5 @@ class TestCliBasic(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: CLI
+Purpose: Basic CLI flows for full and incremental CSV export."""

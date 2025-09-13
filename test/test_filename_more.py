@@ -25,3 +25,5 @@ class TestFilenameMore(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+"""Category: Filename/Parsing
+Purpose: Edge patterns and invalid month handling for filename parsing."""

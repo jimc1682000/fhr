@@ -28,4 +28,5 @@ class TestCliErrors(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: CLI
+Purpose: Error handling paths for CLI (unparsable filename, sys.exit)."""

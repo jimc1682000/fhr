@@ -24,4 +24,5 @@ class TestFilenameParsing(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Filename/Parsing
+Purpose: Parse user and date ranges from filename patterns."""

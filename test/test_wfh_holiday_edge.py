@@ -40,4 +40,5 @@ class TestWfhHolidayEdge(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Policy/Holidays
+Purpose: WFH suggestion behavior on holidays vs normal Fridays."""

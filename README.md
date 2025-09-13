@@ -1,6 +1,6 @@
 # 考勤分析系統
 
-[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](docs/testing.md)
+[![Coverage](assets/coverage.svg)](docs/testing.md)
 
 > Python attendance analyzer with Taiwan holiday support, calculating late arrivals, overtime, and WFH recommendations
 

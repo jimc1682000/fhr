@@ -30,4 +30,5 @@ class TestReportBuilder(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: Report
+Purpose: Incremental section preview and issue sections rendering."""

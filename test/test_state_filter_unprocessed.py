@@ -40,4 +40,5 @@ class TestFilterUnprocessed(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+"""Category: State/Dates
+Purpose: Range merging and membership checks for unprocessed date filter."""

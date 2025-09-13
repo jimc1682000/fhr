@@ -9,3 +9,7 @@ test:
 coverage:
 	$(PY) tools/run_coverage.py
 	$(PY) tools/gen_coverage_badge.py
+
+.PHONY: coverage-check
+coverage-check: coverage
+	$(PY) tools/check_coverage_threshold.py --min 100

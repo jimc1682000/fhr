@@ -3,15 +3,15 @@ import os
 
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import (
-    Button,
-    Label,
-    DataTable,
-    Input,
-    Static,
-    TextLog,
-    DirectoryTree,
-)
+from textual.widgets import Button, Label, DataTable, Input, Static, DirectoryTree
+# Textual compatibility: some versions expose Log instead of TextLog
+try:  # pragma: no cover - import compatibility
+    from textual.widgets import TextLog as LogWidget
+except Exception:  # pragma: no cover
+    try:
+        from textual.widgets import Log as LogWidget  # type: ignore
+    except Exception:  # fallback stub to avoid import error on smoke
+        LogWidget = Static  # type: ignore
 from textual.reactive import reactive
 
 from .i18n import get_translator
@@ -75,7 +75,7 @@ class WizardApp(App):
                 yield DirectoryTree(os.getcwd(), id="tree")
             with Horizontal():
                 yield Static(id="stage")
-                yield TextLog(id="log", highlight=False)
+                yield LogWidget(id="log")
 
     def on_mount(self) -> None:
         # Auto-quit for CI smoke if requested

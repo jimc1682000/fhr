@@ -28,9 +28,53 @@ class TestPolicy(unittest.TestCase):
 
     def test_is_full_day_absent(self):
         date = datetime.strptime("2025/07/04", "%Y/%m/%d")
-        wd = WorkDay(date=date, checkin_record=mk_record("2025/07/04 08:00", None, AttendanceType.CHECKIN),
-                     checkout_record=mk_record("2025/07/04 17:00", None, AttendanceType.CHECKOUT), is_friday=True)
+        # missing actual times on both records
+        wd = WorkDay(
+            date=date,
+            checkin_record=mk_record(
+                "2025/07/04 08:00", None, AttendanceType.CHECKIN
+            ),
+            checkout_record=mk_record(
+                "2025/07/04 17:00", None, AttendanceType.CHECKOUT
+            ),
+            is_friday=True,
+        )
         self.assertTrue(is_full_day_absent(wd))
+
+        # missing checkin record
+        wd_missing_in = WorkDay(
+            date=date,
+            checkin_record=None,
+            checkout_record=mk_record(
+                "2025/07/04 17:00", "2025/07/04 17:00", AttendanceType.CHECKOUT
+            ),
+            is_friday=True,
+        )
+        self.assertTrue(is_full_day_absent(wd_missing_in))
+
+        # missing checkout record
+        wd_missing_out = WorkDay(
+            date=date,
+            checkin_record=mk_record(
+                "2025/07/04 08:00", "2025/07/04 08:00", AttendanceType.CHECKIN
+            ),
+            checkout_record=None,
+            is_friday=True,
+        )
+        self.assertTrue(is_full_day_absent(wd_missing_out))
+
+        # both records present with actual times
+        wd_present = WorkDay(
+            date=date,
+            checkin_record=mk_record(
+                "2025/07/04 08:00", "2025/07/04 08:00", AttendanceType.CHECKIN
+            ),
+            checkout_record=mk_record(
+                "2025/07/04 17:00", "2025/07/04 17:00", AttendanceType.CHECKOUT
+            ),
+            is_friday=True,
+        )
+        self.assertFalse(is_full_day_absent(wd_present))
 
     def test_late_across_lunch_deduct(self):
         # checkin at 13:30 vs latest 10:30 -> 180m; cross lunch deduct 60 => 120m

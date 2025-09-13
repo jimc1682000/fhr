@@ -23,14 +23,14 @@
 - [x] `tui/__init__.py` 導出 `launch_tui()`（驗證可選依賴）。
 
 ## 4) 精靈 UX 規格（第一版）
-- [ ] Step 1 — 歡迎與輸入檔：
+- [x] Step 1 — 歡迎與輸入檔：
   - [ ] 最近使用清單（讀寫簡單 JSON，沿用或並列 `attendance_state.json`）。
   - [ ] 檔案挑選（目錄樹 + 路徑輸入）。
-- [ ] Step 2 — 選項：輸出格式（excel/csv）、執行模式（`--incremental|--full|--reset-state`）。
-- [ ] Step 3 — 確認與執行：摘要、開始/取消、即時 log、進度條。
-- [ ] Step 4 — 預覽：僅顯示前 200 行的表格，狀態上色（遲到/加班/WFH/假日）。
-- [ ] Step 5 — 完成：輸出路徑、開啟資料夾按鈕、重跑選項。
-- [ ] 鍵盤：`Enter` 下一步、`Esc` 上一步、`R` 執行、`C` 取消、`Q` 離開。
+- [x] Step 2 — 選項：輸出格式（excel/csv）、執行模式（`--incremental|--full|--reset-state`）。
+- [x] Step 3 — 確認與執行：摘要、開始/取消（進度/日誌後續補）。
+- [x] Step 4 — 預覽：僅顯示前 200 行的表格（使用 `truncate_rows`；樣式後續補）。
+- [x] Step 5 — 完成：完成訊息（輸出路徑與開啟資料夾後續補）。
+- [ ] 鍵盤：`Enter` 下一步、`Esc` 上一步、`R` 執行、`C` 取消、`Q` 離開（目前以按鈕為主，鍵位後續補）。
 
 ## 5) 國際化（預設中文，非中文語系顯示英文）
 - [ ] 決策：採用 `gettext`（標準庫，無額外依賴）。
@@ -40,7 +40,7 @@
   - [ ] 否則讀 `locale.getdefaultlocale()` 或 `locale.getlocale()`。
   - [ ] 若為 `zh*` 則預設中文；其他皆使用英文。
 - [ ] UI 字串全部走 `_()`；保留英文為 msgid，zh_TW 為翻譯，確保非中文環境自動顯示英文。
-- [ ] 在 `README.md` 說明 i18n 與覆寫方法（`FHR_LANG`）。
+- [x] 在 `README.md` 說明 i18n 與覆寫方法（`FHR_LANG`）。
 
 ## 6) 背景執行與進度/取消
 - [ ] 在 Textual（asyncio）中以 `asyncio.to_thread()` 包裝既有分析流程，避免阻塞 UI。

@@ -12,6 +12,13 @@ except Exception:
 
 @unittest.skipUnless(HAS_TEXTUAL, "textual not installed")
 class TestWizardPilot(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        # Avoid real network/backoff in analyzer during UI tests
+        import os
+        os.environ['HOLIDAY_API_MAX_RETRIES'] = '0'
+        os.environ['HOLIDAY_API_BACKOFF_BASE'] = '0'
+        os.environ['HOLIDAY_API_MAX_BACKOFF'] = '0'
+
     async def test_key_flow_and_preview_limit(self):
         prefill = {
             'filepath': 'sample-attendance-data.txt',

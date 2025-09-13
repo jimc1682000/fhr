@@ -1,5 +1,7 @@
 # 考勤分析系統
 
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)](docs/testing.md)
+
 > Python attendance analyzer with Taiwan holiday support, calculating late arrivals, overtime, and WFH recommendations
 
 這是一個企業考勤分析工具，可以自動分析考勤記錄並計算需要申請的遲到/加班時數。

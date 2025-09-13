@@ -1127,7 +1127,7 @@ def main():
             if user_name in state_manager.state_data.get("users", {}):
                 del state_manager.state_data["users"][user_name]
                 state_manager.save_state()
-                logger.info("🗑️  已清除 %s 的處理狀態", user_name)
+                logger.info("🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s", user_name, datetime.now().isoformat())
             else:
                 logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
         else:

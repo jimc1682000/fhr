@@ -55,3 +55,4 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 - 測試與品質保證：[docs/testing.md](docs/testing.md)
 - 貢獻指南（PR/Commit）：[docs/contributing.md](docs/contributing.md)
 - 疑難排解：[docs/troubleshooting.md](docs/troubleshooting.md)
+ - Coverage 指令（無需安裝 coverage）：`make coverage`（輸出於 `coverage_report/`）

@@ -12,7 +12,7 @@ import logging
 import time  # unused; kept previously, now removed for clarity
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import List, Dict, Tuple, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 from enum import Enum
 from urllib.parse import urlparse
@@ -603,3 +603,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Typing-time imports to satisfy static analyzers without importing at runtime.
+if TYPE_CHECKING:  # pragma: no cover
+    from lib.state import AttendanceStateManager  # noqa: F401

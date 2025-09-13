@@ -46,13 +46,14 @@ def write_headers(ws, headers: List[str], header_font: Font,
 
 
 def write_status_row(ws, last_date: str, complete_days: int,
-                     border: Border, alignment: Alignment) -> int:
+                     last_analysis_time: str, border: Border,
+                     alignment: Alignment) -> int:
     """Write incremental status row and return next data row."""
     ws.cell(row=2, column=1).value = last_date
     ws.cell(row=2, column=2).value = "狀態資訊"
     ws.cell(row=2, column=3).value = 0
     ws.cell(row=2, column=4).value = (
-        f"📊 增量分析完成，已處理至 {last_date}，共 {complete_days} 個完整工作日"
+        f"📊 增量分析完成，已處理至 {last_date}，共 {complete_days} 個完整工作日 | 上次分析時間: {last_analysis_time}"
     )
     ws.cell(row=2, column=5).value = ""
     ws.cell(row=2, column=6).value = "上次處理範圍內無新問題需要申請"

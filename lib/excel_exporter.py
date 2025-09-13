@@ -118,14 +118,19 @@ def write_issue_rows(ws, issues: List[Issue], start_row: int,
 
 
 def set_column_widths(ws, incremental_mode: bool) -> None:
-    """Set worksheet column widths."""
+    """Set worksheet column widths.
+    - Base width 15 for most columns
+    - Description (D) wider for readability
+    - Calculation (F) widest; wider when incremental_mode is on
+    - Status (G) visible without wrapping when incremental_mode is on
+    """
     col_count = 7 if incremental_mode else 6
     for col in range(1, col_count + 1):
         ws.column_dimensions[chr(64 + col)].width = 15
     ws.column_dimensions['D'].width = 30
-    ws.column_dimensions['F'].width = 35
+    ws.column_dimensions['F'].width = 40 if incremental_mode else 35
     if incremental_mode:
-        ws.column_dimensions['G'].width = 20
+        ws.column_dimensions['G'].width = 24
 
 
 def save_workbook(wb: Workbook, filepath: str) -> None:

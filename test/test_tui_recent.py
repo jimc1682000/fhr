@@ -21,11 +21,12 @@ class TestRecentList(unittest.TestCase):
 
     def test_add_and_load_recent(self):
         from tui.recent import add_recent_file, load_recent_files
+
         # create two temp files
         f1 = os.path.join(os.getcwd(), "sample-attendance-data.txt")
         f2 = os.path.join(os.getcwd(), "202507-202508-JimmyChen-出勤資料.txt")
-        open(f1, 'a').close()
-        open(f2, 'a').close()
+        open(f1, "a").close()
+        open(f2, "a").close()
         try:
             add_recent_file(f1)
             add_recent_file(f2)
@@ -36,6 +37,5 @@ class TestRecentList(unittest.TestCase):
             os.remove(f2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

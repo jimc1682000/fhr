@@ -38,4 +38,3 @@ def add_recent_file(path: str, limit: int = 10) -> None:
     except Exception:
         # Non-fatal; silently ignore file write errors
         pass
-

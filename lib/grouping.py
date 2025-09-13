@@ -2,6 +2,7 @@
 
 These helpers avoid importing analyzer types; they return simple dicts.
 """
+
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict
@@ -22,4 +23,3 @@ def group_daily(records: list) -> Dict:
         else:
             daily[key]["checkout"] = rec
     return daily
-

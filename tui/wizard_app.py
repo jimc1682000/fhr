@@ -3,7 +3,15 @@ import os
 
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Button, Label, DataTable, Input, Static, TextLog, DirectoryTree
+from textual.widgets import (
+    Button,
+    Label,
+    DataTable,
+    Input,
+    Static,
+    TextLog,
+    DirectoryTree,
+)
 from textual.reactive import reactive
 
 from .i18n import get_translator
@@ -60,7 +68,9 @@ class WizardApp(App):
                 yield Label(_("Recent"))
                 with Horizontal(id="recent"):
                     for idx, p in enumerate(load_recent_files()):
-                        yield Button(os.path.basename(p), id=f"recent-{idx}", variant="primary")
+                        yield Button(
+                            os.path.basename(p), id=f"recent-{idx}", variant="primary"
+                        )
                 # Simple directory tree rooted at CWD
                 yield DirectoryTree(os.getcwd(), id="tree")
             with Horizontal():
@@ -102,7 +112,7 @@ class WizardApp(App):
                 self._show_error("File not found")
                 return
             # clear error and store prefill
-            self.prefill['filepath'] = path
+            self.prefill["filepath"] = path
             self._clear_error()
         self.step = min(5, self.step + 1)
         self._render_step()
@@ -117,6 +127,7 @@ class WizardApp(App):
         self._running = True
         self._cancel_event.clear()
         self._attach_logger()
+
         # run real analysis in background, then move to preview
         def work():
             try:
@@ -141,13 +152,13 @@ class WizardApp(App):
         stage = self.query_one("#stage", Static)
         stage.update("")
         # Toggle step1 controls visibility
-        self.query_one("#step1").display = (self.step == 1)
+        self.query_one("#step1").display = self.step == 1
         if self.step == 1:
             return
         if self.step == 2:
-            inc = self.prefill.get('incremental', True)
-            full = self.prefill.get('full', False)
-            reset = self.prefill.get('reset_state', False)
+            inc = self.prefill.get("incremental", True)
+            full = self.prefill.get("full", False)
+            reset = self.prefill.get("reset_state", False)
             stage.update(
                 f"{_('Options')}:\n- {_('Incremental')}: {inc}\n- {_('Full Re-Analyze')}: {full}\n- {_('Reset State')}: {reset}"
             )
@@ -157,21 +168,24 @@ class WizardApp(App):
             table = DataTable(id="preview")
             table.add_columns("date", "type", "minutes", "desc")
             style_map = {
-                'late': 'red',
-                'ot': 'cyan',
-                'wfh': 'green',
-                'leave': 'yellow',
-                'other': 'white',
+                "late": "red",
+                "ot": "cyan",
+                "wfh": "green",
+                "leave": "yellow",
+                "other": "white",
             }
             self._styles_applied = []
             for idx, r in enumerate(truncate_rows(self.rows, 200)):
-                style_name = style_map.get(self.row_styles[idx] if idx < len(self.row_styles) else 'other', 'white')
+                style_name = style_map.get(
+                    self.row_styles[idx] if idx < len(self.row_styles) else "other",
+                    "white",
+                )
                 self._styles_applied.append(style_name)
                 table.add_row(
-                    r.get('date', ''),
-                    r.get('type', ''),
-                    str(r.get('minutes', 0)),
-                    r.get('desc', ''),
+                    r.get("date", ""),
+                    r.get("type", ""),
+                    str(r.get("minutes", 0)),
+                    r.get("desc", ""),
                     style=style_name,
                 )
             stage.update("")
@@ -187,7 +201,7 @@ class WizardApp(App):
         if self._log_handler is not None:
             return
         self._log_handler = TextualLogHandler(self.log_sink)
-        self._log_handler.setFormatter(logging.Formatter('%(levelname)s:%(message)s'))
+        self._log_handler.setFormatter(logging.Formatter("%(levelname)s:%(message)s"))
         logging.getLogger().addHandler(self._log_handler)
         logging.getLogger().setLevel(logging.INFO)
 
@@ -209,15 +223,15 @@ class WizardApp(App):
 
     def _type_class(self, t: str) -> str:
         t = t.lower()
-        if 'late' in t or '遲到' in t:
-            return 'late'
-        if 'overtime' in t or '加班' in t:
-            return 'ot'
-        if 'wfh' in t:
-            return 'wfh'
-        if 'leave' in t or '請假' in t:
-            return 'leave'
-        return 'other'
+        if "late" in t or "遲到" in t:
+            return "late"
+        if "overtime" in t or "加班" in t:
+            return "ot"
+        if "wfh" in t:
+            return "wfh"
+        if "leave" in t or "請假" in t:
+            return "leave"
+        return "other"
 
     def _do_analysis(self) -> None:
         # Early cancel check
@@ -227,26 +241,29 @@ class WizardApp(App):
         self.rows = []
         self.row_styles = []
         # Obtain path
-        path = self.prefill.get('filepath') or ''
-        fmt = self.prefill.get('format', 'excel')
-        inc = self.prefill.get('incremental', True) and not self.prefill.get('full', False)
+        path = self.prefill.get("filepath") or ""
+        fmt = self.prefill.get("format", "excel")
+        inc = self.prefill.get("incremental", True) and not self.prefill.get(
+            "full", False
+        )
         if not path or not os.path.exists(path):
-            self.call_from_thread(lambda: self._show_error('File not found'))
+            self.call_from_thread(lambda: self._show_error("File not found"))
             return
         from attendance_analyzer import AttendanceAnalyzer
+
         analyzer = AttendanceAnalyzer()
         analyzer.set_progress_callback(lambda *_: None)
         analyzer.set_cancel_check(lambda: self._cancel_event.is_set())
         logger = logging.getLogger(__name__)
-        logger.info('解析檔案...')
+        logger.info("解析檔案...")
         analyzer.parse_attendance_file(path, incremental=inc)
         if self._cancel_event.is_set():
             return
-        logger.info('分組記錄...')
+        logger.info("分組記錄...")
         analyzer.group_records_by_day()
         if self._cancel_event.is_set():
             return
-        logger.info('分析考勤...')
+        logger.info("分析考勤...")
         analyzer.analyze_attendance()
         if self._cancel_event.is_set():
             return
@@ -254,13 +271,25 @@ class WizardApp(App):
         preview = []
         styles = []
         for issue in analyzer.issues:
-            preview.append({
-                'date': issue.date.strftime('%Y/%m/%d'),
-                'type': issue.type.value if hasattr(issue.type, 'value') else str(issue.type),
-                'minutes': issue.duration_minutes,
-                'desc': issue.description,
-            })
-            styles.append(self._type_class(issue.type.value if hasattr(issue.type, 'value') else str(issue.type)))
+            preview.append(
+                {
+                    "date": issue.date.strftime("%Y/%m/%d"),
+                    "type": (
+                        issue.type.value
+                        if hasattr(issue.type, "value")
+                        else str(issue.type)
+                    ),
+                    "minutes": issue.duration_minutes,
+                    "desc": issue.description,
+                }
+            )
+            styles.append(
+                self._type_class(
+                    issue.type.value
+                    if hasattr(issue.type, "value")
+                    else str(issue.type)
+                )
+            )
         self.rows = preview
         self.row_styles = styles
         # Add to recent list

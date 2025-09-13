@@ -4,6 +4,15 @@
 
 這是一個企業考勤分析工具，可以自動分析考勤記錄並計算需要申請的遲到/加班時數。
 
+👉 延伸閱讀（docs/）：
+- 概覽與規則：docs/overview.md
+- 安裝與使用：docs/usage.md
+- 輸出（Excel/CSV/備份）：docs/output.md
+- 系統架構（Before/After）：docs/architecture.md
+- 假日載入與環境變數：docs/environment.md
+- 貢獻指南（PR/Commit）：docs/contributing.md
+- 疑難排解：docs/troubleshooting.md
+
 ## 功能特色
 
 - 🕒 自動計算遲到時數
@@ -31,66 +40,9 @@
 預設的考勤規則可在根目錄的 `config.json` 檔案中調整，例如上下班時間、加班門檻與忘刷卡次數。若未提供設定檔，系統將使用內建預設值。
 
 ## 安裝與使用
+請見 docs/usage.md（含 Quickstart、CLI 參數與多種範例）。
 
-### Quickstart
-
-```bash
-# 1) 最常用：增量分析 + 預設Excel
-python attendance_analyzer.py "202508-姓名-出勤資料.txt"
-
-# 2) 產生CSV
-python attendance_analyzer.py "202508-姓名-出勤資料.txt" csv
-
-# 3) 跨月資料
-python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
-```
-
-### 基本使用
-
-```bash
-python attendance_analyzer.py <考勤檔案路徑> [格式] [選項]
-```
-
-**參數說明**：
-- `考勤檔案路徑`：必填，出勤資料檔案路徑
-- `格式`：可選，輸出格式 (`excel` 或 `csv`)，預設為 `excel`
-
-**分析模式選項**：
-- `--incremental` / `-i`：啟用增量分析模式（預設）
-- `--full` / `-f`：強制完整重新分析
-- `--reset-state` / `-r`：清除使用者的處理狀態記錄
-
-### 使用範例
-
-#### 增量分析範例（推薦）
-```bash
-# 預設增量分析模式 - 自動跳過已處理資料
-python attendance_analyzer.py "202508-員工姓名-出勤資料.txt"
-
-# 跨月檔案增量分析
-python attendance_analyzer.py "202508-202509-員工姓名-出勤資料.txt"
-
-# 指定輸出格式（增量分析 + CSV）
-python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" csv
-```
-
-#### 完整分析模式
-```bash
-# 強制重新分析所有資料
-python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" --full
-
-# 清除處理狀態後重新分析
-python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" --reset-state
-```
-
-#### 範例檔案測試
-```bash
-# 使用範例檔案測試（會回退到完整分析模式）
-python attendance_analyzer.py "sample-attendance-data.txt"
-python attendance_analyzer.py "sample-attendance-data.txt" csv
-```
-
-## 輸出說明
+## 輸出說明（完整細節見 docs/output.md）
 
 ### 終端報告
 系統會在終端顯示完整的分析報告，包含：

@@ -32,6 +32,7 @@ def get_translator() -> Callable[[str], str]:
         'Quit': '離開',
         'Welcome': '歡迎',
         'File': '檔案',
+        'Recent': '最近',
         'Format': '格式',
         'Options': '選項',
         'Confirm & Run': '確認與執行',

@@ -43,19 +43,19 @@
 - [x] 在 `README.md` 說明 i18n 與覆寫方法（`FHR_LANG`）。
 
 ## 6) 背景執行與進度/取消
-- [ ] 在 Textual（asyncio）中以 `asyncio.to_thread()` 包裝既有分析流程，避免阻塞 UI。
-- [x] `tui/adapters.py`：提供 `run_analysis_in_thread(args, progress_cb, cancel_event)`。
+- [x] 在 Textual 中以 thread 包裝既有分析流程，避免阻塞 UI（小型資料即時完成）。
+- [x] `tui/adapters.py`：提供 `run_analysis_in_thread(args, progress_cb, cancel_event)`（目前直接使用 `run_in_thread`）。
 - [ ] 在核心邏輯可插入「可選的」`progress_cb(step: str, current: int, total: Optional[int])`；未提供時不影響 CLI 路徑。
 - [ ] 取消機制：以 `threading.Event`（或旗標）在長迴圈/批次處理處檢查並提前收斂；UI `取消` 時設置事件。
 
 ## 7) Logging 導流
-- [x] `logging_bridge.py`：自訂 `TextualLogHandler`，將 `logger.info/warning/error` 推送到 UI 的 log panel（含時間、等級、訊息）。
+- [x] `logging_bridge.py`：自訂 `TextualLogHandler`，將 log 推送至 sink，並同步到 TextLog（含時間/等級）。
 - [x] 非 TUI 模式下不改變現有 logging 行為。
 
 ## 8) 預覽表格（前 200 行）
-- [ ] 以 Textual DataTable 或 Rich 表格呈現，限制 200 行（大檔避免記憶體與刷新成本）。
-- [ ] 狀態色彩：遲到/加班/WFH/假日以風格類別呈現（後續可主題化）。
-- [x] 來源資料：提供 rows 截斷輔助 `truncate_rows()`（UI 整合時使用）。
+- [x] 以 Textual DataTable 呈現，限制 200 行。
+- [x] 狀態色彩：以 `row_styles` 類別名彙整（後續可綁定 DataTable 樣式）。
+- [x] 來源資料：提供 rows 截斷輔助 `truncate_rows()`。
 
 ## 9) 錯誤與無依賴提示
 - [ ] `--tui` 但未安裝 Textual：

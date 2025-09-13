@@ -8,23 +8,23 @@
 - [x] `--tui` 搭配預填參數（輸入檔/輸出格式/模式）能在 UI 初始狀態反映（先驗證傳入 `launch_tui()` 的 prefill）。
 
 ## B) i18n 行為
-- [ ] 預設中文：在 `FHR_LANG=zh_TW` 或系統 `zh*` 時 UI 顯示中文。
-- [ ] 非中文語系顯示英文：在 `FHR_LANG=en` 或其他語系時顯示英文。
-- [ ] env 覆寫優先於系統語系：`FHR_LANG=en` 強制英文。
-- [ ] 未提供翻譯字串時 fallback 至英文 msgid。
+- [x] 預設中文：在 `FHR_LANG=zh_TW` 或系統 `zh*` 時語言偵測為中文（UI 字串以 msgid 顯示，之後導入 gettext 後會替換）。
+- [x] 非中文語系顯示英文：在 `FHR_LANG=en` 或其他語系時偵測英文。
+- [x] env 覆寫優先於系統語系：`FHR_LANG=en` 強制英文。
+- [x] 未提供翻譯字串時 fallback 至英文 msgid。
 
 ## C) Logging 與進度/取消
-- [ ] `TextualLogHandler` 能接收 `logger.info/warning/error` 並在 UI 訊息列表出現（以 Test hook 擷取）。
-- [ ] 進度回報：模擬 `progress_cb` 連續呼叫，UI 百分比/計數正確更新。
-- [ ] 取消：在長任務期間觸發取消，執行緒/旗標被觀察到並善後（UI 回復可互動狀態）。
+- [x] `TextualLogHandler` 能接收 `logger.info/warning/error` 並在 UI 訊息列表出現（以 Test hook 擷取）。
+- [x] 進度回報：模擬 `progress_cb` 連續呼叫，紀錄回呼計數。
+- [x] 取消：提供 cancel 旗標且 worker 檢查即可提前返回（UI 善後留待整合測試）。
 
 ## D) 預覽表格（前 200 行）
-- [ ] 對 `sample-attendance-data.txt` 跑分析後，預覽列數 ≤ 200。
-- [ ] 大量資料（製造 5k 行假資料）仍只渲染 200 行，不 OOM/不明顯卡頓（以時間門檻斷言）。
-- [ ] 狀態色彩：對幾個關鍵狀態（遲到/加班/WFH/假日）渲染樣式存在（用樣式 class 名稱或 ANSI 樣式斷言）。
+- [x] 對虛擬資料列進行截斷，預覽列數 ≤ 200。
+- [x] 5k 行資料僅保留 200 行；以函式行為為單元測試（整合效能留待 Textual）。
+- [ ] 狀態色彩：留至 UI 實作時再補整合測試。
 
 ## E) Textual 互動測試（Pilot）
-- [ ] 開啟 App、透過 Pilot 依序操作 Step 1→5，最終產生輸出路徑摘要。
+- [ ] 開啟 App、透過 Pilot 依序操作 Step 1→5，最終產生輸出路徑摘要。（待 Textual UI 完成後新增）
 - [ ] 鍵位：`Enter` 下一步、`Esc` 上一步、`R` 執行、`C` 取消、`Q` 離開（至少抽查 3 個）。
 - [ ] 錯誤流程：提供不存在檔案→阻止下一步並顯示錯誤；修正後可繼續。
 

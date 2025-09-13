@@ -275,34 +275,13 @@ class AttendanceAnalyzer:
                 logger.warning("第%d行解析失敗: %s", line_num, e)
     
     def _parse_attendance_line(self, line: str) -> Optional[AttendanceRecord]:
-        """解析單行考勤記錄"""
-        # 移除行號前綴
-        line = re.sub(r'^\s*\d+→', '', line)
-        
-        # 分割欄位
-        fields = line.split('\t')
-        if len(fields) < 3:
+        """解析單行考勤記錄（委派至 lib.parser）"""
+        from lib import parser as p
+        parsed = p.parse_line(line)
+        if not parsed:
             return None
-        
-        # 補齊欄位到9個
-        while len(fields) < 9:
-            fields.append('')
-        
-        scheduled_str, actual_str, type_str = fields[0], fields[1], fields[2]
-        card_num, source, status = fields[3], fields[4], fields[5]
-        processed, operation, note = fields[6], fields[7], fields[8]
-        
-        # 解析日期時間
-        scheduled_time = self._parse_datetime(scheduled_str) if scheduled_str else None
-        actual_time = self._parse_datetime(actual_str) if actual_str else None
-        
-        # 跳過無效記錄
-        if not scheduled_time or type_str not in ["上班", "下班"]:
-            return None
-        
-        # 解析考勤類型
+        scheduled_time, actual_time, type_str, card_num, source, status, processed, operation, note = parsed
         attendance_type = AttendanceType.CHECKIN if type_str == "上班" else AttendanceType.CHECKOUT
-        
         return AttendanceRecord(
             date=scheduled_time.date() if scheduled_time else None,
             scheduled_time=scheduled_time,
@@ -313,15 +292,8 @@ class AttendanceAnalyzer:
             status=status,
             processed=processed,
             operation=operation,
-            note=note
+            note=note,
         )
-    
-    def _parse_datetime(self, datetime_str: str) -> Optional[datetime]:
-        """解析日期時間字串"""
-        try:
-            return datetime.strptime(datetime_str, "%Y/%m/%d %H:%M")
-        except ValueError:
-            return None
     
     def group_records_by_day(self) -> None:
         """將記錄按日期分組"""
@@ -330,16 +302,8 @@ class AttendanceAnalyzer:
         if years_in_data:
             self._load_taiwan_holidays(years_in_data)
         
-        daily_records = defaultdict(lambda: {'checkin': None, 'checkout': None})
-
-        for record in self.records:
-            if not record.date:
-                continue
-
-            if record.type == AttendanceType.CHECKIN:
-                daily_records[record.date]['checkin'] = record
-            else:
-                daily_records[record.date]['checkout'] = record
+        from lib.grouping import group_daily
+        daily_records = group_daily(self.records)
         
         for date, records in daily_records.items():
             workday = WorkDay(
@@ -508,49 +472,34 @@ class AttendanceAnalyzer:
         if self.incremental_mode and self.current_user:
             complete_days = self._identify_complete_work_days()
             unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
-            
-            report.append("## 📈 增量分析資訊：\n")
-            report.append(f"- 👤 使用者：{self.current_user}")
-            report.append(f"- 📊 總完整工作日：{len(complete_days)} 天")
-            report.append(f"- 🔄 新處理工作日：{len(unprocessed_dates)} 天")
-            report.append(f"- ⏭️  跳過已處理：{len(complete_days) - len(unprocessed_dates)} 天")
-            
-            if unprocessed_dates:
-                new_dates_str = ", ".join([d.strftime('%Y/%m/%d') for d in unprocessed_dates[:5]])
-                if len(unprocessed_dates) > 5:
-                    new_dates_str += f" 等 {len(unprocessed_dates)} 天"
-                report.append(f"- 📅 新處理日期：{new_dates_str}")
-            report.append("")
+            from lib.report import build_incremental_lines
+            report.extend(
+                build_incremental_lines(
+                    self.current_user,
+                    len(complete_days),
+                    len(unprocessed_dates),
+                    [d.strftime('%Y/%m/%d') for d in unprocessed_dates],
+                )
+            )
         
         # 忘刷卡建議
         forget_punch_issues = [issue for issue in self.issues if issue.type == IssueType.FORGET_PUNCH]
-        if forget_punch_issues:
-            report.append("## 🔄 建議使用忘刷卡的日期：\n")
-            for i, issue in enumerate(forget_punch_issues, 1):
-                report.append(f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - 🔄 {issue.description}")
-                report.append(f"   ⏰ 時段: {issue.time_range}")
-                report.append(f"   🧮 計算: {issue.calculation}")
-                report.append("")
+        from lib.report import build_issue_section, build_summary
+        report.extend(
+            build_issue_section("## 🔄 建議使用忘刷卡的日期：", "🔄", forget_punch_issues)
+        )
         
         # 遲到統計
         late_issues = [issue for issue in self.issues if issue.type == IssueType.LATE]
-        if late_issues:
-            report.append("## 😰 需要請遲到的日期：\n")
-            for i, issue in enumerate(late_issues, 1):
-                report.append(f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - 😅 {issue.description}")
-                report.append(f"   ⏰ 時段: {issue.time_range}")
-                report.append(f"   🧮 計算: {issue.calculation}")
-                report.append("")
+        report.extend(
+            build_issue_section("## 😰 需要請遲到的日期：", "😅", late_issues)
+        )
         
         # 加班統計
         overtime_issues = [issue for issue in self.issues if issue.type == IssueType.OVERTIME]
-        if overtime_issues:
-            report.append("## 💪 需要請加班的日期：\n")
-            for i, issue in enumerate(overtime_issues, 1):
-                report.append(f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - 🔥 {issue.description}")
-                report.append(f"   ⏰ 時段: {issue.time_range}")
-                report.append(f"   🧮 計算: {issue.calculation}")
-                report.append("")
+        report.extend(
+            build_issue_section("## 💪 需要請加班的日期：", "🔥", overtime_issues)
+        )
         
         # 週一到週四請假建議
         weekday_leave_issues = [issue for issue in self.issues if issue.type == IssueType.WEEKDAY_LEAVE]
@@ -570,12 +519,15 @@ class AttendanceAnalyzer:
             report.append("")
         
         # 統計摘要
-        report.append("## 📊 統計摘要：\n")
-        report.append(f"- 🔄 建議忘刷卡天數：{len(forget_punch_issues)} 天")
-        report.append(f"- 😰 需要請遲到天數：{len(late_issues)} 天")
-        report.append(f"- 💪 加班天數：{len(overtime_issues)} 天")
-        report.append(f"- 📝 需要請假天數：{len(weekday_leave_issues)} 天")
-        report.append(f"- 🏠 建議WFH天數：{len(wfh_issues)} 天")
+        report.extend(
+            build_summary(
+                len(forget_punch_issues),
+                len(late_issues),
+                len(overtime_issues),
+                len(weekday_leave_issues),
+                len(wfh_issues),
+            )
+        )
         
         return "\n".join(report)
     

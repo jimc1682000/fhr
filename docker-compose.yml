@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  fhr:
+    build: .
+    image: fhr:latest
+    container_name: fhr
+    ports:
+      - "8000:8000"
+    environment:
+      # Persist analyzer state to mounted volume
+      FHR_STATE_FILE: /app/build/attendance_state.json
+      # Reduce holiday API retries inside service for responsiveness
+      HOLIDAY_API_MAX_RETRIES: "0"
+      HOLIDAY_API_BACKOFF_BASE: "0.1"
+    volumes:
+      - ./build:/app/build
+    restart: unless-stopped
+

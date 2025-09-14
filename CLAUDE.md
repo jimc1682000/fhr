@@ -50,6 +50,35 @@ python3 -m unittest -q
 python3 -m unittest -q test.test_holiday_api_resilience
 ```
 
+### Lint & Hooks
+- Lint（建議使用 Ruff；若未安裝會有 fallback）：`make lint`
+- 安裝開發工具與 Git hook（commit 前 automatic 格式化/檢查/測試）：
+  ```bash
+  pip install -r requirements-dev.txt
+  make install-hooks
+  # 臨時跳過測試：SKIP_TESTS=1 git commit -m "..."
+  ```
+
+### Web Service（FastAPI）
+- App 入口：`server/main.py`
+- 本地啟動：`uvicorn server.main:app --reload`
+- Docker：`docker compose up --build -d`
+- 狀態檔持久化：環境變數 `FHR_STATE_FILE`（Docker 預設 `/app/build/attendance_state.json`）
+- OpenAPI 文件：http://localhost:8000/docs
+
+Endpoints
+- `POST /api/analyze`：上傳 TXT，選擇模式/格式，可選重置狀態
+- `GET /api/download/{analysis_id}/{filename}`：下載結果（檔名含時間戳）
+- `GET /api/health`：健康檢查
+
+## CI（GitHub Actions）
+- Workflow：`.github/workflows/ci.yml`
+- 內容：
+  - 安裝 dev 相依 `requirements-dev.txt`
+  - Ruff lint & Black 格式檢查
+  - 單元測試 + 覆蓋率 100% 強制
+  - 上傳 coverage_report 與 coverage.svg 產物
+
 ### File Format Requirements
 
 #### Input File Naming (Required for Incremental Analysis)

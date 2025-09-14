@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fhr - Attendance Analyzer</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://unpkg.com/i18next@23.11.5/dist/umd/i18next.min.js"></script>
+  </head>
+  <body>
+    <header class="container">
+      <div class="row space-between">
+        <h1 data-i18n="title">考勤分析服務</h1>
+        <div>
+          <label for="lang-select" class="mr-8" data-i18n="language">語言</label>
+          <select id="lang-select">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <form id="analyze-form">
+          <div class="row">
+            <label class="label" for="file" data-i18n="file">出勤TXT檔案</label>
+            <input type="file" id="file" name="file" accept=".txt" required />
+          </div>
+          <div class="row">
+            <small class="muted" data-i18n="filename_hint">建議檔名格式：YYYYMM-姓名-出勤資料.txt 或 YYYYMM-YYYYMM-姓名-出勤資料.txt</small>
+          </div>
+          <div class="row">
+            <span class="label" data-i18n="mode">分析模式</span>
+            <label><input type="radio" name="mode" value="full" checked /> <span data-i18n="mode_full">完整</span></label>
+            <label class="ml-16"><input type="radio" name="mode" value="incremental" /> <span data-i18n="mode_incremental">增量</span></label>
+          </div>
+          <div class="row">
+            <span class="label" data-i18n="output">輸出格式</span>
+            <label><input type="radio" name="output" value="excel" checked /> Excel</label>
+            <label class="ml-16"><input type="radio" name="output" value="csv" /> CSV</label>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="reset-state" name="reset_state" /> <span data-i18n="reset_state">重置狀態</span></label>
+          </div>
+          <div class="row">
+            <button type="submit" id="submit-btn" class="btn" data-i18n="analyze">開始分析</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="result" class="card hidden">
+        <div class="row"><strong data-i18n="result_title">分析結果</strong></div>
+        <div class="row" id="meta"></div>
+        <div class="row">
+          <a id="download-link" class="btn" href="#" target="_blank" rel="noopener"></a>
+        </div>
+
+        <div id="status" class="row"></div>
+
+        <div class="table-wrap">
+          <table id="issues-table">
+            <thead>
+              <tr>
+                <th data-i18n="col_date">日期</th>
+                <th data-i18n="col_type">類型</th>
+                <th data-i18n="col_duration">時長(分鐘)</th>
+                <th data-i18n="col_desc">說明</th>
+                <th data-i18n="col_range">時段</th>
+                <th data-i18n="col_calc">計算式</th>
+                <th data-i18n="col_status">狀態</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="container muted">
+      <small>fhr · <span data-i18n="footer_note">台灣國定假日支援 · FastAPI + i18n</span></small>
+    </footer>
+
+    <script src="/locales/i18n.js"></script>
+    <script src="/app.js"></script>
+  </body>
+  </html>

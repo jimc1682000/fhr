@@ -8,6 +8,13 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - `test/` — unittest suite (multiple `test_*.py` files, e.g. parsing/logic/exports/holiday resilience).
 - `sample-attendance-data.txt` — example input.
 - Generated (ignored): `*_analysis.(xlsx|csv)`, timestamped backups, `attendance_state.json`.
+ - `server/` — FastAPI 後端服務（REST API、靜態檔掛載）。
+ - `web/` — 前端靜態頁面（vanilla + i18next）。
+ - `Dockerfile`、`docker-compose.yml` — 服務容器化與佈署。
+ - `requirements-service.txt` — 後端服務相依。
+ - `requirements-dev.txt` — 開發工具（black/ruff/pre-commit）。
+ - `pyproject.toml` — black/ruff 設定。
+ - `hooks/pre-commit` — git pre-commit hook 腳本（可選）。
 
 ## Build, Test, and Development Commands
 - Run analysis: `python attendance_analyzer.py "202508-姓名-出勤資料.txt" [excel|csv] [--incremental|--full|--reset-state]`.
@@ -15,6 +22,11 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Run tests (full): `python3 -m unittest -q`.
 - Run specific test: `python3 -m unittest -q test.test_holiday_api_resilience`.
 - Optional Excel support: `pip install openpyxl`.
+ - Lint (ruff，如未安裝則跑 fallback)：`make lint`。
+ - 安裝開發工具與 pre-commit hooks（可選）：
+   - `pip install -r requirements-dev.txt`
+   - `make install-hooks`（commit 前自動 black + ruff + tests；以 `SKIP_TESTS=1` 跳過測試）
+ - 啟動 Web 服務：`uvicorn server.main:app --reload`（或 `docker compose up --build -d`）。
 
 ## Coding Style & Naming Conventions
 - Python 3.6+; follow PEP 8 (4‑space indentation, 100‑char soft wrap).
@@ -29,6 +41,13 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Include edge cases for date ranges and Friday/holiday WFH logic.
 - For holiday API logic: mock `urllib.request.urlopen`; do not perform real network calls.
 - Prefer fast, deterministic tests; if covering backoff, set env vars to disable delays.
+
+## CI
+- GitHub Actions `ci.yml` 在 PR 上會執行：
+  - 依 `requirements-dev.txt` 安裝開發相依
+  - Ruff 檢查（lint）與 Black `--check`（格式）
+  - 單元測試 + 以 stdlib trace 產生覆蓋率報告
+  - 強制覆蓋率達 100%
 
 ## Commit & Pull Request Guidelines
 - Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:` (bilingual messages OK).
@@ -45,9 +64,11 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
   - `HOLIDAY_API_MAX_RETRIES` (default 3)
   - `HOLIDAY_API_BACKOFF_BASE` (default 0.5s)
   - `HOLIDAY_API_MAX_BACKOFF` (default 8s)
+ - Server state 檔案位置可用 `FHR_STATE_FILE` 覆寫；Docker 預設寫入 `/app/build/attendance_state.json`，請掛載 `./build` 以保留狀態。
 
 ## Agent‑Specific Notes
 - Keep file paths stable; avoid renaming `attendance_analyzer.py` or `lib/excel_exporter.py` without updating tests and docs.
 - When changing CLI behavior or output schema (e.g., status column, last_analysis_time), update `README.md` and add tests.
 - For holiday behavior changes, use existing `_try_load_from_gov_api` and fallback hooks; update docs and add tests for new scenarios.
 - Excel export: maintain widths (F=40, G=24 when incremental), headers, and status row semantics; keep tests aligned.
+ - 新增 Web/Service 功能時，保持 `server/main.py` 與 `web/` 路徑穩定；若更動 API，務必更新 `docs/service.md` 與前端。

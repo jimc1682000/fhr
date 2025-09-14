@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[pre-commit] Running linters..."
+
+if command -v black >/dev/null 2>&1; then
+  black --quiet .
+else
+  echo "[pre-commit] black not found; skipping auto-format"
+fi
+
+if command -v ruff >/dev/null 2>&1; then
+  ruff check --fix .
+else
+  echo "[pre-commit] ruff not found; running fallback lint"
+  python3 tools/lint.py
+fi
+
+if [[ "${SKIP_TESTS:-}" != "1" ]]; then
+  echo "[pre-commit] Running tests..."
+  python3 -m unittest -q
+else
+  echo "[pre-commit] Tests skipped (SKIP_TESTS=1)"
+fi
+
+echo "[pre-commit] All checks passed."
+

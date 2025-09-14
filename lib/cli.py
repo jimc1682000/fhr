@@ -24,13 +24,13 @@ def run(argv: Optional[list] = None) -> None:
 範例用法:
   # 預設增量分析（推薦）
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt
-  
+
   # 強制完整重新分析
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt --full
-  
+
   # 清除使用者狀態後重新分析
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-state
-  
+
   # 指定輸出格式
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
         """
@@ -107,4 +107,3 @@ def run(argv: Optional[list] = None) -> None:
     except Exception as e:
         logger.error("❌ 錯誤: %s", e)
         sys.exit(1)
-

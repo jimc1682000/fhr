@@ -92,6 +92,8 @@ class AttendanceAnalyzer:
         self.state_manager: Optional[AttendanceStateManager] = None
         self.current_user: Optional[str] = None
         self.incremental_mode: bool = True
+        # 來源檔名（供狀態管理使用；API 模式時不依賴 sys.argv）
+        self.source_file_name: Optional[str] = None
 
     def _load_config(self, config_path: str) -> None:
         """載入設定檔以覆蓋預設公司規則"""
@@ -178,6 +180,11 @@ class AttendanceAnalyzer:
             incremental: 是否啟用增量分析
         """
         self.incremental_mode = incremental
+        # 保存來源檔名供狀態管理記錄
+        try:
+            self.source_file_name = os.path.basename(filepath)
+        except Exception:
+            self.source_file_name = None
         
         # 初始化狀態管理器
         if self.incremental_mode:
@@ -388,7 +395,8 @@ class AttendanceAnalyzer:
         range_info = {
             "start_date": start_date,
             "end_date": end_date,
-            "source_file": os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "unknown",
+            # 優先使用已知來源檔名；保持與 CLI 相容的後備行為
+            "source_file": self.source_file_name or (os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "unknown"),
             "last_analysis_time": datetime.now().isoformat()
         }
         

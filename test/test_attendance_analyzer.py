@@ -1,9 +1,9 @@
+import json
 import os
 import tempfile
 import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
-import json
 
 from attendance_analyzer import AttendanceAnalyzer, Issue, IssueType
 from lib import excel_exporter

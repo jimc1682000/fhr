@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import sys
+import unittest
 from trace import Trace
-import sys, unittest
 
 def main() -> None:
     tr=Trace(count=True, trace=False, ignoredirs=[sys.prefix, sys.exec_prefix])

@@ -8,13 +8,15 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - `test/` — unittest suite (multiple `test_*.py` files, e.g. parsing/logic/exports/holiday resilience).
 - `sample-attendance-data.txt` — example input.
 - Generated (ignored): `*_analysis.(xlsx|csv)`, timestamped backups, `attendance_state.json`.
- - `server/` — FastAPI 後端服務（REST API、靜態檔掛載）。
- - `web/` — 前端靜態頁面（vanilla + i18next）。
- - `Dockerfile`、`docker-compose.yml` — 服務容器化與佈署。
- - `requirements-service.txt` — 後端服務相依。
- - `requirements-dev.txt` — 開發工具（black/ruff/pre-commit）。
- - `pyproject.toml` — black/ruff 設定。
- - `hooks/pre-commit` — git pre-commit hook 腳本（可選）。
+- `server/` — FastAPI 後端服務（REST API、靜態檔掛載）。
+- `web/` — 前端靜態頁面（vanilla + i18next）。
+- `docs/` — 完整文檔系統（23個文件，分層架構：使用者→運維→開發者→企業級）。
+- `todos/` — 改進項目管理（立即可執行任務 + 需要開發支援的功能）。
+- `Dockerfile`、`docker-compose.yml` — 服務容器化與佈署。
+- `requirements-service.txt` — 後端服務相依。
+- `requirements-dev.txt` — 開發工具（black/ruff/pre-commit）。
+- `pyproject.toml` — black/ruff 設定。
+- `hooks/pre-commit` — git pre-commit hook 腳本（可選）。
 
 ## Build, Test, and Development Commands
 - Run analysis: `python attendance_analyzer.py "202508-姓名-出勤資料.txt" [excel|csv] [--incremental|--full|--reset-state]`.
@@ -71,4 +73,25 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - When changing CLI behavior or output schema (e.g., status column, last_analysis_time), update `README.md` and add tests.
 - For holiday behavior changes, use existing `_try_load_from_gov_api` and fallback hooks; update docs and add tests for new scenarios.
 - Excel export: maintain widths (F=40, G=24 when incremental), headers, and status row semantics; keep tests aligned.
- - 新增 Web/Service 功能時，保持 `server/main.py` 與 `web/` 路徑穩定；若更動 API，務必更新 `docs/service.md` 與前端。
+- 新增 Web/Service 功能時，保持 `server/main.py` 與 `web/` 路徑穩定；若更動 API，務必更新 `docs/service.md` 與前端。
+
+## Documentation & Task Management
+
+### docs/ Directory Usage
+- **Navigation**: Start with `docs/index.md` for the complete documentation map
+- **Tiered Structure**: User docs → Operational docs → Developer docs → Enterprise docs
+- **Updates**: When adding features, update relevant docs AND `docs/index.md` navigation
+- **Cross-references**: Maintain links between related documentation files
+
+### todos/ Directory Usage
+- **Immediate Tasks**: Check `todos/immediate-documentation-tasks.md` for 2-3 hour tasks
+- **Development Items**: See `todos/api-architecture-enhancements.md` for features requiring code changes
+- **Planning**: Use `todos/documentation-enhancement-roadmap.md` for long-term roadmap
+- **Adding Items**: Only add actionable items with clear deliverables, avoid long-term speculation
+- **Maintenance**: Remove completed items and update status regularly
+
+### Documentation Workflow
+1. **Before Major Changes**: Check `todos/` for related improvement items
+2. **After Implementation**: Update both implementation docs and navigation in `docs/index.md`
+3. **Feature Additions**: Add corresponding documentation tasks to `todos/` if documentation requires separate work
+4. **Testing**: Ensure documentation examples work as described in tests

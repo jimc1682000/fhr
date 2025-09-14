@@ -326,3 +326,25 @@ Real-world testing scenarios have been validated:
 
 ### Sample Data Testing
 Use `sample-attendance-data.txt` for integration testing - it contains various scenarios including normal check-ins, tardiness, overtime, absences, and Friday WFH cases. The corresponding `sample-attendance-data_analysis.csv` shows expected output format.
+
+## Documentation Structure
+
+### docs/ Directory
+The project includes comprehensive documentation organized in a tiered structure:
+
+**Core Documentation**: Basic usage, troubleshooting, and quick reference  
+**Operational Documentation**: System requirements, deployment, configuration  
+**Developer Documentation**: Architecture, testing, contributing guidelines  
+**Enterprise Documentation**: API architecture, service architecture, integration patterns  
+
+**Navigation**: Use `docs/index.md` as the central navigation hub to find specific documentation.
+
+### todos/ Directory
+Project improvement and development task management:
+
+- **`immediate-documentation-tasks.md`** - Ready-to-execute documentation tasks (2-3 hours)
+- **`api-architecture-enhancements.md`** - API features requiring development work
+- **`documentation-enhancement-roadmap.md`** - Overall planning and timelines  
+- **`README.md`** - Task management index and usage guide
+
+**Usage**: Check `todos/` for actionable improvement items and development priorities.

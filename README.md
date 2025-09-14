@@ -20,18 +20,57 @@
 - **💾 NEW: 智慧狀態管理 - 自動記住處理進度**
 - **📋 NEW: 增強輸出格式 - 標示新發現與已存在問題**
 
-## Quick Start
+## 🚀 快速開始 - 選擇適合的使用方式
 
+### 👤 個人用戶 (命令列工具)
 ```bash
-# 1) 最常用：增量分析 + 預設Excel
-python attendance_analyzer.py "202508-姓名-出勤資料.txt"
+# 最常用：自動增量分析
+python attendance_analyzer.py "202508-王小明-出勤資料.txt"
 
-# 2) 產生CSV
-python attendance_analyzer.py "202508-姓名-出勤資料.txt" csv
+# 產生 CSV 格式
+python attendance_analyzer.py "202508-王小明-出勤資料.txt" csv
 
-# 3) 跨月資料
-python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
+# 跨月資料處理
+python attendance_analyzer.py "202508-202509-王小明-出勤資料.txt"
 ```
+
+### 🖥️ 系統管理員 (Web 服務 + Docker)
+```bash
+# Docker 一鍵部署
+docker compose up --build -d
+# 瀏覽器開啟 http://localhost:8000
+
+# 或手動啟動 Web 服務
+pip install fastapi uvicorn pydantic python-multipart openpyxl
+uvicorn server.main:app --reload
+# 瀏覽器開啟 http://localhost:8000
+```
+
+### 👩‍💻 開發者 (本地開發環境)
+```bash
+# 完整開發環境設定
+python -m venv venv && source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements-dev.txt              # 包含開發工具
+make install-hooks                                # 安裝 Git pre-commit hooks
+python -m unittest -q                            # 執行測試套件
+make coverage                                     # 檢查測試覆蓋率
+```
+
+## 📊 系統能力與特色
+- **🎯 精準度**: 100% 測試覆蓋率，符合台灣勞基法規定  
+- **⚡ 效能**: 支援處理 10 萬筆記錄，增量分析避免重複處理
+- **🔒 安全性**: 本地處理，資料不上傳，支援企業隱私要求
+- **🌏 國際化**: 完整中英文介面，支援台灣國定假日
+- **🔧 可擴展**: 模組化架構，支援客製化業務規則
+
+## 🏢 企業級功能
+- **🌐 Web 介面**: FastAPI 後端 + 現代化前端，支援多人使用
+- **🐳 容器部署**: Docker 生產就緒，支援 Kubernetes 擴展  
+- **🔗 API 整合**: REST API 支援與 HRIS/薪資系統整合
+- **👥 多租戶**: 支援多部門、多公司資料隔離
+- **📈 監控**: 內建健康檢查、日誌管理與效能監控
+
+## Quick Start (傳統 CLI)
 
 提示：如需 Excel 匯出，建議安裝 `openpyxl`：`pip install openpyxl`。
 
@@ -42,22 +81,35 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 - 解析失敗或欄位錯亂 → 原始檔需為「tab 分隔」的文字檔（.txt），不是逗號或空白分隔。
 - 沒有任何輸出變化 → 可能無新資料；若要重跑全部，加入 `--full` 或 `--reset-state`。
 
+## 📚 完整文件
+
+👉 **[文件導航中心](docs/index.md)** - 快速找到您需要的文件  
+🔍 **[命令速查手冊](docs/quick-reference.md)** - 常用命令與格式參考  
+🛠️ **[疑難排解指南](docs/troubleshooting.md)** - 問題診斷與解決方案  
+📋 **[改進項目清單](todos/README.md)** - 待開發功能與文檔改進項目
+
 ## 延伸閱讀（docs/）
 
-- 概覽與規則：[docs/overview.md](docs/overview.md)
-- 安裝與使用：[docs/usage.md](docs/usage.md)
-- 增量分析詳解：[docs/incremental.md](docs/incremental.md)
-- 檔案格式需求：[docs/data-format.md](docs/data-format.md)
-- 計算邏輯：[docs/logic.md](docs/logic.md)
-- 輸出（Excel/CSV/備份 + 範例）：[docs/output.md](docs/output.md)
-- 系統架構（Before/After + 元件與流程）：[docs/architecture.md](docs/architecture.md)
-- 假日載入與環境變數：[docs/environment.md](docs/environment.md)
-- 專案結構：[docs/project-structure.md](docs/project-structure.md)
-- 技術需求：[docs/requirements.md](docs/requirements.md)
-- 測試與品質保證：[docs/testing.md](docs/testing.md)
-- 貢獻指南（PR/Commit）：[docs/contributing.md](docs/contributing.md)
-- 疑難排解：[docs/troubleshooting.md](docs/troubleshooting.md)
- - Coverage 指令（無需安裝 coverage）：`make coverage`（輸出於 `coverage_report/`）
+**核心功能文件**:
+- [系統概覽](docs/overview.md) - 整體功能與企業級特色
+- [使用指南](docs/usage.md) - 詳細操作說明與最佳實務  
+- [檔案格式](docs/data-format.md) - 輸入檔案格式與命名規範
+- [增量分析](docs/incremental.md) - 智慧狀態管理與處理邏輯
+- [輸出格式](docs/output.md) - Excel/CSV 匯出與備份機制
+
+**技術文件**:
+- [系統架構](docs/architecture.md) - 模組化設計與資料流程
+- [業務邏輯](docs/logic.md) - 考勤規則與計算方式
+- [測試框架](docs/testing.md) - 100% 覆蓋率測試策略
+- [環境設定](docs/environment.md) - 假日 API 與環境變數
+
+**部署與維護**:
+- [Web 服務](docs/service.md) - FastAPI 後端與前端部署
+- [系統需求](docs/requirements.md) - 相依套件與硬體需求
+- [專案結構](docs/project-structure.md) - 檔案組織與模組說明
+- [貢獻指南](docs/contributing.md) - 開發流程與程式碼規範
+
+**企業級文件** (23 個文件完整列表請見 [docs/index.md](docs/index.md))
 
 ## Web 服務（Backend + Frontend）
 

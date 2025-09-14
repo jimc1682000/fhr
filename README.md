@@ -58,3 +58,62 @@ python attendance_analyzer.py "202508-202509-姓名-出勤資料.txt"
 - 貢獻指南（PR/Commit）：[docs/contributing.md](docs/contributing.md)
 - 疑難排解：[docs/troubleshooting.md](docs/troubleshooting.md)
  - Coverage 指令（無需安裝 coverage）：`make coverage`（輸出於 `coverage_report/`）
+
+## Web 服務（Backend + Frontend）
+
+- 後端：FastAPI，提供上傳、分析、下載 API，自動產生 OpenAPI 文件。
+- 前端：輕量靜態頁面（vanilla + i18next）支援 i18n，提供上傳、選擇增量/完整、CSV/Excel、重置狀態、預覽與下載。
+
+啟動方式：
+
+```bash
+pip install fastapi uvicorn pydantic python-multipart  # 可選：openpyxl（Excel）
+uvicorn server.main:app --reload
+# 瀏覽器開啟 http://localhost:8000/
+# API docs: http://localhost:8000/docs
+```
+
+更多說明請見：[docs/service.md](docs/service.md)
+
+### Docker 部署
+
+```bash
+# 建置映像
+docker build -t fhr:latest .
+
+# 執行（將容器內 build/ 掛載到本機以保留輸出與上傳）
+docker run --rm -p 8000:8000 -v "$PWD/build:/app/build" fhr:latest
+
+# 瀏覽器開啟 http://localhost:8000/
+```
+
+或使用 Docker Compose：
+
+```bash
+docker compose up --build -d
+# 停止：docker compose down
+```
+
+## Lint
+
+- 推薦：安裝 Ruff/Black 並執行 `make lint`（若無 Ruff，會使用內建的輕量 fallback 檢查：語法）。
+
+```bash
+# 使用 ruff（如已安裝）
+make lint
+
+# 或手動執行 fallback（無外部依賴）
+python3 tools/lint.py
+
+# 開發者可選：安裝開發工具與 Git Hook
+pip install -r requirements-dev.txt
+make install-hooks  # 安裝 pre-commit hook（black + ruff + tests）
+```
+
+CI（GitHub Actions）
+- 對 PR 自動執行：Ruff（lint）、Black（格式檢查）、單元測試 + 覆蓋率 100% 門檻。
+
+備註：
+- UI 預設為「完整」模式與「Excel」輸出，且選項順序預設優先顯示。
+- 下載檔名結尾會自動加上 UTC 時間戳（`_analysis_YYYYMMDD_HHMMSS`），避免重複下載覆蓋。
+- Docker 內部會將狀態檔寫入 `/app/build/attendance_state.json`（可由 `FHR_STATE_FILE` 覆蓋）。掛載 `-v "$PWD/build:/app/build"` 可保留狀態於主機端。

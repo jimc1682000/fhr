@@ -11,7 +11,8 @@ class TestExportExcelFallback(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(os.getcwd(), 'sample-attendance-data.txt')
             path = os.path.join(tmp, 'sample-attendance-data.txt')
-            with open(src, 'r', encoding='utf-8') as fsrc, open(path, 'w', encoding='utf-8') as fdst:
+            with (open(src, encoding='utf-8') as fsrc,
+                  open(path, 'w', encoding='utf-8') as fdst):
                 fdst.write(fsrc.read())
 
             an = AttendanceAnalyzer()

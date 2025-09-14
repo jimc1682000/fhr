@@ -9,7 +9,6 @@ Checks:
 Exit code 0 if clean; 1 if issues found. Prints a brief report.
 """
 import os
-import sys
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 
@@ -35,7 +34,7 @@ def iter_py_files(root: str):
 def check_file(path: str):
     issues = []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
         return [(path, f"I/O error: {e}")]

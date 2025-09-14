@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+
 from openpyxl import load_workbook
 
 from attendance_analyzer import AttendanceAnalyzer

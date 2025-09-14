@@ -7,14 +7,15 @@ overall coverage for project files (attendance_analyzer.py, lib/*.py).
 Usage:
   python tools/check_coverage_threshold.py --min 95
 """
-from pathlib import Path
-import re
 import argparse
+import re
 import sys
+from pathlib import Path
 
 
 def compute_percent(coverdir: Path) -> float:
-    files = [p for p in coverdir.glob('*.cover') if p.name.startswith(('attendance_analyzer', 'lib.'))]
+    files = [p for p in coverdir.glob('*.cover')
+             if p.name.startswith(('attendance_analyzer', 'lib.'))]
     executed = missing = 0
     for p in files:
         text = p.read_text(encoding='utf-8', errors='ignore').splitlines()
@@ -28,7 +29,8 @@ def compute_percent(coverdir: Path) -> float:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--min', dest='minimum', type=float, default=95.0, help='minimum coverage percent required')
+    ap.add_argument('--min', dest='minimum', type=float, default=95.0,
+                    help='minimum coverage percent required')
     ap.add_argument('--dir', dest='coverdir', default='coverage_report', help='coverage directory')
     args = ap.parse_args()
 

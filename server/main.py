@@ -6,6 +6,7 @@ import json
 import uuid
 import shutil
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Literal
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -240,13 +241,22 @@ def create_app() -> FastAPI:
 
     @app.get("/api/download/{session_id}/{filename}")
     def download(session_id: str, filename: str):
-        # sanitize
-        if "/" in filename or ".." in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        file_path = os.path.join(OUTPUT_ROOT, session_id, filename)
-        if not os.path.exists(file_path):
+        # Validate both session_id and filename to prevent path traversal
+        if "/" in session_id or ".." in session_id or "/" in filename or ".." in filename:
+            raise HTTPException(status_code=400, detail="Invalid session_id or filename")
+        
+        # Use Path.resolve() to ensure the final path is within OUTPUT_ROOT
+        file_path = Path(OUTPUT_ROOT) / session_id / filename
+        resolved_path = file_path.resolve()
+        output_root_resolved = Path(OUTPUT_ROOT).resolve()
+        
+        # Check that the resolved path is within OUTPUT_ROOT
+        if not str(resolved_path).startswith(str(output_root_resolved)):
+            raise HTTPException(status_code=400, detail="Access denied")
+        
+        if not resolved_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
-        return FileResponse(file_path, filename=filename)
+        return FileResponse(str(resolved_path), filename=filename)
 
     # Serve static frontend (registered last so /api takes precedence)
     if os.path.isdir(WEB_DIR):

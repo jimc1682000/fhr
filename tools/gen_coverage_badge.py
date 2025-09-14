@@ -5,13 +5,13 @@ This parses stdlib trace outputs to compute an overall percentage for
 project files (attendance_analyzer.py and lib/*.py), then writes an SVG badge
 to assets/coverage.svg.
 """
-import os
 import re
 from pathlib import Path
 
 
 def compute_percent(coverdir: Path) -> float:
-    files = [p for p in coverdir.glob('*.cover') if p.name.startswith(('attendance_analyzer', 'lib.'))]
+    files = [p for p in coverdir.glob('*.cover')
+             if p.name.startswith(('attendance_analyzer', 'lib.'))]
     executed = missing = 0
     for p in files:
         text = p.read_text(encoding='utf-8', errors='ignore').splitlines()
@@ -47,7 +47,10 @@ def render_svg(percent: float) -> str:
     left_w = 78
     right_w = 54
     total_w = left_w + right_w
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{total_w}" height="20" role="img" aria-label="{label}: {value}">
+    svg_ns = 'xmlns="http://www.w3.org/2000/svg"'
+    aria = f'aria-label="{label}: {value}"'
+    font = 'font-family="DejaVu Sans,Verdana,Geneva,sans-serif"'
+    return f'''<svg {svg_ns} width="{total_w}" height="20" role="img" {aria}>
   <linearGradient id="s" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>
@@ -58,7 +61,7 @@ def render_svg(percent: float) -> str:
     <rect x="{left_w}" width="{right_w}" height="20" fill="{color}"/>
     <rect width="{total_w}" height="20" fill="url(#s)"/>
   </g>
-  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
+  <g fill="#fff" text-anchor="middle" {font} font-size="11">
     <text x="{left_w/2}" y="15" fill="#010101" fill-opacity=".3">{label}</text>
     <text x="{left_w/2}" y="14">{label}</text>
     <text x="{left_w + right_w/2}" y="15" fill="#010101" fill-opacity=".3">{value}</text>

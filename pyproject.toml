@@ -10,6 +10,7 @@ extend-exclude = [
   "venv",
 ]
 
+[tool.ruff.lint]
 # Rule selection: pyflakes + pycodestyle errors + isort + upgrades + bugbear (safe subset)
 select = ["E", "F", "I", "UP", "B"]
 ignore = [

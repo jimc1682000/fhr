@@ -1,13 +1,11 @@
-import os
-import io
-import csv
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from attendance_analyzer import AttendanceAnalyzer, AttendanceType
+from attendance_analyzer import AttendanceAnalyzer
 
 
 class TestAnalyzerAdditionalPaths(unittest.TestCase):
@@ -31,7 +29,9 @@ class TestAnalyzerAdditionalPaths(unittest.TestCase):
             an = AttendanceAnalyzer()
 
             # Patch internal line parser to raise, to hit except branch
-            with patch.object(AttendanceAnalyzer, '_parse_attendance_line', side_effect=ValueError('bad')):
+            with patch.object(
+                AttendanceAnalyzer, '_parse_attendance_line', side_effect=ValueError('bad')
+            ):
                 with self.assertLogs(level='WARNING') as cm:
                     an.parse_attendance_file(path, incremental=False)
             self.assertIn('解析失敗', "\n".join(cm.output))
@@ -67,7 +67,7 @@ class TestAnalyzerAdditionalPaths(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(os.getcwd(), 'sample-attendance-data.txt')
             path = os.path.join(tmp, 'sample-attendance-data.txt')
-            with open(src, 'r', encoding='utf-8') as fsrc, open(path, 'w', encoding='utf-8') as fdst:
+            with open(src, encoding='utf-8') as fsrc, open(path, 'w', encoding='utf-8') as fdst:
                 fdst.write(fsrc.read())
 
             an = AttendanceAnalyzer()
@@ -114,7 +114,9 @@ class TestAnalyzerAdditionalPaths(unittest.TestCase):
             an.group_records_by_day()
 
             # Force unprocessed dates to be non-empty
-            with patch.object(AttendanceAnalyzer, '_get_unprocessed_dates', return_value=[datetime(2025, 7, 1)]):
+            with patch.object(
+                AttendanceAnalyzer, '_get_unprocessed_dates', return_value=[datetime(2025, 7, 1)]
+            ):
                 an.state_manager = DummyState()
                 an.current_user = '王小明'
                 self.assertIsNone(an._compute_incremental_status_row())

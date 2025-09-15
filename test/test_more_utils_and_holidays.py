@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import unittest
 from datetime import datetime
 from unittest import mock
@@ -7,8 +7,8 @@ from unittest import mock
 from lib import parser
 from lib.filename import parse_range_and_user
 from lib.grouping import group_daily
-from lib.state import AttendanceStateManager
 from lib.holidays import HolidayService, TaiwanGovOpenDataProvider
+from lib.state import AttendanceStateManager
 
 
 class DummyRec:
@@ -43,7 +43,9 @@ class TestMiscGaps(unittest.TestCase):
         # Invalid month causes ValueError path
         self.assertEqual(parse_range_and_user('20251x-姓名-出勤資料.txt'), (None, None, None))
         # Force second segment to parse and then fail month math (13th month)
-        self.assertEqual(parse_range_and_user('202501-202513-姓名-出勤資料.txt'), (None, None, None))
+        self.assertEqual(
+            parse_range_and_user('202501-202513-姓名-出勤資料.txt'), (None, None, None)
+        )
 
     def test_grouping_skips_none_date(self):
         out = group_daily([DummyRec(date=None), DummyRec(date=datetime(2025,7,1))])
@@ -66,7 +68,8 @@ class TestMiscGaps(unittest.TestCase):
             self.assertEqual(p.base_backoff, 0.5)
             self.assertEqual(p.max_backoff, 8.0)
         finally:
-            os.environ.clear(); os.environ.update(old)
+            os.environ.clear()
+            os.environ.update(old)
 
     def test_holiday_service_load_years(self):
         # Mock URL open to return empty valid result for non-2025 to force fallback basic
@@ -80,7 +83,8 @@ class TestMiscGaps(unittest.TestCase):
                 svc = HolidayService()
                 out = svc.load_years({2025, 2026})
             finally:
-                os.environ.clear(); os.environ.update(old)
+                os.environ.clear()
+            os.environ.update(old)
         # Contains at least one known date from 2025 hardcoded provider or 2026 basic
         self.assertTrue(any(d.year in (2025, 2026) for d in out))
 

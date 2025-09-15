@@ -2,8 +2,8 @@
 
 Designed to be dependency-light and avoid importing analyzer types.
 """
-from datetime import datetime
 import re
+from datetime import datetime
 
 
 def clean_line(line: str) -> str:
@@ -26,10 +26,13 @@ def parse_datetime_str(s: str) -> datetime | None:
         return None
 
 
-def parse_line(line: str) -> tuple[datetime | None, datetime | None, str, str, str, str, str, str, str] | None:
+def parse_line(
+    line: str,
+) -> tuple[datetime | None, datetime | None, str, str, str, str, str, str, str] | None:
     """Return parsed tuple for a single attendance line or None if invalid.
 
-    Output tuple: (scheduled_dt, actual_dt, type_str, card_num, source, status, processed, operation, note)
+    Output tuple: (scheduled_dt, actual_dt, type_str, card_num, source,
+                   status, processed, operation, note)
     """
     line = clean_line(line)
     fields = split_fields(line)

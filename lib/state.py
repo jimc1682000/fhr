@@ -1,9 +1,8 @@
 import json
 import logging
 import os
-from datetime import datetime
 from collections.abc import Iterable
-
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class AttendanceStateManager:
     def _load_state(self) -> dict:
         if os.path.exists(self.state_file):
             try:
-                with open(self.state_file, 'r', encoding='utf-8') as f:
+                with open(self.state_file, encoding='utf-8') as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("無法讀取狀態檔案 %s: %s", self.state_file, e)
@@ -72,7 +71,9 @@ class AttendanceStateManager:
         if forget_punch_usage:
             user_data["forget_punch_usage"].update(forget_punch_usage)
 
-    def detect_date_overlap(self, user_name: str, new_start_date: str, new_end_date: str) -> list[tuple[str, str]]:
+    def detect_date_overlap(
+        self, user_name: str, new_start_date: str, new_end_date: str
+    ) -> list[tuple[str, str]]:
         overlaps = []
         existing_ranges = self.get_user_processed_ranges(user_name)
         new_start = datetime.strptime(new_start_date, "%Y-%m-%d").date()
@@ -83,7 +84,9 @@ class AttendanceStateManager:
             if new_start <= existing_end and new_end >= existing_start:
                 overlap_start = max(new_start, existing_start)
                 overlap_end = min(new_end, existing_end)
-                overlaps.append((overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")))
+                overlaps.append((
+                    overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")
+                ))
         return overlaps
 
 
@@ -108,7 +111,7 @@ def filter_unprocessed_dates(processed_ranges: list[dict[str, str]],
 
     # Merge ranges for faster membership checks
     norm_ranges.sort(key=lambda t: t[0])
-    merged: List[Tuple[datetime, datetime]] = []
+    merged: list[tuple[datetime, datetime]] = []
     for s, e in norm_ranges:
         if not merged or s > merged[-1][1]:
             merged.append((s, e))

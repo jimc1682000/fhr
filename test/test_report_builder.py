@@ -1,6 +1,6 @@
 import unittest
-from types import SimpleNamespace
 from datetime import datetime
+from types import SimpleNamespace
 
 from lib import report
 
@@ -18,7 +18,10 @@ class TestReportBuilder(unittest.TestCase):
     def test_issue_section_hide_calc(self):
         issues = [
             SimpleNamespace(
-                date=datetime(2025, 7, 1), description='遲到2分鐘', time_range='10:30~10:32', calculation='…'
+                date=datetime(2025, 7, 1),
+                description='遲到2分鐘',
+                time_range='10:30~10:32',
+                calculation='…'
             )
         ]
         lines = report.build_issue_section('## 測試', '😅', issues, show_calc=False)

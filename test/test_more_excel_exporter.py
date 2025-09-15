@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from datetime import datetime
 
-from lib import excel_exporter as xls
 from attendance_analyzer import Issue, IssueType
+from lib import excel_exporter as xls
 
 
 class TestExcelExporterMore(unittest.TestCase):
@@ -22,11 +22,15 @@ class TestExcelExporterMore(unittest.TestCase):
 
         # Prepare issues to hit all color branches
         issues = [
-            Issue(datetime(2025, 7, 1), IssueType.OVERTIME, 120, '加班', '18:00~20:00', 'calc', True),
+            Issue(
+                datetime(2025, 7, 1), IssueType.OVERTIME, 120, '加班', '18:00~20:00', 'calc', True
+            ),
             Issue(datetime(2025, 7, 2), IssueType.WFH, 540, 'WFH', '', '', False),
             Issue(datetime(2025, 7, 3), IssueType.FORGET_PUNCH, 30, '忘刷卡', '', '', True),
         ]
-        xls.write_issue_rows(ws, issues, start_row=next_row, incremental_mode=True, border=border, alignment=align)
+        xls.write_issue_rows(
+            ws, issues, start_row=next_row, incremental_mode=True, border=border, alignment=align
+        )
 
         # Sanity check values written
         self.assertEqual(ws['B3'].value, '加班')

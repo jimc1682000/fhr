@@ -49,14 +49,18 @@ def run(argv: list | None = None) -> None:
     incremental_mode = args.incremental and not args.full
 
     if args.reset_state:
-        analyzer_temp = AttendanceAnalyzer()
+        # analyzer_temp = AttendanceAnalyzer()  # Variable assigned but never used
         user_name, _, _ = parse_range_and_user(filepath)
         if user_name:
             state_manager = AttendanceStateManager()
             if user_name in state_manager.state_data.get("users", {}):
                 del state_manager.state_data["users"][user_name]
                 state_manager.save_state()
-                logger.info("🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s", user_name, datetime.now().isoformat())
+                logger.info(
+            "🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s",
+            user_name,
+            datetime.now().isoformat(),
+        )
             else:
                 logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
         else:

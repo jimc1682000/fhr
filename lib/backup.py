@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 
+
 def backup_with_timestamp(filepath: str) -> str | None:
     """If file exists, move it to a timestamped backup alongside original.
 

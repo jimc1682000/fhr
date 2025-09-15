@@ -1,15 +1,21 @@
+import csv
 import os
 import tempfile
-import csv
 import unittest
+
 from openpyxl import load_workbook
 
 from attendance_analyzer import AttendanceAnalyzer
 
+# Long header extracted to module level to avoid line length issues
+ATTENDANCE_HEADER = (
+    "應刷卡時段\t當日卡鐘資料\t刷卡別\t卡鐘編號\t資料來源\t異常狀態\t處理狀態\t異常處理作業\t備註"
+)
+
 
 class TestStatusRowTimestamp(unittest.TestCase):
     def _run_clean_case(self):
-        text = """應刷卡時段	當日卡鐘資料	刷卡別	卡鐘編號	資料來源	異常狀態	處理狀態	異常處理作業	備註
+        text = f"""{ATTENDANCE_HEADER}
 2025/07/01 08:00	2025/07/01 09:00	上班	1	刷卡匯入				
 2025/07/01 17:00	2025/07/01 18:00	下班	1	刷卡匯入				
 """

@@ -1,27 +1,24 @@
 from __future__ import annotations
 
-import io
-import json
+import asyncio
+import logging
 import os
-import uuid
 import shutil
+import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from contextlib import asynccontextmanager
-import asyncio
-import logging
 
 from attendance_analyzer import AttendanceAnalyzer, IssueType
 from lib.filename import parse_range_and_user
 from lib.state import AttendanceStateManager
-
 
 APP_ROOT = os.path.dirname(os.path.dirname(__file__))
 UPLOAD_DIR = os.path.join(APP_ROOT, "build", "uploads")
@@ -125,7 +122,12 @@ async def _lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="fhr Service", version="0.1.0", description="Attendance analyzer web service", lifespan=_lifespan)
+    app = FastAPI(
+        title="fhr Service",
+        version="0.1.0",
+        description="Attendance analyzer web service",
+        lifespan=_lifespan
+    )
 
     # Allow local dev tools by default
     app.add_middleware(
@@ -137,7 +139,9 @@ def create_app() -> FastAPI:
     )
 
     # Ensure state file persists inside build/ volume unless explicitly overridden
-    os.environ.setdefault("FHR_STATE_FILE", os.path.join(APP_ROOT, "build", "attendance_state.json"))
+    os.environ.setdefault(
+        "FHR_STATE_FILE", os.path.join(APP_ROOT, "build", "attendance_state.json")
+    )
 
     @app.get("/api/health")
     def health():
@@ -145,7 +149,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/analyze", response_model=AnalyzeResponse)
     async def analyze(
-        file: UploadFile = File(...),
+        file: UploadFile,
         mode: Literal["incremental", "full"] = Form("full"),
         output: Literal["csv", "excel"] = Form("excel"),
         reset_state: bool = Form(False),

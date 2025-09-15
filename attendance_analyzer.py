@@ -12,9 +12,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 from urllib.parse import urlparse
 
+from lib.state import AttendanceStateManager
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -85,7 +85,8 @@ class AttendanceAnalyzer:
         self.workdays: list[WorkDay] = []
         self.issues: list[Issue] = []
         self.holidays: set = set()  # 存放國定假日日期
-        self.forget_punch_usage: dict[str, int] = defaultdict(int)  # 追蹤每月忘刷卡使用次數 {年月: 次數}
+        # 追蹤每月忘刷卡使用次數 {年月: 次數}
+        self.forget_punch_usage: dict[str, int] = defaultdict(int)
         self.loaded_holiday_years: set = set()  # 追蹤已載入假日的年份
         self.state_manager: AttendanceStateManager | None = None
         self.current_user: str | None = None
@@ -99,7 +100,7 @@ class AttendanceAnalyzer:
             logger.info("找不到設定檔 %s，使用預設值", config_path)
             return
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, encoding='utf-8') as f:
                 data = json.load(f)
             for key, value in data.items():
                 if hasattr(self.config, key):
@@ -113,7 +114,9 @@ class AttendanceAnalyzer:
         from lib.dates import identify_complete_work_days
         return identify_complete_work_days(self.records)
     
-    def _get_unprocessed_dates(self, user_name: str, complete_days: list[datetime]) -> list[datetime]:
+    def _get_unprocessed_dates(
+        self, user_name: str, complete_days: list[datetime]
+    ) -> list[datetime]:
         """取得需要處理的新日期（委派至 lib.state.filter_unprocessed_dates）"""
         if not self.state_manager or not self.incremental_mode:
             return complete_days
@@ -159,7 +162,7 @@ class AttendanceAnalyzer:
     
     def _try_load_from_gov_api(self, year: int) -> bool:
         # 向後相容：保留本模組內的 scheme 檢查（供單元測試 patch）
-        url = "https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={\"date\":\"%s\"}" % year
+        url = f"https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={{\"date\":\"{year}\"}}"
         parsed = urlparse(url)
         if parsed.scheme not in {"http", "https"}:
             logger.warning("不支援的 URL scheme: %s", parsed.scheme)
@@ -186,7 +189,6 @@ class AttendanceAnalyzer:
         
         # 初始化狀態管理器
         if self.incremental_mode:
-            from lib.state import AttendanceStateManager
             self.state_manager = AttendanceStateManager()
             
             # 解析檔名取得使用者資訊
@@ -199,7 +201,9 @@ class AttendanceAnalyzer:
                 
                 # 檢查重疊日期
                 if start_date and end_date:
-                    overlaps = self.state_manager.detect_date_overlap(user_name, start_date, end_date)
+                    overlaps = self.state_manager.detect_date_overlap(
+                        user_name, start_date, end_date
+                    )
                     if overlaps:
                         logger.warning("⚠️  發現重疊日期範圍: %s", overlaps)
                         logger.warning("將以舊資料為主，僅處理新日期")
@@ -211,7 +215,7 @@ class AttendanceAnalyzer:
                 self.incremental_mode = False
         
         # 解析檔案內容
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding='utf-8') as f:
             lines = f.readlines()
         
         for line_num, line in enumerate(lines, 1):
@@ -235,7 +239,17 @@ class AttendanceAnalyzer:
         parsed = p.parse_line(line)
         if not parsed:
             return None
-        scheduled_time, actual_time, type_str, card_num, source, status, processed, operation, note = parsed
+        (
+            scheduled_time,
+            actual_time,
+            type_str,
+            card_num,
+            source,
+            status,
+            processed,
+            operation,
+            note,
+        ) = parsed
         attendance_type = AttendanceType.CHECKIN if type_str == "上班" else AttendanceType.CHECKOUT
         return AttendanceRecord(
             date=scheduled_time.date() if scheduled_time else None,
@@ -304,7 +318,9 @@ class AttendanceAnalyzer:
             unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
             if unprocessed_dates:
                 logger.info("🔄 增量分析: 發現 %d 個新的完整工作日需要處理", len(unprocessed_dates))
-                logger.info("📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates))
+                logger.info(
+                    "📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates)
+                )
                 unprocessed_date_set = {d.date() for d in unprocessed_dates}
                 return [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
             logger.info("✅ 增量分析: 沒有新的工作日需要處理")
@@ -346,7 +362,10 @@ class AttendanceAnalyzer:
             )
             if can_use_forget_punch:
                 self.forget_punch_usage[month_key] += 1
-                remaining = self.config.forget_punch_allowance_per_month - self.forget_punch_usage[month_key]
+                remaining = (
+                    self.config.forget_punch_allowance_per_month
+                    - self.forget_punch_usage[month_key]
+                )
                 self.issues.append(Issue(
                     date=workday.date,
                     type=IssueType.FORGET_PUNCH,
@@ -356,7 +375,11 @@ class AttendanceAnalyzer:
                     calculation=f"{late_calculation} (使用忘刷卡，本月剩餘: {remaining}次)",
                 ))
             else:
-                reason = "超過1小時" if late_minutes > self.config.forget_punch_max_minutes else "本月忘刷卡額度已用完"
+                reason = (
+                    "超過1小時"
+                    if late_minutes > self.config.forget_punch_max_minutes
+                    else "本月忘刷卡額度已用完"
+                )
                 self.issues.append(Issue(
                     date=workday.date,
                     type=IssueType.LATE,
@@ -365,7 +388,12 @@ class AttendanceAnalyzer:
                     time_range=late_time_range,
                     calculation=late_calculation,
                 ))
-        actual_overtime, applicable_overtime, overtime_time_range, overtime_calculation = calculate_overtime_minutes(workday, rules)
+        (
+            actual_overtime,
+            applicable_overtime,
+            overtime_time_range,
+            overtime_calculation,
+        ) = calculate_overtime_minutes(workday, rules)
         if applicable_overtime >= self.config.min_overtime_minutes:
             self.issues.append(Issue(
                 date=workday.date,
@@ -394,7 +422,10 @@ class AttendanceAnalyzer:
             "start_date": start_date,
             "end_date": end_date,
             # 優先使用已知來源檔名；保持與 CLI 相容的後備行為
-            "source_file": self.source_file_name or (os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "unknown"),
+            "source_file": (
+                self.source_file_name
+                or (os.path.basename(sys.argv[1]) if len(sys.argv) > 1 else "unknown")
+            ),
             "last_analysis_time": datetime.now().isoformat()
         }
         
@@ -431,7 +462,9 @@ class AttendanceAnalyzer:
             )
         
         # 忘刷卡建議
-        forget_punch_issues = [issue for issue in self.issues if issue.type == IssueType.FORGET_PUNCH]
+        forget_punch_issues = [
+            issue for issue in self.issues if issue.type == IssueType.FORGET_PUNCH
+        ]
         from lib.report import build_issue_section, build_summary
         report.extend(
             build_issue_section("## 🔄 建議使用忘刷卡的日期：", "🔄", forget_punch_issues)
@@ -450,12 +483,19 @@ class AttendanceAnalyzer:
         )
         
         # 週一到週四請假建議
-        weekday_leave_issues = [issue for issue in self.issues if issue.type == IssueType.WEEKDAY_LEAVE]
+        weekday_leave_issues = [
+            issue for issue in self.issues if issue.type == IssueType.WEEKDAY_LEAVE
+        ]
         if weekday_leave_issues:
             report.append("## 📝 需要請假的日期：\n")
             for i, issue in enumerate(weekday_leave_issues, 1):
-                weekday_name = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'][issue.date.weekday()]
-                report.append(f"{i}. **{issue.date.strftime('%Y/%m/%d')} ({weekday_name})** - 📝 {issue.description}")
+                weekday_name = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'][
+                    issue.date.weekday()
+                ]
+                report.append(
+                    f"{i}. **{issue.date.strftime('%Y/%m/%d')} ({weekday_name})** - "
+                    f"📝 {issue.description}"
+                )
             report.append("")
         
         # WFH建議
@@ -463,7 +503,9 @@ class AttendanceAnalyzer:
         if wfh_issues:
             report.append("## 🏠 建議申請WFH假的日期：\n")
             for i, issue in enumerate(wfh_issues, 1):
-                report.append(f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - 😊 {issue.description}")
+                report.append(
+                    f"{i}. **{issue.date.strftime('%Y/%m/%d')}** - 😊 {issue.description}"
+                )
             report.append("")
         
         # 統計摘要
@@ -519,17 +561,20 @@ class AttendanceAnalyzer:
             headers.append('狀態')
         ws.append(headers)
 
-        data_start_appended = False
+        # data_start_appended = False  # Variable assigned but never used
         if self.incremental_mode and not self.issues and self.current_user:
             status_tuple = self._compute_incremental_status_row()
             if status_tuple:
                 last_date, total, last_time = status_tuple
                 ws.append([
                     last_date, '狀態資訊', 0,
-                    f"📊 增量分析完成，已處理至 {last_date}，共 {total} 個完整工作日 | 上次分析時間: {last_time}",
+                    (
+            f"📊 增量分析完成，已處理至 {last_date}，共 {total} 個完整工作日 | "
+            f"上次分析時間: {last_time}"
+        ),
                     '', '','系統狀態'
                 ])
-                data_start_appended = True
+                # data_start_appended = True  # Variable assigned but never used
 
         for issue in self.issues:
             row = [
@@ -555,7 +600,11 @@ class AttendanceAnalyzer:
         complete_days = self._identify_complete_work_days()
         if not complete_days:
             return None
-        unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days) if self.current_user else []
+        unprocessed_dates = (
+            self._get_unprocessed_dates(self.current_user, complete_days)
+            if self.current_user
+            else []
+        )
         if unprocessed_dates:
             return None
         last_date = max(complete_days).strftime('%Y/%m/%d')

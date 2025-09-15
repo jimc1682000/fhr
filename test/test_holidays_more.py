@@ -5,8 +5,14 @@ from unittest import mock
 from lib.holidays import TaiwanGovOpenDataProvider
 from test.test_helpers import DummyResp, temp_env
 
-
 """Use shared DummyResp from test_helpers to speed up imports and reuse."""
+
+# Environment settings for testing to avoid long lines
+TEST_ENV_SETTINGS = {
+    'HOLIDAY_API_MAX_RETRIES': '1',
+    'HOLIDAY_API_BACKOFF_BASE': '0',
+    'HOLIDAY_API_MAX_BACKOFF': '0'
+}
 
 
 class FakeParse:
@@ -26,7 +32,7 @@ class TestHolidaysMore(unittest.TestCase):
                 ]
             }
         }
-        with temp_env({'HOLIDAY_API_MAX_RETRIES': '1', 'HOLIDAY_API_BACKOFF_BASE': '0', 'HOLIDAY_API_MAX_BACKOFF': '0'}):
+        with temp_env(TEST_ENV_SETTINGS):
             p = TaiwanGovOpenDataProvider()
             with mock.patch('urllib.request.urlopen', return_value=DummyResp(payload)):
                 with self.assertLogs('lib.holidays', level='WARNING') as cm:
@@ -36,7 +42,7 @@ class TestHolidaysMore(unittest.TestCase):
         self.assertIn('跳過無效的日期格式', logs)
 
     def test_unsupported_scheme_returns_empty(self):
-        with temp_env({'HOLIDAY_API_MAX_RETRIES': '1', 'HOLIDAY_API_BACKOFF_BASE': '0', 'HOLIDAY_API_MAX_BACKOFF': '0'}):
+        with temp_env(TEST_ENV_SETTINGS):
             p = TaiwanGovOpenDataProvider()
             with mock.patch('lib.holidays.urlparse', return_value=FakeParse('file')):
                 with self.assertLogs('lib.holidays', level='WARNING') as cm:

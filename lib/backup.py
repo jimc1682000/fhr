@@ -1,9 +1,7 @@
 import os
 from datetime import datetime
-from typing import Optional
 
-
-def backup_with_timestamp(filepath: str) -> Optional[str]:
+def backup_with_timestamp(filepath: str) -> str | None:
     """If file exists, move it to a timestamped backup alongside original.
 
     Returns the backup path if a backup was created, otherwise None.

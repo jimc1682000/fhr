@@ -4,11 +4,11 @@ No dependency on analyzer types; operate on duck-typed records.
 """
 from collections import defaultdict
 from datetime import datetime
-from typing import Iterable, List, Set
+from collections.abc import Iterable
 
 
-def years_from_records(records: Iterable) -> Set[int]:
-    years: Set[int] = set()
+def years_from_records(records: Iterable) -> set[int]:
+    years: set[int] = set()
     for rec in records:
         d = getattr(rec, "date", None)
         if d:
@@ -16,7 +16,7 @@ def years_from_records(records: Iterable) -> Set[int]:
     return years
 
 
-def identify_complete_work_days(records: Iterable) -> List[datetime]:
+def identify_complete_work_days(records: Iterable) -> list[datetime]:
     """Return sorted list of dates (at 00:00) that have both checkin and checkout."""
     daily = defaultdict(lambda: {"checkin": False, "checkout": False})
     for rec in records:
@@ -31,7 +31,7 @@ def identify_complete_work_days(records: Iterable) -> List[datetime]:
         else:
             daily[d]["checkout"] = True
 
-    out: List[datetime] = []
+    out: list[datetime] = []
     for d, flags in daily.items():
         if flags["checkin"] and flags["checkout"]:
             out.append(datetime.combine(d, datetime.min.time()))

@@ -4,14 +4,11 @@ Keeps behavior-compatible semantics: normal runs do not call sys.exit,
 error paths may call sys.exit(1) to match prior tests.
 """
 import argparse
-import logging
-import os
 import sys
 from datetime import datetime
-from typing import Optional
 
 
-def run(argv: Optional[list] = None) -> None:
+def run(argv: list | None = None) -> None:
     from attendance_analyzer import AttendanceAnalyzer, logger  # reuse same logger
     from lib.filename import parse_range_and_user
     from lib.state import AttendanceStateManager

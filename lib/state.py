@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Iterable, List, Tuple
+from collections.abc import Iterable
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class AttendanceStateManager:
         except OSError as e:
             logger.warning("無法儲存狀態檔案 %s: %s", self.state_file, e)
 
-    def get_user_processed_ranges(self, user_name: str) -> List[Dict]:
+    def get_user_processed_ranges(self, user_name: str) -> list[dict]:
         if user_name not in self.state_data["users"]:
             return []
         return self.state_data["users"][user_name].get("processed_date_ranges", [])
@@ -52,8 +52,8 @@ class AttendanceStateManager:
         ranges = self.state_data["users"][user_name].get("processed_date_ranges", [])
         return max((r.get("last_analysis_time", "") for r in ranges), default="")
 
-    def update_user_state(self, user_name: str, new_range: Dict[str, str],
-                          forget_punch_usage: Dict[str, int] = None) -> None:
+    def update_user_state(self, user_name: str, new_range: dict[str, str],
+                          forget_punch_usage: dict[str, int] = None) -> None:
         if user_name not in self.state_data["users"]:
             self.state_data["users"][user_name] = {
                 "processed_date_ranges": [],
@@ -72,7 +72,7 @@ class AttendanceStateManager:
         if forget_punch_usage:
             user_data["forget_punch_usage"].update(forget_punch_usage)
 
-    def detect_date_overlap(self, user_name: str, new_start_date: str, new_end_date: str) -> List[Tuple[str, str]]:
+    def detect_date_overlap(self, user_name: str, new_start_date: str, new_end_date: str) -> list[tuple[str, str]]:
         overlaps = []
         existing_ranges = self.get_user_processed_ranges(user_name)
         new_start = datetime.strptime(new_start_date, "%Y-%m-%d").date()
@@ -87,16 +87,16 @@ class AttendanceStateManager:
         return overlaps
 
 
-def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
-                             complete_days: Iterable[datetime]) -> List[datetime]:
+def filter_unprocessed_dates(processed_ranges: list[dict[str, str]],
+                             complete_days: Iterable[datetime]) -> list[datetime]:
     """Return dates in complete_days not covered by any processed range.
 
     processed_ranges: List of dicts with 'start_date'/'end_date' in YYYY-MM-DD.
     complete_days: Iterable of datetime (date at 00:00).
     Inclusive range check: start <= day <= end.
     """
-    out: List[datetime] = []
-    norm_ranges: List[Tuple[datetime, datetime]] = []
+    out: list[datetime] = []
+    norm_ranges: list[tuple[datetime, datetime]] = []
     for r in processed_ranges or []:
         try:
             s = datetime.strptime(r["start_date"], "%Y-%m-%d").date()

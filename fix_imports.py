@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Quick script to fix import sorting issues in Python files."""
 import os
-import re
 from pathlib import Path
 
 

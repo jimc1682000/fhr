@@ -9,19 +9,18 @@ import random
 import socket
 import time
 from datetime import datetime
-from typing import Set
 
 
 logger = logging.getLogger(__name__)
 
 
 class HolidayProvider:
-    def load(self, year: int) -> Set[datetime.date]:  # pragma: no cover (interface)
+    def load(self, year: int) -> set[datetime.date]:  # pragma: no cover (interface)
         return set()
 
 
 class Hardcoded2025Provider(HolidayProvider):
-    def load(self, year: int) -> Set[datetime.date]:
+    def load(self, year: int) -> set[datetime.date]:
         if year != 2025:
             return set()
         dates = [
@@ -40,7 +39,7 @@ class Hardcoded2025Provider(HolidayProvider):
             # 國慶日
             "2025/10/10", "2025/10/11", "2025/10/12",
         ]
-        out: Set[datetime.date] = set()
+        out: set[datetime.date] = set()
         for s in dates:
             try:
                 out.add(datetime.strptime(s, "%Y/%m/%d").date())
@@ -50,8 +49,8 @@ class Hardcoded2025Provider(HolidayProvider):
 
 
 class BasicFixedProvider(HolidayProvider):
-    def load(self, year: int) -> Set[datetime.date]:
-        out: Set[datetime.date] = set()
+    def load(self, year: int) -> set[datetime.date]:
+        out: set[datetime.date] = set()
         for s in (f"{year}/01/01", f"{year}/10/10"):
             try:
                 out.add(datetime.strptime(s, "%Y/%m/%d").date())
@@ -75,7 +74,7 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
         except ValueError:
             self.max_backoff = 8.0
 
-    def load(self, year: int) -> Set[datetime.date]:
+    def load(self, year: int) -> set[datetime.date]:
         url = (
             "https://data.gov.tw/api/v1/rest/datastore_search?"
             f"resource_id=W2&filters={{\"date\":\"{year}\"}}"
@@ -93,7 +92,7 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
                 logger.info("資訊: 嘗試載入 %d 年假日 (第 %d/%d 次)...", year, attempt, self.max_retries)
                 with urllib.request.urlopen(url, timeout=10, context=context) as resp:  # nosec B310
                     data = _json.loads(resp.read().decode('utf-8'))
-                    out: Set[datetime.date] = set()
+                    out: set[datetime.date] = set()
                     if 'result' in data and 'records' in data['result']:
                         for record in data['result']['records']:
                             if record.get('isHoliday', 0) == 1:
@@ -136,7 +135,7 @@ class HolidayService:
         self.gov = TaiwanGovOpenDataProvider()
         self.basic = BasicFixedProvider()
 
-    def load_year(self, year: int) -> Set[datetime.date]:
+    def load_year(self, year: int) -> set[datetime.date]:
         if year == 2025:
             return self.hardcoded.load(year)
         # try gov, fallback basic
@@ -146,8 +145,8 @@ class HolidayService:
         logger.warning("無法取得 %d 年完整假日資料，僅載入基本固定假日", year)
         return self.basic.load(year)
 
-    def load_years(self, years: set) -> Set[datetime.date]:
-        out: Set[datetime.date] = set()
+    def load_years(self, years: set) -> set[datetime.date]:
+        out: set[datetime.date] = set()
         for y in years:
             out |= self.load_year(y)
         return out

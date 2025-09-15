@@ -4,17 +4,15 @@
 用於分析考勤記錄並計算遲到/加班時數
 """
 
-import re
-import sys
 import json
-import os
 import logging
-import time  # unused; kept previously, now removed for clarity
+import os
+import sys
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from typing import Optional
 from urllib.parse import urlparse
 
 
@@ -38,8 +36,8 @@ class IssueType(Enum):
 @dataclass
 class AttendanceRecord:
     date: datetime
-    scheduled_time: Optional[datetime]
-    actual_time: Optional[datetime]
+    scheduled_time: datetime | None
+    actual_time: datetime | None
     type: AttendanceType
     card_number: str
     source: str
@@ -52,8 +50,8 @@ class AttendanceRecord:
 @dataclass
 class WorkDay:
     date: datetime
-    checkin_record: Optional[AttendanceRecord]
-    checkout_record: Optional[AttendanceRecord]
+    checkin_record: AttendanceRecord | None
+    checkout_record: AttendanceRecord | None
     is_friday: bool
     is_holiday: bool = False
 
@@ -83,17 +81,17 @@ class AttendanceAnalyzer:
         from lib.config import AttendanceConfig
         self.config = AttendanceConfig()
         self._load_config(config_path)
-        self.records: List[AttendanceRecord] = []
-        self.workdays: List[WorkDay] = []
-        self.issues: List[Issue] = []
+        self.records: list[AttendanceRecord] = []
+        self.workdays: list[WorkDay] = []
+        self.issues: list[Issue] = []
         self.holidays: set = set()  # 存放國定假日日期
-        self.forget_punch_usage: Dict[str, int] = defaultdict(int)  # 追蹤每月忘刷卡使用次數 {年月: 次數}
+        self.forget_punch_usage: dict[str, int] = defaultdict(int)  # 追蹤每月忘刷卡使用次數 {年月: 次數}
         self.loaded_holiday_years: set = set()  # 追蹤已載入假日的年份
-        self.state_manager: Optional[AttendanceStateManager] = None
-        self.current_user: Optional[str] = None
+        self.state_manager: AttendanceStateManager | None = None
+        self.current_user: str | None = None
         self.incremental_mode: bool = True
         # 來源檔名（供狀態管理使用；API 模式時不依賴 sys.argv）
-        self.source_file_name: Optional[str] = None
+        self.source_file_name: str | None = None
 
     def _load_config(self, config_path: str) -> None:
         """載入設定檔以覆蓋預設公司規則"""
@@ -110,12 +108,12 @@ class AttendanceAnalyzer:
             logger.warning("無法讀取設定檔 %s: %s", config_path, e)
     
     
-    def _identify_complete_work_days(self) -> List[datetime]:
+    def _identify_complete_work_days(self) -> list[datetime]:
         """識別完整的工作日（委派至 lib.dates）"""
         from lib.dates import identify_complete_work_days
         return identify_complete_work_days(self.records)
     
-    def _get_unprocessed_dates(self, user_name: str, complete_days: List[datetime]) -> List[datetime]:
+    def _get_unprocessed_dates(self, user_name: str, complete_days: list[datetime]) -> list[datetime]:
         """取得需要處理的新日期（委派至 lib.state.filter_unprocessed_dates）"""
         if not self.state_manager or not self.incremental_mode:
             return complete_days
@@ -231,7 +229,7 @@ class AttendanceAnalyzer:
             except (ValueError, IndexError) as e:
                 logger.warning("第%d行解析失敗: %s", line_num, e)
     
-    def _parse_attendance_line(self, line: str) -> Optional[AttendanceRecord]:
+    def _parse_attendance_line(self, line: str) -> AttendanceRecord | None:
         """解析單行考勤記錄（委派至 lib.parser）"""
         from lib import parser as p
         parsed = p.parse_line(line)
@@ -300,7 +298,7 @@ class AttendanceAnalyzer:
         if self.incremental_mode and self.current_user and workdays_to_analyze:
             self._update_processing_state()
 
-    def _get_workdays_to_analyze(self) -> List[WorkDay]:
+    def _get_workdays_to_analyze(self) -> list[WorkDay]:
         if self.incremental_mode and self.current_user:
             complete_days = self._identify_complete_work_days()
             unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
@@ -553,7 +551,7 @@ class AttendanceAnalyzer:
         _os.replace(tmp_path, filepath)
         return
 
-    def _compute_incremental_status_row(self) -> Optional[Tuple[str, int, str]]:
+    def _compute_incremental_status_row(self) -> tuple[str, int, str] | None:
         complete_days = self._identify_complete_work_days()
         if not complete_days:
             return None

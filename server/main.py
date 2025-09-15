@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import os
 import io
 import json
+import os
 import uuid
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import Literal
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -39,7 +39,7 @@ class IssueDTO(BaseModel):
     description: str
     time_range: str = ""
     calculation: str = ""
-    status: Optional[str] = None
+    status: str | None = None
 
 
 class StatusDTO(BaseModel):
@@ -50,7 +50,7 @@ class StatusDTO(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     analysis_id: str
-    user: Optional[str] = None
+    user: str | None = None
     # Effective mode actually used for analysis
     mode: Literal["incremental", "full"]
     requested_mode: Literal["incremental", "full"]
@@ -62,8 +62,8 @@ class AnalyzeResponse(BaseModel):
     first_time_user: bool = False
     output_filename: str
     download_url: str
-    status: Optional[StatusDTO] = None
-    issues_preview: List[IssueDTO] = Field(default_factory=list)
+    status: StatusDTO | None = None
+    issues_preview: list[IssueDTO] = Field(default_factory=list)
     totals: dict = Field(default_factory=dict)
 
 
@@ -77,8 +77,8 @@ def _save_upload(upload: UploadFile, session_dir: str) -> str:
     return upload_path
 
 
-def _issues_to_dtos(analyzer: AttendanceAnalyzer, limit: int = 50) -> List[IssueDTO]:
-    items: List[IssueDTO] = []
+def _issues_to_dtos(analyzer: AttendanceAnalyzer, limit: int = 50) -> list[IssueDTO]:
+    items: list[IssueDTO] = []
     for issue in analyzer.issues[:limit]:
         items.append(
             IssueDTO(

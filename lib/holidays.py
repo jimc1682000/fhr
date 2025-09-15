@@ -1,15 +1,13 @@
+import json as _json
 import logging
 import os
-import ssl
-import urllib.request
-from urllib.error import URLError, HTTPError
-from urllib.parse import urlparse
-import json as _json
 import random
-import socket
+import ssl
 import time
+import urllib.request
 from datetime import datetime
-
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,8 @@ class Hardcoded2025Provider(HolidayProvider):
             # 元旦連假
             "2025/01/01",
             # 農曆春節
-            "2025/01/25", "2025/01/26", "2025/01/27", "2025/01/28", "2025/01/29", "2025/01/30", "2025/01/31", "2025/02/01", "2025/02/02",
+            "2025/01/25", "2025/01/26", "2025/01/27", "2025/01/28", "2025/01/29",
+            "2025/01/30", "2025/01/31", "2025/02/01", "2025/02/02",
             # 和平紀念日
             "2025/02/28", "2025/03/01", "2025/03/02",
             # 兒童節/清明節
@@ -89,7 +88,9 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
         while attempt <= self.max_retries:
             attempt += 1
             try:
-                logger.info("資訊: 嘗試載入 %d 年假日 (第 %d/%d 次)...", year, attempt, self.max_retries)
+                logger.info(
+                    "資訊: 嘗試載入 %d 年假日 (第 %d/%d 次)...", year, attempt, self.max_retries
+                )
                 with urllib.request.urlopen(url, timeout=10, context=context) as resp:  # nosec B310
                     data = _json.loads(resp.read().decode('utf-8'))
                     out: set[datetime.date] = set()
@@ -109,17 +110,23 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
             except HTTPError as e:
                 status = getattr(e, 'code', None)
                 if status in (429, 500, 502, 503, 504):
-                    err_desc = f"HTTP {status}"
+                    # err_desc = f"HTTP {status}"  # Variable assigned but never used
+                    pass
                 else:
                     logger.warning("無法從API載入 %d 年假日資料: HTTP %s — 不重試。", year, status)
                     return set()
-            except (URLError, socket.timeout, TimeoutError, _json.JSONDecodeError, ValueError) as e:
-                err_desc = f"連線/解析錯誤: {e}"
-            except Exception as e:
-                err_desc = f"一般錯誤: {e}"
+            except (URLError, TimeoutError, _json.JSONDecodeError, ValueError):
+                # err_desc = f"連線/解析錯誤: {e}"  # Variable assigned but never used
+                pass
+            except Exception:
+                # err_desc = f"一般錯誤: {e}"  # Variable assigned but never used
+                pass
 
             if attempt > self.max_retries:
-                logger.error("錯誤: 嘗試 %d 次後仍無法載入 %d 年假日資料。回退到基本假日。", self.max_retries, year)
+                logger.error(
+                    "錯誤: 嘗試 %d 次後仍無法載入 %d 年假日資料。回退到基本假日。",
+                    self.max_retries, year
+                )
                 break
 
             sleep_s = min(self.max_backoff, self.base_backoff * (2 ** (attempt - 1)))

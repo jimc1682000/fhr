@@ -1,5 +1,4 @@
 """Excel export helpers for attendance analyzer."""
-from typing import List, Tuple
 
 from openpyxl import Workbook
 from openpyxl.styles import (
@@ -9,11 +8,12 @@ from openpyxl.styles import (
     PatternFill,
     Side,
 )
+from openpyxl.worksheet.worksheet import Worksheet
 
 from attendance_analyzer import Issue, IssueType
 
 
-def init_workbook() -> Tuple[Workbook, 'Worksheet', Font, PatternFill, Border, Alignment]:
+def init_workbook() -> tuple[Workbook, Worksheet, Font, PatternFill, Border, Alignment]:
     """Initialize workbook, worksheet, and basic styles."""
     wb = Workbook()
     ws = wb.active
@@ -32,7 +32,7 @@ def init_workbook() -> Tuple[Workbook, 'Worksheet', Font, PatternFill, Border, A
     return wb, ws, header_font, header_fill, border, center_alignment
 
 
-def write_headers(ws, headers: List[str], header_font: Font,
+def write_headers(ws, headers: list[str], header_font: Font,
                   header_fill: PatternFill, border: Border,
                   alignment: Alignment) -> None:
     """Write header row with styles."""
@@ -52,9 +52,11 @@ def write_status_row(ws, last_date: str, complete_days: int,
     ws.cell(row=2, column=1).value = last_date
     ws.cell(row=2, column=2).value = "狀態資訊"
     ws.cell(row=2, column=3).value = 0
-    ws.cell(row=2, column=4).value = (
-        f"📊 增量分析完成，已處理至 {last_date}，共 {complete_days} 個完整工作日 | 上次分析時間: {last_analysis_time}"
+    status_message = (
+        f"📊 增量分析完成，已處理至 {last_date}，共 {complete_days} 個完整工作日 | "
+        f"上次分析時間: {last_analysis_time}"
     )
+    ws.cell(row=2, column=4).value = status_message
     ws.cell(row=2, column=5).value = ""
     ws.cell(row=2, column=6).value = "上次處理範圍內無新問題需要申請"
     ws.cell(row=2, column=7).value = "系統狀態"
@@ -68,7 +70,7 @@ def write_status_row(ws, last_date: str, complete_days: int,
     return 3
 
 
-def write_issue_rows(ws, issues: List[Issue], start_row: int,
+def write_issue_rows(ws, issues: list[Issue], start_row: int,
                      incremental_mode: bool, border: Border,
                      alignment: Alignment) -> None:
     """Write issue rows into the worksheet."""
@@ -83,13 +85,21 @@ def write_issue_rows(ws, issues: List[Issue], start_row: int,
         type_cell.alignment = alignment
         type_cell.border = border
         if issue.type == IssueType.LATE:
-            type_cell.fill = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="FFE6E6", end_color="FFE6E6", fill_type="solid"
+            )
         elif issue.type == IssueType.OVERTIME:
-            type_cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="E6F3FF", end_color="E6F3FF", fill_type="solid"
+            )
         elif issue.type == IssueType.WFH:
-            type_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="E6FFE6", end_color="E6FFE6", fill_type="solid"
+            )
         elif issue.type == IssueType.FORGET_PUNCH:
-            type_cell.fill = PatternFill(start_color="FFF0E6", end_color="FFF0E6", fill_type="solid")
+            type_cell.fill = PatternFill(
+                start_color="FFF0E6", end_color="FFF0E6", fill_type="solid"
+            )
 
         duration_cell = ws.cell(row=row_idx, column=3)
         duration_cell.value = issue.duration_minutes
@@ -115,7 +125,9 @@ def write_issue_rows(ws, issues: List[Issue], start_row: int,
             status_cell.alignment = alignment
             status_cell.border = border
             if issue.is_new:
-                status_cell.fill = PatternFill(start_color="E6FFE6", end_color="E6FFE6", fill_type="solid")
+                status_cell.fill = PatternFill(
+                    start_color="E6FFE6", end_color="E6FFE6", fill_type="solid"
+                )
 
 
 def set_column_widths(ws, incremental_mode: bool) -> None:

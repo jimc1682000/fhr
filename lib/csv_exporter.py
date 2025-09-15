@@ -1,5 +1,5 @@
-from typing import Iterable, Optional
 import csv
+from collections.abc import Iterable
 
 
 def write_headers(writer: csv.writer, incremental_mode: bool) -> None:
@@ -9,12 +9,17 @@ def write_headers(writer: csv.writer, incremental_mode: bool) -> None:
     writer.writerow(headers)
 
 
-def write_status_row(writer: csv.writer, last_date: str, complete_days: int, last_analysis_time: str) -> None:
+def write_status_row(
+    writer: csv.writer, last_date: str, complete_days: int, last_analysis_time: str
+) -> None:
     status_row = [
         last_date,
         "狀態資訊",
         0,
-        f"📊 增量分析完成，已處理至 {last_date}，共 {complete_days} 個完整工作日 | 上次分析時間: {last_analysis_time}",
+        (
+            f"📊 增量分析完成，已處理至 {last_date}，共 {complete_days} 個完整工作日 | "
+            f"上次分析時間: {last_analysis_time}"
+        ),
         "",
         "上次處理範圍內無新問題需要申請",
         "系統狀態",
@@ -38,7 +43,7 @@ def write_issue_rows(writer: csv.writer, issues: Iterable, incremental_mode: boo
 
 
 def save_csv(filepath: str, issues: Iterable, incremental_mode: bool,
-             status: Optional[tuple] = None) -> None:
+             status: tuple | None = None) -> None:
     """Persist CSV with optional status row.
 
     status: (last_date, complete_days, last_analysis_time) if provided

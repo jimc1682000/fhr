@@ -40,7 +40,10 @@ class TestCliAdditionalBranches(unittest.TestCase):
                 f.write("應刷卡時段\t當日卡鐘資料\t刷卡別\t卡鐘編號\t資料來源\t異常狀態\t處理狀態\t異常處理作業\t備註\n")
             argv = ['attendance_analyzer.py', file_path, 'csv']
             # Patch the analyzer method that CLI calls to raise
-            with mock.patch('attendance_analyzer.AttendanceAnalyzer.parse_attendance_file', side_effect=RuntimeError('boom')):
+            with mock.patch(
+                'attendance_analyzer.AttendanceAnalyzer.parse_attendance_file',
+                side_effect=RuntimeError('boom')
+            ):
                 with self.assertLogs(level='ERROR') as cm:
                     with self.assertRaises(SystemExit) as se:
                         with mock.patch('sys.argv', argv):

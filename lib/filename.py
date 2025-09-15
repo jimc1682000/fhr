@@ -1,10 +1,9 @@
 import os
 import re
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
 
 
-def parse_range_and_user(filepath: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def parse_range_and_user(filepath: str) -> tuple[str | None, str | None, str | None]:
     """Parse user name and date range from file name.
 
     Supports: {YYYYMM}[-{YYYYMM}]-{NAME}-出勤資料.txt
@@ -34,13 +33,17 @@ def parse_range_and_user(filepath: str) -> Tuple[Optional[str], Optional[str], O
         try:
             end_year = int(end_month_str[:4])
             end_month = int(end_month_str[4:6])
-            next_month = datetime(end_year + (1 if end_month == 12 else 0), 1 if end_month == 12 else end_month + 1, 1)
+            next_year = end_year + (1 if end_month == 12 else 0)
+            next_month_num = 1 if end_month == 12 else end_month + 1
+            next_month = datetime(next_year, next_month_num, 1)
             end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
         except ValueError:
             return None, None, None
     else:
         try:
-            next_month = datetime(start_year + (1 if start_month == 12 else 0), 1 if start_month == 12 else start_month + 1, 1)
+            next_year = start_year + (1 if start_month == 12 else 0)
+            next_month_num = 1 if start_month == 12 else start_month + 1
+            next_month = datetime(next_year, next_month_num, 1)
             end_date = (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
         except ValueError:
             return None, None, None

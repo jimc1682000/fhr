@@ -45,7 +45,7 @@ class TestHolidayLoading(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(invalid_data).encode('utf-8')
         with patch('urllib.request.urlopen') as mock_urlopen, \
-                patch('attendance_analyzer.time.sleep'):
+                patch('lib.holidays.time.sleep'):
             mock_urlopen.return_value.__enter__.return_value = mock_response
             success = analyzer._try_load_from_gov_api(2025)
         self.assertFalse(success)

@@ -1,15 +1,15 @@
-import os
 import json
+import os
 import unittest
 from datetime import datetime
 from unittest import mock
 from urllib.error import HTTPError
 
 from lib.holidays import (
-    Hardcoded2025Provider,
     BasicFixedProvider,
-    TaiwanGovOpenDataProvider,
+    Hardcoded2025Provider,
     HolidayService,
+    TaiwanGovOpenDataProvider,
 )
 
 
@@ -39,8 +39,7 @@ class TestHolidaysProviders(unittest.TestCase):
 
     def test_gov_provider_timeout_then_success(self):
         seq = []
-        import socket as _socket
-        seq.append(_socket.timeout('timed out'))
+        seq.append(TimeoutError('timed out'))
         payload = {'result': {'records': [{'isHoliday': 1, 'date': '2027-10-10'}]}}
 
         class DummyResp:

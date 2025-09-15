@@ -8,7 +8,9 @@ from types import SimpleNamespace
 from lib import csv_exporter
 
 
-def make_issue(date_str: str, typ_value: str, minutes: int, desc: str, rng: str, calc: str, is_new=True):
+def make_issue(
+    date_str: str, typ_value: str, minutes: int, desc: str, rng: str, calc: str, is_new=True
+):
     return SimpleNamespace(
         date=datetime.strptime(date_str, "%Y/%m/%d"),
         type=SimpleNamespace(value=typ_value),
@@ -39,7 +41,9 @@ class TestCsvExporter(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp:
             path = tmp.name
         try:
-            issues = [make_issue('2025/09/01', '遲到', 10, '遲到10分鐘', '10:30-10:40', 'calc', True)]
+            issues = [
+                make_issue('2025/09/01', '遲到', 10, '遲到10分鐘', '10:30-10:40', 'calc', True)
+            ]
             csv_exporter.save_csv(path, issues, True, None)
             with open(path, encoding='utf-8-sig') as f:
                 rows = list(csv.reader(f, delimiter=';'))

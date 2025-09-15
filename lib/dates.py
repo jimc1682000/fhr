@@ -3,8 +3,8 @@
 No dependency on analyzer types; operate on duck-typed records.
 """
 from collections import defaultdict
-from datetime import datetime
 from collections.abc import Iterable
+from datetime import datetime
 
 
 def years_from_records(records: Iterable) -> set[int]:

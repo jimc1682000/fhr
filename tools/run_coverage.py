@@ -3,6 +3,7 @@ import sys
 import unittest
 from trace import Trace
 
+
 def main() -> None:
     tr=Trace(count=True, trace=False, ignoredirs=[sys.prefix, sys.exec_prefix])
     try:

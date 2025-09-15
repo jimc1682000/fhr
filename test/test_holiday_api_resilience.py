@@ -1,18 +1,21 @@
 import unittest
-from unittest import mock
 from datetime import datetime
+from unittest import mock
 
 from attendance_analyzer import AttendanceAnalyzer
-from test.test_helpers import DummyResp, temp_env, urlopen_sequence
+from test.test_helpers import temp_env, urlopen_sequence
 
 
 class TestHolidayApiResilience(unittest.TestCase):
     def test_timeout_then_success(self):
-        import socket as _socket
-        with temp_env(dict(HOLIDAY_API_MAX_RETRIES='2', HOLIDAY_API_BACKOFF_BASE='0', HOLIDAY_API_MAX_BACKOFF='0')):
+        with temp_env(dict(
+            HOLIDAY_API_MAX_RETRIES='2',
+            HOLIDAY_API_BACKOFF_BASE='0',
+            HOLIDAY_API_MAX_BACKOFF='0'
+        )):
             an = AttendanceAnalyzer()
             seq = [
-                _socket.timeout('timed out'),
+                TimeoutError('timed out'),
                 {'result': {'records': [{'isHoliday': 1, 'date': '2027-10-10'}]}}
             ]
             with mock.patch('urllib.request.urlopen', side_effect=urlopen_sequence(seq)):
@@ -25,7 +28,11 @@ class TestHolidayApiResilience(unittest.TestCase):
         class _HTTPError(HTTPError):
             def __init__(self, code):
                 super().__init__('http://x', code, 'err', hdrs=None, fp=None)
-        with temp_env(dict(HOLIDAY_API_MAX_RETRIES='2', HOLIDAY_API_BACKOFF_BASE='0', HOLIDAY_API_MAX_BACKOFF='0')):
+        with temp_env(dict(
+            HOLIDAY_API_MAX_RETRIES='2',
+            HOLIDAY_API_BACKOFF_BASE='0',
+            HOLIDAY_API_MAX_BACKOFF='0'
+        )):
             an = AttendanceAnalyzer()
             seq = [
                 _HTTPError(503),
@@ -43,7 +50,11 @@ class TestHolidayApiResilience(unittest.TestCase):
                 super().__init__('http://x', code, 'err', hdrs=None, fp=None)
         def urlopen_side(url, timeout=10, context=None):
             raise _HTTPError(403)
-        with temp_env(dict(HOLIDAY_API_MAX_RETRIES='1', HOLIDAY_API_BACKOFF_BASE='0', HOLIDAY_API_MAX_BACKOFF='0')):
+        with temp_env(dict(
+            HOLIDAY_API_MAX_RETRIES='1',
+            HOLIDAY_API_BACKOFF_BASE='0',
+            HOLIDAY_API_MAX_BACKOFF='0'
+        )):
             an = AttendanceAnalyzer()
             with mock.patch('urllib.request.urlopen', side_effect=urlopen_side):
                 ok = an._try_load_from_gov_api(2028)

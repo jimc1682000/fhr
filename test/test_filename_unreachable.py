@@ -1,6 +1,5 @@
 import unittest
 from unittest.mock import patch
-import types
 
 import lib.filename as lf
 
@@ -18,7 +17,9 @@ class TestFilenameEdge(unittest.TestCase):
             raise ValueError('forced')
 
         with patch('lib.filename.datetime', dt_fn):
-            self.assertEqual(lf.parse_range_and_user('202501-姓名-出勤資料.txt'), (None, None, None))
+            self.assertEqual(
+                lf.parse_range_and_user('202501-姓名-出勤資料.txt'), (None, None, None)
+            )
 
 
 if __name__ == '__main__':

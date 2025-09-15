@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Quick script to fix import sorting issues in Python files."""
-import os
 from pathlib import Path
 
 
 def fix_imports_in_file(filepath):
     """Fix import sorting in a single Python file."""
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, encoding='utf-8') as f:
         content = f.read()
     
     lines = content.split('\n')

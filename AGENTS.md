@@ -16,7 +16,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - `requirements-service.txt` — 後端服務相依。
 - `requirements-dev.txt` — 開發工具（black/ruff/pre-commit）。
 - `pyproject.toml` — black/ruff 設定。
-- `hooks/pre-commit` — git pre-commit hook 腳本（可選）。
+- `.pre-commit-config.yaml` — pre-commit 框架配置。
 
 ## Build, Test, and Development Commands
 - Run analysis: `python attendance_analyzer.py "202508-姓名-出勤資料.txt" [excel|csv] [--incremental|--full|--reset-state]`.
@@ -25,9 +25,10 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Run specific test: `python3 -m unittest -q test.test_holiday_api_resilience`.
 - Optional Excel support: `pip install openpyxl`.
  - Lint (ruff，如未安裝則跑 fallback)：`make lint`。
- - 安裝開發工具與 pre-commit hooks（可選）：
-   - `pip install -r requirements-dev.txt`
-   - `make install-hooks`（commit 前自動 black + ruff + tests；以 `SKIP_TESTS=1` 跳過測試）
+ - 開發工具與 pre-commit 框架設置：
+   - `pip install -r requirements-dev.txt`（包含 pre-commit）
+   - `make install-hooks`（自動安裝 pre-commit hooks）
+   - `make pre-commit-run`（手動運行所有 hooks）
  - 啟動 Web 服務：`uvicorn server.main:app --reload`（或 `docker compose up --build -d`）。
 
 ## Coding Style & Naming Conventions
@@ -49,7 +50,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
   - 依 `requirements-dev.txt` 安裝開發相依
   - Ruff 檢查（lint）與 Black `--check`（格式）
   - 單元測試 + 以 stdlib trace 產生覆蓋率報告
-  - 強制覆蓋率達 100%
+  - 強制覆蓋率達 ≥90%
 
 ## Commit & Pull Request Guidelines
 - Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:` (bilingual messages OK).

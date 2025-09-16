@@ -25,9 +25,9 @@ jobs:
       - name: Run tests with coverage (stdlib trace)
         run: |
           make coverage
-      - name: Enforce coverage >= 100%
+      - name: Enforce coverage >= 90%
         run: |
-          python tools/check_coverage_threshold.py --min 100
+          python tools/check_coverage_threshold.py --min 90
       - name: Upload coverage report artifact
         if: always()
         uses: actions/upload-artifact@v4

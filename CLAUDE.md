@@ -50,14 +50,47 @@ python3 -m unittest -q
 python3 -m unittest -q test.test_holiday_api_resilience
 ```
 
-### Lint & Hooks
-- Lint（建議使用 Ruff；若未安裝會有 fallback）：`make lint`
-- 安裝開發工具與 Git hook（commit 前 automatic 格式化/檢查/測試）：
-  ```bash
-  pip install -r requirements-dev.txt
-  make install-hooks
-  # 臨時跳過測試：SKIP_TESTS=1 git commit -m "..."
-  ```
+### Development Tools & Pre-commit
+
+#### Pre-commit Framework Setup
+本項目使用 [pre-commit](https://pre-commit.com/) 框架管理 Git hooks，確保代碼質量：
+
+```bash
+# 1. 安裝 pre-commit
+pip install pre-commit
+
+# 2. 安裝開發依賴
+pip install -r requirements-dev.txt
+
+# 3. 安裝 pre-commit hooks
+pre-commit install
+
+# 4. 手動運行所有 hooks（可選）
+pre-commit run --all-files
+```
+
+#### 配置的 Hooks
+- **black**: Python 代碼自動格式化（行長度 100）
+- **ruff**: Python linting 和自動修復
+- **trailing-whitespace**: 移除行尾空白
+- **end-of-file-fixer**: 確保文件以換行符結尾
+- **check-yaml**: 檢查 YAML 文件語法
+- **check-added-large-files**: 防止提交大文件
+- **mypy**: Python 靜態類型檢查（可選）
+
+#### 常用命令
+```bash
+# 手動運行 linting
+make lint
+
+# 跳過 pre-commit hooks（不推薦）
+git commit --no-verify
+
+# 更新 hooks 到最新版本
+pre-commit autoupdate
+```
+
+**詳細設置說明**: 參見 [`docs/pre-commit-setup.md`](docs/pre-commit-setup.md)
 
 ### Web Service（FastAPI）
 - App 入口：`server/main.py`
@@ -76,7 +109,7 @@ Endpoints
 - 內容：
   - 安裝 dev 相依 `requirements-dev.txt`
   - Ruff lint & Black 格式檢查
-  - 單元測試 + 覆蓋率 100% 強制
+  - 單元測試 + 覆蓋率 >=90% 要求
   - 上傳 coverage_report 與 coverage.svg 產物
 
 ### File Format Requirements

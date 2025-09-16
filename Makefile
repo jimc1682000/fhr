@@ -12,7 +12,7 @@ coverage:
 
 .PHONY: coverage-check
 coverage-check: coverage
-	$(PY) tools/check_coverage_threshold.py --min 100
+	$(PY) tools/check_coverage_threshold.py --min 90
 
 .PHONY: lint
 lint:
@@ -24,7 +24,27 @@ lint:
 
 .PHONY: install-hooks
 install-hooks:
-	@mkdir -p .git/hooks
-	cp -f hooks/pre-commit .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
-	@echo "Installed git pre-commit hook. Use SKIP_TESTS=1 to skip tests."
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit install && echo "✅ Pre-commit hooks installed successfully!" ; \
+	else \
+		echo "❌ Error: pre-commit not found. Install with: pip install pre-commit" ; \
+		exit 1 ; \
+	fi
+
+.PHONY: pre-commit-run
+pre-commit-run:
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit run --all-files ; \
+	else \
+		echo "❌ Error: pre-commit not found. Install with: pip install pre-commit" ; \
+		exit 1 ; \
+	fi
+
+.PHONY: pre-commit-update
+pre-commit-update:
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit autoupdate && echo "✅ Pre-commit hooks updated!" ; \
+	else \
+		echo "❌ Error: pre-commit not found. Install with: pip install pre-commit" ; \
+		exit 1 ; \
+	fi

@@ -1,0 +1,39 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=100]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.5
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: python-type-check
+        name: Python type checking
+        entry: python -m mypy
+        language: system
+        types: [python]
+        require_serial: true
+        files: ^(attendance_analyzer\.py|lib/.*\.py)$
+        pass_filenames: false
+        args: [attendance_analyzer.py, lib/]
+        # Only run if mypy is available
+        stages: [pre-commit]
+        verbose: true
+        always_run: false

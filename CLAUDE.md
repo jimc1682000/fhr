@@ -50,6 +50,68 @@ python3 -m unittest -q
 python3 -m unittest -q test.test_holiday_api_resilience
 ```
 
+### Development Tools & Pre-commit
+
+#### Pre-commit Framework Setup
+本項目使用 [pre-commit](https://pre-commit.com/) 框架管理 Git hooks，確保代碼質量：
+
+```bash
+# 1. 安裝 pre-commit
+pip install pre-commit
+
+# 2. 安裝開發依賴
+pip install -r requirements-dev.txt
+
+# 3. 安裝 pre-commit hooks
+pre-commit install
+
+# 4. 手動運行所有 hooks（可選）
+pre-commit run --all-files
+```
+
+#### 配置的 Hooks
+- **black**: Python 代碼自動格式化（行長度 100）
+- **ruff**: Python linting 和自動修復
+- **trailing-whitespace**: 移除行尾空白
+- **end-of-file-fixer**: 確保文件以換行符結尾
+- **check-yaml**: 檢查 YAML 文件語法
+- **check-added-large-files**: 防止提交大文件
+- **mypy**: Python 靜態類型檢查（可選）
+
+#### 常用命令
+```bash
+# 手動運行 linting
+make lint
+
+# 跳過 pre-commit hooks（不推薦）
+git commit --no-verify
+
+# 更新 hooks 到最新版本
+pre-commit autoupdate
+```
+
+**詳細設置說明**: 參見 [`docs/pre-commit-setup.md`](docs/pre-commit-setup.md)
+
+### Web Service（FastAPI）
+- App 入口：`server/main.py`
+- 本地啟動：`uvicorn server.main:app --reload`
+- Docker：`docker compose up --build -d`
+- 狀態檔持久化：環境變數 `FHR_STATE_FILE`（Docker 預設 `/app/build/attendance_state.json`）
+- OpenAPI 文件：http://localhost:8000/docs
+
+Endpoints
+- `POST /api/analyze`：上傳 TXT，選擇模式/格式，可選重置狀態
+- `GET /api/download/{analysis_id}/{filename}`：下載結果（檔名含時間戳）
+- `GET /api/health`：健康檢查
+
+## CI（GitHub Actions）
+- Workflow：`.github/workflows/ci.yml`
+- 內容：
+  - 安裝 dev 相依 `requirements-dev.txt`
+  - Ruff lint & Black 格式檢查
+  - 單元測試 + 覆蓋率 >=90% 要求
+  - 上傳 coverage_report 與 coverage.svg 產物
+
 ### File Format Requirements
 
 #### Input File Naming (Required for Incremental Analysis)
@@ -297,3 +359,25 @@ Real-world testing scenarios have been validated:
 
 ### Sample Data Testing
 Use `sample-attendance-data.txt` for integration testing - it contains various scenarios including normal check-ins, tardiness, overtime, absences, and Friday WFH cases. The corresponding `sample-attendance-data_analysis.csv` shows expected output format.
+
+## Documentation Structure
+
+### docs/ Directory
+The project includes comprehensive documentation organized in a tiered structure:
+
+**Core Documentation**: Basic usage, troubleshooting, and quick reference  
+**Operational Documentation**: System requirements, deployment, configuration  
+**Developer Documentation**: Architecture, testing, contributing guidelines  
+**Enterprise Documentation**: API architecture, service architecture, integration patterns  
+
+**Navigation**: Use `docs/index.md` as the central navigation hub to find specific documentation.
+
+### todos/ Directory
+Project improvement and development task management:
+
+- **`immediate-documentation-tasks.md`** - Ready-to-execute documentation tasks (2-3 hours)
+- **`api-architecture-enhancements.md`** - API features requiring development work
+- **`documentation-enhancement-roadmap.md`** - Overall planning and timelines  
+- **`README.md`** - Task management index and usage guide
+
+**Usage**: Check `todos/` for actionable improvement items and development priorities.

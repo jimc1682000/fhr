@@ -1,6 +1,7 @@
-import tempfile
 import os
+import tempfile
 import unittest
+
 from attendance_analyzer import AttendanceAnalyzer, IssueType
 
 

@@ -3,19 +3,15 @@
 Keeps behavior-compatible semantics: normal runs do not call sys.exit,
 error paths may call sys.exit(1) to match prior tests.
 """
-import os
+import argparse
 import sys
-import logging
 from datetime import datetime
-from typing import Optional
 
 
-def run(argv: Optional[list] = None) -> None:
+def run(argv: list | None = None) -> None:
     from attendance_analyzer import AttendanceAnalyzer, logger  # reuse same logger
     from lib.filename import parse_range_and_user
     from lib.state import AttendanceStateManager
-
-    import argparse
 
     parser = argparse.ArgumentParser(
         description='考勤分析系統 - 支援增量分析避免重複處理',
@@ -24,13 +20,13 @@ def run(argv: Optional[list] = None) -> None:
 範例用法:
   # 預設增量分析（推薦）
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt
-  
+
   # 強制完整重新分析
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt --full
-  
+
   # 清除使用者狀態後重新分析
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-state
-  
+
   # 指定輸出格式
   python attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
         """
@@ -53,14 +49,18 @@ def run(argv: Optional[list] = None) -> None:
     incremental_mode = args.incremental and not args.full
 
     if args.reset_state:
-        analyzer_temp = AttendanceAnalyzer()
+        # analyzer_temp = AttendanceAnalyzer()  # Variable assigned but never used
         user_name, _, _ = parse_range_and_user(filepath)
         if user_name:
             state_manager = AttendanceStateManager()
             if user_name in state_manager.state_data.get("users", {}):
                 del state_manager.state_data["users"][user_name]
                 state_manager.save_state()
-                logger.info("🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s", user_name, datetime.now().isoformat())
+                logger.info(
+            "🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s",
+            user_name,
+            datetime.now().isoformat(),
+        )
             else:
                 logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
         else:
@@ -107,4 +107,3 @@ def run(argv: Optional[list] = None) -> None:
     except Exception as e:
         logger.error("❌ 錯誤: %s", e)
         sys.exit(1)
-

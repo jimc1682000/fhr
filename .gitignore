@@ -167,6 +167,10 @@ Thumbs.db
 *.swo
 *~
 
+# AI 代理配置目錄（工作流程相關）
+.gemini/
+.specify/
+
 # 排除但保留的檔案（用 ! 開頭）
 # ================
 !sample-attendance-data.txt

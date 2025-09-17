@@ -1,7 +1,12 @@
 import unittest
 from datetime import datetime
 
-from attendance_analyzer import AttendanceAnalyzer, WorkDay, AttendanceRecord, AttendanceType
+from attendance_analyzer import (
+    AttendanceAnalyzer,
+    AttendanceRecord,
+    AttendanceType,
+    WorkDay,
+)
 from lib.policy import Rules
 
 
@@ -20,12 +25,20 @@ class TestAnalyzerInternalBranches(unittest.TestCase):
         an = AttendanceAnalyzer()
         # Construct a Friday workday (2025-07-04 is Friday)
         date = datetime(2025, 7, 4)
-        rec_in = AttendanceRecord(date=date, scheduled_time=date.replace(hour=9, minute=0),
-                                  actual_time=date.replace(hour=9, minute=5), type=AttendanceType.CHECKIN,
-                                  card_number='1', source='門禁', status='', processed='', operation='', note='')
-        rec_out = AttendanceRecord(date=date, scheduled_time=date.replace(hour=18, minute=0),
-                                   actual_time=date.replace(hour=19, minute=0), type=AttendanceType.CHECKOUT,
-                                   card_number='1', source='門禁', status='', processed='', operation='', note='')
+        rec_in = AttendanceRecord(
+            date=date, scheduled_time=date.replace(hour=9, minute=0),
+            actual_time=date.replace(hour=9, minute=5),
+            type=AttendanceType.CHECKIN,
+            card_number='1', source='門禁', status='',
+            processed='', operation='', note=''
+        )
+        rec_out = AttendanceRecord(
+            date=date, scheduled_time=date.replace(hour=18, minute=0),
+            actual_time=date.replace(hour=19, minute=0),
+            type=AttendanceType.CHECKOUT,
+            card_number='1', source='門禁', status='',
+            processed='', operation='', note=''
+        )
         wd = WorkDay(date=date, checkin_record=rec_in, checkout_record=rec_out,
                      is_friday=True, is_holiday=False)
         an._analyze_single_workday(wd, Rules())

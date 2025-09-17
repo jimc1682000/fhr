@@ -1,0 +1,28 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+  "coverage_report",
+  "build",
+  "dist",
+  "fhr.egg-info",
+  ".venv",
+  "venv",
+]
+
+[tool.ruff.lint]
+# Rule selection: pyflakes + pycodestyle errors + isort + upgrades + bugbear (safe subset)
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+  # Allow long lines in tests/docs if needed; keep to E501 elsewhere
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["attendance_analyzer", "lib", "server", "tools", "test"]
+combine-as-imports = true
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\\.pyi?$'
+exclude = '/(coverage_report|build|dist|fhr.egg-info|.venv|venv)/'

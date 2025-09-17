@@ -2,7 +2,6 @@ import os
 import shutil
 import tempfile
 import unittest
-from unittest import mock
 
 from lib.cli import run as cli_run
 

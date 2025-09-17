@@ -1,17 +1,17 @@
 import unittest
-from unittest import mock
 from datetime import datetime
+from unittest import mock
 
 import lib.holidays as H
-from test.test_helpers import DummyResp, temp_env
-
+from test.test_helpers import temp_env
 
 """DummyResp is imported from shared test helpers."""
 
 
 class TestHolidaysExtraCoverage(unittest.TestCase):
     def test_base_interface_load(self):
-        # Exercise HolidayProvider.load default implementation (pragma comment not honored by stdlib trace)
+        # Exercise HolidayProvider.load default implementation
+        # (pragma comment not honored by stdlib trace)
         self.assertEqual(H.HolidayProvider().load(2025), set())
 
     def test_hardcoded_2025_handles_value_error(self):
@@ -46,7 +46,11 @@ class TestHolidaysExtraCoverage(unittest.TestCase):
         self.assertTrue(any(d.year == 2027 for d in out))
 
     def test_service_returns_gov_when_nonempty(self):
-        with temp_env(HOLIDAY_API_MAX_RETRIES='0', HOLIDAY_API_BACKOFF_BASE='0', HOLIDAY_API_MAX_BACKOFF='0'):
+        with temp_env(
+            HOLIDAY_API_MAX_RETRIES='0',
+            HOLIDAY_API_BACKOFF_BASE='0',
+            HOLIDAY_API_MAX_BACKOFF='0'
+        ):
             svc = H.HolidayService()
             fake_set = {datetime(2026, 1, 1).date()}
             with mock.patch.object(H.TaiwanGovOpenDataProvider, 'load', return_value=fake_set):

@@ -4,14 +4,17 @@ from unittest import mock
 from lib.holidays import TaiwanGovOpenDataProvider
 from test.test_helpers import DummyResp, temp_env
 
-
 """Use shared DummyResp from test_helpers to avoid local duplication."""
 
 
 class TestHolidaysMissingRecords(unittest.TestCase):
     def test_missing_result_or_records_returns_empty(self):
         # Speed up tests by removing backoff and limiting retries
-        with temp_env({'HOLIDAY_API_MAX_RETRIES': '1', 'HOLIDAY_API_BACKOFF_BASE': '0', 'HOLIDAY_API_MAX_BACKOFF': '0'}):
+        with temp_env({
+            'HOLIDAY_API_MAX_RETRIES': '1',
+            'HOLIDAY_API_BACKOFF_BASE': '0',
+            'HOLIDAY_API_MAX_BACKOFF': '0'
+        }):
             # First attempt: no 'result' key
             payload1 = {}
             # Second attempt: 'result' present but no 'records'

@@ -1,9 +1,8 @@
 import json
-import os
 import logging
+import os
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Dict, List, Tuple, Iterable
-
 
 logger = logging.getLogger(__name__)
 
@@ -11,14 +10,18 @@ logger = logging.getLogger(__name__)
 class AttendanceStateManager:
     """考勤狀態管理器 - 負責讀寫增量分析狀態"""
 
-    def __init__(self, state_file: str = "attendance_state.json"):
+    def __init__(self, state_file: str = None):
+        # Allow override via env var so containers can persist state under a volume
+        # Default path remains 'attendance_state.json' if no override provided
+        if state_file is None:
+            state_file = os.getenv("FHR_STATE_FILE", "attendance_state.json")
         self.state_file = state_file
         self.state_data = self._load_state()
 
     def _load_state(self) -> dict:
         if os.path.exists(self.state_file):
             try:
-                with open(self.state_file, 'r', encoding='utf-8') as f:
+                with open(self.state_file, encoding='utf-8') as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("無法讀取狀態檔案 %s: %s", self.state_file, e)
@@ -32,7 +35,7 @@ class AttendanceStateManager:
         except OSError as e:
             logger.warning("無法儲存狀態檔案 %s: %s", self.state_file, e)
 
-    def get_user_processed_ranges(self, user_name: str) -> List[Dict]:
+    def get_user_processed_ranges(self, user_name: str) -> list[dict]:
         if user_name not in self.state_data["users"]:
             return []
         return self.state_data["users"][user_name].get("processed_date_ranges", [])
@@ -48,8 +51,8 @@ class AttendanceStateManager:
         ranges = self.state_data["users"][user_name].get("processed_date_ranges", [])
         return max((r.get("last_analysis_time", "") for r in ranges), default="")
 
-    def update_user_state(self, user_name: str, new_range: Dict[str, str],
-                          forget_punch_usage: Dict[str, int] = None) -> None:
+    def update_user_state(self, user_name: str, new_range: dict[str, str],
+                          forget_punch_usage: dict[str, int] = None) -> None:
         if user_name not in self.state_data["users"]:
             self.state_data["users"][user_name] = {
                 "processed_date_ranges": [],
@@ -68,7 +71,9 @@ class AttendanceStateManager:
         if forget_punch_usage:
             user_data["forget_punch_usage"].update(forget_punch_usage)
 
-    def detect_date_overlap(self, user_name: str, new_start_date: str, new_end_date: str) -> List[Tuple[str, str]]:
+    def detect_date_overlap(
+        self, user_name: str, new_start_date: str, new_end_date: str
+    ) -> list[tuple[str, str]]:
         overlaps = []
         existing_ranges = self.get_user_processed_ranges(user_name)
         new_start = datetime.strptime(new_start_date, "%Y-%m-%d").date()
@@ -79,20 +84,22 @@ class AttendanceStateManager:
             if new_start <= existing_end and new_end >= existing_start:
                 overlap_start = max(new_start, existing_start)
                 overlap_end = min(new_end, existing_end)
-                overlaps.append((overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")))
+                overlaps.append((
+                    overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")
+                ))
         return overlaps
 
 
-def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
-                             complete_days: Iterable[datetime]) -> List[datetime]:
+def filter_unprocessed_dates(processed_ranges: list[dict[str, str]],
+                             complete_days: Iterable[datetime]) -> list[datetime]:
     """Return dates in complete_days not covered by any processed range.
 
     processed_ranges: List of dicts with 'start_date'/'end_date' in YYYY-MM-DD.
     complete_days: Iterable of datetime (date at 00:00).
     Inclusive range check: start <= day <= end.
     """
-    out: List[datetime] = []
-    norm_ranges: List[Tuple[datetime, datetime]] = []
+    out: list[datetime] = []
+    norm_ranges: list[tuple[datetime, datetime]] = []
     for r in processed_ranges or []:
         try:
             s = datetime.strptime(r["start_date"], "%Y-%m-%d").date()
@@ -104,7 +111,7 @@ def filter_unprocessed_dates(processed_ranges: List[Dict[str, str]],
 
     # Merge ranges for faster membership checks
     norm_ranges.sort(key=lambda t: t[0])
-    merged: List[Tuple[datetime, datetime]] = []
+    merged: list[tuple[datetime, datetime]] = []
     for s, e in norm_ranges:
         if not merged or s > merged[-1][1]:
             merged.append((s, e))

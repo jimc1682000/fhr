@@ -1,0 +1,14 @@
+.git
+.github
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+coverage_report/
+build/
+test/
+.DS_Store
+*_analysis.csv
+*_analysis.xlsx
+attendance_state.json
+

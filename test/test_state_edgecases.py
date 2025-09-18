@@ -52,6 +52,16 @@ class TestStateEdgeCases(unittest.TestCase):
             self.assertEqual(ranges[0]['end_date'], '2025-08-31')
             self.assertEqual(m.get_forget_punch_usage('小明', '2025-08'), 2)
 
+    def test_read_only_mode_skips_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'attendance_state.json')
+            m = AttendanceStateManager(path, read_only=True)
+            m.state_data = {"users": {"tester": {}}}
+            with self.assertLogs('lib.state', level='DEBUG') as cm:
+                m.save_state()
+            self.assertFalse(os.path.exists(path))
+            self.assertIn('略過狀態寫入', "\n".join(cm.output))
+
 
 if __name__ == '__main__':
     unittest.main()

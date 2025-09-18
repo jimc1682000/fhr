@@ -6,6 +6,7 @@
 - `HOLIDAY_API_MAX_RETRIES`：最大重試次數（預設 3）
 - `HOLIDAY_API_BACKOFF_BASE`：指數退避基準秒數（預設 0.5）
 - `HOLIDAY_API_MAX_BACKOFF`：每次重試的最大等待秒數上限（預設 8）
+- `FHR_DEBUG`：設定為 `true` 時啟用 Debug 模式（詳細日誌、唯讀狀態）
 
 測試建議將上述值設為 0，以加快測試並避免 flakiness；網路呼叫請使用 mock（`urllib.request.urlopen`）。
 

@@ -2,7 +2,7 @@ fhr Service (Backend + Frontend)
 
 Overview
 - FastAPI backend exposing analysis endpoints with auto-generated OpenAPI docs.
-- Static web UI (vanilla + i18next) to upload TXT, choose mode/output, optional state reset, preview result, and download.
+- Static web UI (vanilla + i18next) to upload TXT, choose mode/output, toggle reset/debug options, preview result, and download.
 - Reuses existing analyzer logic without renaming core files.
 
 Run
@@ -43,10 +43,12 @@ API
   - mode: `incremental|full` (default `full`)
   - output: `csv|excel` (default `excel`)
   - reset_state: `true|false` (default `false`)
+  - debug: `true|false` (default `false`, read-only with verbose logs)
   - 200 OK → JSON body:
     - analysis_id, user, mode (effective), requested_mode, requested_format, actual_format
     - source_filename, reset_requested (bool), reset_applied (bool)
     - first_time_user (bool)
+    - debug_mode (bool)
     - output_filename (relative path), download_url
     - status: { last_date, complete_days, last_analysis_time } | null
     - issues_preview: first 100 items with fields {date, type, duration_minutes, description, time_range, calculation, status?}
@@ -64,5 +66,6 @@ Example (curl)
 ```bash
 curl -F "file=@sample-attendance-data.txt" \
      -F mode=incremental -F output=csv -F reset_state=false \
+     -F debug=false \
      http://localhost:8000/api/analyze | jq
 ```

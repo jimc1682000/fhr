@@ -10,12 +10,15 @@ logger = logging.getLogger(__name__)
 class AttendanceStateManager:
     """考勤狀態管理器 - 負責讀寫增量分析狀態"""
 
-    def __init__(self, state_file: str = None):
+    def __init__(self, state_file: str = None, read_only: bool = False):
         # Allow override via env var so containers can persist state under a volume
         # Default path remains 'attendance_state.json' if no override provided
         if state_file is None:
             state_file = os.getenv("FHR_STATE_FILE", "attendance_state.json")
         self.state_file = state_file
+        self.read_only = read_only
+        if self.read_only:
+            logger.debug("🛡️  狀態管理器以唯讀模式載入：%s", self.state_file)
         self.state_data = self._load_state()
 
     def _load_state(self) -> dict:
@@ -29,6 +32,9 @@ class AttendanceStateManager:
         return {"users": {}}
 
     def save_state(self) -> None:
+        if self.read_only:
+            logger.debug("🛡️  Debug/唯讀模式：略過狀態寫入 %s", self.state_file)
+            return
         try:
             with open(self.state_file, 'w', encoding='utf-8') as f:
                 json.dump(self.state_data, f, ensure_ascii=False, indent=2)

@@ -4,6 +4,7 @@ Keeps behavior-compatible semantics: normal runs do not call sys.exit,
 error paths may call sys.exit(1) to match prior tests.
 """
 import argparse
+import logging
 import sys
 from datetime import datetime
 
@@ -41,6 +42,8 @@ def run(argv: list | None = None) -> None:
                         help='強制完整重新分析')
     parser.add_argument('--reset-state', '-r', action='store_true',
                         help='清除指定使用者的狀態記錄')
+    parser.add_argument('--debug', action='store_true',
+                        help='啟用 debug 模式（詳細日誌、不寫入狀態檔）')
 
     args = parser.parse_args(argv[1:] if argv is not None else None)
 
@@ -48,19 +51,25 @@ def run(argv: list | None = None) -> None:
     format_type = args.format
     incremental_mode = args.incremental and not args.full
 
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("🐞 CLI Debug 模式啟動：將略過狀態寫入並輸出詳細訊息。")
+
     if args.reset_state:
         # analyzer_temp = AttendanceAnalyzer()  # Variable assigned but never used
         user_name, _, _ = parse_range_and_user(filepath)
         if user_name:
-            state_manager = AttendanceStateManager()
-            if user_name in state_manager.state_data.get("users", {}):
+            state_manager = AttendanceStateManager(read_only=args.debug)
+            if args.debug:
+                logger.debug("🛡️  Debug 模式：略過清除使用者 %s 的狀態", user_name)
+            elif user_name in state_manager.state_data.get("users", {}):
                 del state_manager.state_data["users"][user_name]
                 state_manager.save_state()
                 logger.info(
-            "🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s",
-            user_name,
-            datetime.now().isoformat(),
-        )
+                    "🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s",
+                    user_name,
+                    datetime.now().isoformat(),
+                )
             else:
                 logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
         else:
@@ -68,7 +77,7 @@ def run(argv: list | None = None) -> None:
             sys.exit(1)
 
     try:
-        analyzer = AttendanceAnalyzer()
+        analyzer = AttendanceAnalyzer(debug=args.debug)
 
         if incremental_mode:
             logger.info("📂 正在解析考勤檔案... (增量分析模式)")

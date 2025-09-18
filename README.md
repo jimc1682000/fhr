@@ -74,6 +74,13 @@ make coverage                                     # 檢查測試覆蓋率
 
 提示：如需 Excel 匯出，建議安裝 `openpyxl`：`pip install openpyxl`。
 
+### Debug 模式（安全測試）
+
+- 在 CLI 加上 `--debug`：`python attendance_analyzer.py sample-attendance-data.txt --debug`
+  - 日誌層級提升為 DEBUG，顯示解析、分組與分析細節。
+  - 停用狀態檔寫入，確保不會覆寫 `attendance_state.json`。
+- 後端服務可設定環境變數 `FHR_DEBUG=true` 取得相同效果。
+
 ### 常見錯誤提示
 
 - 看不到 Excel 輸出 → 未安裝 `openpyxl`，請先安裝或改用 `csv` 格式。

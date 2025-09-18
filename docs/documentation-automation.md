@@ -856,7 +856,8 @@ class FHRClient:
         filename: Optional[str] = None,
         mode: str = "incremental",
         output_format: str = "excel",
-        reset_state: bool = False
+        reset_state: bool = False,
+        debug: bool = False
     ) -> Dict[str, Any]:
         \"\"\"
         Analyze attendance file.
@@ -867,7 +868,8 @@ class FHRClient:
             mode: Analysis mode ("incremental" or "full")
             output_format: Output format ("excel" or "csv")
             reset_state: Whether to reset user state before analysis
-            
+            debug: Enable read-only debug mode with verbose logging
+
         Returns:
             Dictionary containing analysis results
             
@@ -878,7 +880,8 @@ class FHRClient:
         data = {
             "mode": mode,
             "output": output_format,
-            "reset_state": str(reset_state).lower()
+            "reset_state": str(reset_state).lower(),
+            "debug": str(debug).lower()
         }
         
         response = self.session.post(

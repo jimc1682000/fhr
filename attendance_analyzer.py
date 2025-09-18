@@ -20,6 +20,13 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 class AttendanceType(Enum):
     CHECKIN = "上班"
     CHECKOUT = "下班"
@@ -76,7 +83,7 @@ class AttendanceAnalyzer:
     # 規則配置（AttendanceConfig 封裝，可由設定檔覆蓋）
     
 
-    def __init__(self, config_path: str = "config.json"):
+    def __init__(self, config_path: str = "config.json", debug: bool | None = None):
         # 初始化配置
         from lib.config import AttendanceConfig
         self.config = AttendanceConfig()
@@ -93,6 +100,12 @@ class AttendanceAnalyzer:
         self.incremental_mode: bool = True
         # 來源檔名（供狀態管理使用；API 模式時不依賴 sys.argv）
         self.source_file_name: str | None = None
+        if debug is None:
+            debug = _env_flag("FHR_DEBUG", False)
+        self.debug_mode = debug
+        if self.debug_mode:
+            logger.setLevel(logging.DEBUG)
+            logger.debug("🐞 Debug 模式啟用：將輸出詳細日誌並停用狀態寫入。")
 
     def _load_config(self, config_path: str) -> None:
         """載入設定檔以覆蓋預設公司規則"""
@@ -105,6 +118,7 @@ class AttendanceAnalyzer:
             for key, value in data.items():
                 if hasattr(self.config, key):
                     setattr(self.config, key, value)
+                    logger.debug("⚙️  覆寫設定 %s=%s", key, value)
         except (OSError, json.JSONDecodeError) as e:
             logger.warning("無法讀取設定檔 %s: %s", config_path, e)
     
@@ -189,7 +203,7 @@ class AttendanceAnalyzer:
         
         # 初始化狀態管理器
         if self.incremental_mode:
-            self.state_manager = AttendanceStateManager()
+            self.state_manager = AttendanceStateManager(read_only=self.debug_mode)
             
             # 解析檔名取得使用者資訊
             from lib.filename import parse_range_and_user
@@ -217,21 +231,30 @@ class AttendanceAnalyzer:
         # 解析檔案內容
         with open(filepath, encoding='utf-8') as f:
             lines = f.readlines()
-        
+        logger.debug("📥  讀入檔案 %s，共 %d 行資料 (含表頭)", filepath, len(lines))
+
+        parsed_records = 0
         for line_num, line in enumerate(lines, 1):
             if line_num == 1:  # 跳過表頭
                 continue
-                
+
             line = line.strip()
             if not line:
                 continue
-                
+
             try:
                 record = self._parse_attendance_line(line)
                 if record:
                     self.records.append(record)
+                    parsed_records += 1
             except (ValueError, IndexError) as e:
                 logger.warning("第%d行解析失敗: %s", line_num, e)
+        skipped_lines = max(len(lines) - 1 - parsed_records, 0)
+        logger.debug(
+            "✅  完成解析，有效紀錄 %d 筆，略過 %d 行",
+            parsed_records,
+            skipped_lines,
+        )
     
     def _parse_attendance_line(self, line: str) -> AttendanceRecord | None:
         """解析單行考勤記錄（委派至 lib.parser）"""
@@ -283,8 +306,13 @@ class AttendanceAnalyzer:
                 is_holiday=(date in self.holidays)  # 檢查是否為國定假日
             )
             self.workdays.append(workday)
-        
+
         self.workdays.sort(key=lambda x: x.date)
+        logger.debug(
+            "📅  完成分組，共 %d 個工作日，其中假日 %d 天",
+            len(self.workdays),
+            sum(1 for w in self.workdays if w.is_holiday),
+        )
     
     def analyze_attendance(self) -> None:
         """分析考勤記錄（支援增量分析）"""
@@ -311,20 +339,28 @@ class AttendanceAnalyzer:
 
         if self.incremental_mode and self.current_user and workdays_to_analyze:
             self._update_processing_state()
+        logger.debug("🧮  分析完成，產生 %d 筆待處理事項", len(self.issues))
 
     def _get_workdays_to_analyze(self) -> list[WorkDay]:
         if self.incremental_mode and self.current_user:
             complete_days = self._identify_complete_work_days()
             unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
             if unprocessed_dates:
-                logger.info("🔄 增量分析: 發現 %d 個新的完整工作日需要處理", len(unprocessed_dates))
                 logger.info(
-                    "📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates)
+                    "🔄 增量分析: 發現 %d 個新的完整工作日需要處理",
+                    len(unprocessed_dates)
                 )
+                logger.info(
+                    "📊 跳過已處理的工作日: %d 個",
+                    len(complete_days) - len(unprocessed_dates)
+                )
+                formatted_dates = [d.strftime("%Y-%m-%d") for d in unprocessed_dates]
+                logger.debug("📆  新增待處理日期: %s", formatted_dates)
                 unprocessed_date_set = {d.date() for d in unprocessed_dates}
                 return [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
             logger.info("✅ 增量分析: 沒有新的工作日需要處理")
             return []
+        logger.debug("🗂️  非增量模式，將處理 %d 個工作日", len(self.workdays))
         return self.workdays
 
     def _handle_absent_day(self, workday: WorkDay) -> bool:
@@ -395,11 +431,16 @@ class AttendanceAnalyzer:
             overtime_calculation,
         ) = calculate_overtime_minutes(workday, rules)
         if applicable_overtime >= self.config.min_overtime_minutes:
+            overtime_hours = applicable_overtime // 60
+            overtime_minutes = applicable_overtime % 60
+            overtime_desc = (
+                f"加班{overtime_hours}小時{overtime_minutes}分鐘 💼"
+            )
             self.issues.append(Issue(
                 date=workday.date,
                 type=IssueType.OVERTIME,
                 duration_minutes=applicable_overtime,
-                description=f"加班{applicable_overtime // 60}小時{applicable_overtime % 60}分鐘 💼",
+                description=overtime_desc,
                 time_range=overtime_time_range,
                 calculation=overtime_calculation,
             ))

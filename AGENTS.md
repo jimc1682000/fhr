@@ -8,8 +8,8 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - `test/` — unittest suite (multiple `test_*.py` files, e.g. parsing/logic/exports/holiday resilience).
 - `sample-attendance-data.txt` — example input.
 - Generated (ignored): `*_analysis.(xlsx|csv)`, timestamped backups, `attendance_state.json`.
-- `server/` — FastAPI 後端服務（REST API、靜態檔掛載）。
-- `web/` — 前端靜態頁面（vanilla + i18next）。
+- `server/` — FastAPI 後端服務（REST API、靜態檔掛載，支援全域/請求層級 Debug 模式）。
+- `web/` — 前端靜態頁面（vanilla + i18next，包含 Debug 模式核取方塊）。
 - `docs/` — 完整文檔系統（23個文件，分層架構：使用者→運維→開發者→企業級）。
 - `todos/` — 改進項目管理（立即可執行任務 + 需要開發支援的功能）。
 - `Dockerfile`、`docker-compose.yml` — 服務容器化與佈署。
@@ -19,11 +19,12 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - `.pre-commit-config.yaml` — pre-commit 框架配置。
 
 ## Build, Test, and Development Commands
-- Run analysis: `python attendance_analyzer.py "202508-姓名-出勤資料.txt" [excel|csv] [--incremental|--full|--reset-state]`.
+- Run analysis: `python attendance_analyzer.py "202508-姓名-出勤資料.txt" [excel|csv] [--incremental|--full|--reset-state|--debug]`.
 - Quick local check: `python attendance_analyzer.py sample-attendance-data.txt csv`.
 - Run tests (full): `python3 -m unittest -q`.
 - Run specific test: `python3 -m unittest -q test.test_holiday_api_resilience`.
 - Optional Excel support: `pip install openpyxl`.
+- Debug mode（唯讀狀態 + 詳細日誌）：`python attendance_analyzer.py sample-attendance-data.txt --debug` 或設定 `FHR_DEBUG=true`。
  - Lint (ruff，如未安裝則跑 fallback)：`make lint`。
  - 開發工具與 pre-commit 框架設置：
    - `pip install -r requirements-dev.txt`（包含 pre-commit）

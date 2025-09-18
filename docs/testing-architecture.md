@@ -93,7 +93,7 @@ class TestAPIComprehensive:
             response = client.post(
                 "/api/analyze",
                 files={"file": ("202403-員工姓名-出勤資料.txt", f, "text/plain")},
-                data={"mode": "full", "output": "csv", "reset_state": "false"}
+                data={"mode": "full", "output": "csv", "reset_state": "false", "debug": "false"}
             )
         
         assert response.status_code == 200
@@ -618,7 +618,7 @@ class TestAPIContracts:
                 response = client.post(
                     "/api/analyze",
                     files={"file": ("test.txt", upload_file, "text/plain")},
-                    data={"mode": "full", "output": "csv", "reset_state": "false"}
+                    data={"mode": "full", "output": "csv", "reset_state": "false", "debug": "false"}
                 )
         
         assert response.status_code == 200

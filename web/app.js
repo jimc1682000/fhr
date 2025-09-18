@@ -16,6 +16,7 @@ async function handleSubmit(e) {
   form.append("mode", document.querySelector('input[name="mode"]:checked').value);
   form.append("output", document.querySelector('input[name="output"]:checked').value);
   form.append("reset_state", $("#reset-state").checked ? "true" : "false");
+  form.append("debug", $("#debug-mode").checked ? "true" : "false");
 
   setLoading(true);
   try {
@@ -46,6 +47,9 @@ function renderResult(data) {
   ];
   if (data.first_time_user) {
     metaParts.splice(2, 0, i18next.t("first_time_auto_full"));
+  }
+  if (data.debug_mode) {
+    metaParts.splice(3, 0, `${i18next.t("debug_mode")}: ${i18next.t("yes")}`);
   }
   // 僅在實際有重置時顯示（避免 "否" 的噪音）
   if (data.reset_applied) {

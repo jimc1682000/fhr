@@ -21,6 +21,7 @@ python attendance_analyzer.py <考勤檔案路徑> [格式] [選項]
   - `--incremental` / `-i`：增量分析（預設）
   - `--full` / `-f`：完整重新分析
   - `--reset-state` / `-r`：清除使用者狀態
+  - `--debug`：啟用除錯模式（詳細日誌、停用狀態寫入）
 
 ## 範例
 - 增量分析：
@@ -37,5 +38,6 @@ python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" --reset-sta
 ```bash
 python attendance_analyzer.py "sample-attendance-data.txt"
 python attendance_analyzer.py "sample-attendance-data.txt" csv
+python attendance_analyzer.py "sample-attendance-data.txt" --debug
 ```
 

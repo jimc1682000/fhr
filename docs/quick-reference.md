@@ -11,6 +11,7 @@
 | **強制完整分析** | `python attendance_analyzer.py file.txt --full` | 重新處理所有資料 |
 | **CSV 輸出** | `python attendance_analyzer.py file.txt csv` | 如無 openpyxl 的備選方案 |
 | **重置使用者狀態** | `python attendance_analyzer.py file.txt --reset-state` | 清除處理歷史記錄 |
+| **Debug 模式** | `python attendance_analyzer.py file.txt --debug` | 詳細日誌、停用狀態寫入 |
 | **顯示幫助** | `python attendance_analyzer.py --help` | 完整參數說明 |
 
 ### Web 服務操作  
@@ -78,6 +79,7 @@ export HOLIDAY_API_MAX_BACKOFF=8          # 最大等待秒數
 # 日誌設定
 export FHR_LOG_LEVEL=INFO                 # 日誌等級
 export FHR_LOG_FILE=fhr.log               # 日誌檔案
+export FHR_DEBUG=false                    # Debug 模式（true 時跳過狀態寫入）
 
 # 狀態檔案 (Docker 適用)
 export FHR_STATE_FILE=/app/build/attendance_state.json
@@ -172,7 +174,7 @@ export FHR_STATE_FILE=/app/build/attendance_state.json
 ### REST API 端點
 | 方法 | 端點 | 功能 | 參數 |
 |------|------|------|------|
-| **POST** | `/api/analyze` | 上傳分析 | file, mode, output, reset_state |
+| **POST** | `/api/analyze` | 上傳分析 | file, mode, output, reset_state, debug |
 | **GET** | `/api/download/{id}/{filename}` | 下載結果 | 路徑參數 |
 | **GET** | `/api/health` | 健康檢查 | 無 |
 | **GET** | `/docs` | API 文件 | 無 |
@@ -185,6 +187,7 @@ curl -F "file=@sample-data.txt" \
      -F mode=incremental \
      -F output=excel \
      -F reset_state=false \
+     -F debug=false \
      http://localhost:8000/api/analyze
 
 # 健康檢查

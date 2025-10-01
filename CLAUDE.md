@@ -19,6 +19,7 @@ python3 attendance_analyzer.py <attendance_file_path> [format] [options]
 - `--incremental` / `-i`: Enable incremental analysis (default)
 - `--full` / `-f`: Force complete re-analysis
 - `--reset-state` / `-r`: Clear user's processing state
+- `--debug`: Enable read-only debug mode with verbose logging
 
 ### Basic Usage Examples
 ```bash
@@ -33,6 +34,9 @@ python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-stat
 
 # Specify output format
 python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
+
+# Debug without touching state
+python3 attendance_analyzer.py sample-attendance-data.txt --debug
 ```
 
 ### Testing with Sample Data
@@ -97,6 +101,7 @@ pre-commit autoupdate
 - 本地啟動：`uvicorn server.main:app --reload`
 - Docker：`docker compose up --build -d`
 - 狀態檔持久化：環境變數 `FHR_STATE_FILE`（Docker 預設 `/app/build/attendance_state.json`）
+- Debug 模式：`FHR_DEBUG=true` 啟用全域唯讀/詳細日誌；`POST /api/analyze` 可用 `debug=true` 請求層級切換（前端有對應核取方塊）。
 - OpenAPI 文件：http://localhost:8000/docs
 
 Endpoints

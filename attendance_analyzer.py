@@ -387,7 +387,14 @@ class AttendanceAnalyzer:
         from lib.policy import calculate_late_minutes, calculate_overtime_minutes
         if self._handle_absent_day(workday):
             return
-        if workday.is_friday:
+        # 星期五優先建議 WFH（無論是否有打卡），除非是國定假日
+        if workday.is_friday and not workday.is_holiday:
+            self.issues.append(Issue(
+                date=workday.date,
+                type=IssueType.WFH,
+                duration_minutes=9 * 60,
+                description="建議申請整天WFH假 🏠💻",
+            ))
             return
         late_minutes, late_time_range, late_calculation = calculate_late_minutes(workday, rules)
         if late_minutes > 0:

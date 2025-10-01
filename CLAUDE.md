@@ -182,7 +182,7 @@ Shared helper library for Excel output:
 - Lunch period: 12:30-13:30 (deducted from late calculations when applicable)
 - Overtime threshold: Minimum 60 minutes to qualify for application
 - Forget-punch allowance: 2 times per month for tardiness ≤60 minutes
-- Friday WFH policy: Fridays are default WFH days (9-hour WFH leave recommended)
+- Friday WFH policy: **All Fridays (regardless of attendance) are recommended as WFH days (9-hour WFH leave), except national holidays**
 
 ### Taiwan Holiday Integration
 The system supports mixed holiday loading strategy:
@@ -204,8 +204,8 @@ Key methods:
 - **Forget-punch**: Tardiness ≤60 minutes with monthly allowance available
 - **Late**: Tardiness >60 minutes or when forget-punch allowance exhausted
 - **Overtime**: Work beyond calculated end time, minimum 60 minutes
-- **WFH Leave**: Recommended for Fridays (unless national holiday)
-- **Regular Leave**: Recommended for full-day absences on weekdays
+- **WFH Leave**: **Recommended for ALL Fridays (with or without attendance records), unless it's a national holiday**
+- **Regular Leave**: Recommended for full-day absences on weekdays (excluding Fridays)
 
 ## Incremental Analysis Workflow
 

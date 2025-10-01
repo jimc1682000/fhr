@@ -43,6 +43,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Framework: `unittest`. Place tests under `test/` using `test_*.py`.
 - Cover parsing, business rules (late/OT/WFH), exports (Excel/CSV), and state handling.
 - Include edge cases for date ranges and Friday/holiday WFH logic.
+  - **Important**: All Fridays (with or without attendance) should suggest WFH, except national holidays
 - For holiday API logic: mock `urllib.request.urlopen`; do not perform real network calls.
 - Prefer fast, deterministic tests; if covering backoff, set env vars to disable delays.
 

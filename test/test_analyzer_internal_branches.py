@@ -5,6 +5,7 @@ from attendance_analyzer import (
     AttendanceAnalyzer,
     AttendanceRecord,
     AttendanceType,
+    IssueType,
     WorkDay,
 )
 from lib.policy import Rules
@@ -42,8 +43,10 @@ class TestAnalyzerInternalBranches(unittest.TestCase):
         wd = WorkDay(date=date, checkin_record=rec_in, checkout_record=rec_out,
                      is_friday=True, is_holiday=False)
         an._analyze_single_workday(wd, Rules())
-        # Friday: analyzer does nothing
-        self.assertEqual(len(an.issues), 0)
+        # Friday: analyzer suggests WFH (even with attendance records)
+        self.assertEqual(len(an.issues), 1)
+        self.assertEqual(an.issues[0].type, IssueType.WFH)
+        self.assertEqual(an.issues[0].duration_minutes, 9 * 60)
 
     def test__update_processing_state_guards(self):
         an = AttendanceAnalyzer()

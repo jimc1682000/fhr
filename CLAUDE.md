@@ -20,6 +20,8 @@ python3 attendance_analyzer.py <attendance_file_path> [format] [options]
 - `--full` / `-f`: Force complete re-analysis
 - `--reset-state` / `-r`: Clear user's processing state
 - `--debug`: Enable read-only debug mode with verbose logging
+- `--export-policy {merge,archive}`: Control export behavior; default `merge` keeps a single output file, `archive` preserves timestamped backups
+- `--cleanup-exports`: Remove timestamp backups; in debug mode also deletes the freshly generated export for quick cleanups
 
 ### Basic Usage Examples
 ```bash
@@ -37,6 +39,12 @@ python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
 
 # Debug without touching state
 python3 attendance_analyzer.py sample-attendance-data.txt --debug
+
+# Preserve timestamped backups explicitly
+python3 attendance_analyzer.py sample-attendance-data.txt --export-policy archive
+
+# Debug run with automatic cleanup afterward
+python3 attendance_analyzer.py sample-attendance-data.txt --debug --cleanup-exports
 ```
 
 ### Testing with Sample Data
@@ -146,10 +154,9 @@ Central processing engine with enhanced incremental analysis capabilities:
 - `group_records_by_day()`: Groups records and loads holiday data
 - `analyze_attendance()`: Smart analysis (full or incremental mode)
 - `generate_report()`: Enhanced reporting with incremental statistics
-- `export_csv()`: Enhanced CSV export with status column
+- `export_csv()`: Enhanced CSV export with status column and merge-aware writes
 - `export_excel()`: Enhanced Excel export with status indicators
-- `export_report()`: Unified export interface with automatic backup
-- `_backup_existing_file()`: **NEW**: Automatic file backup with timestamp naming
+- `export_report()`: Unified export interface honoring export policies (`merge` vs `archive`)
 
 #### AttendanceStateManager (New)
 JSON-based state management for incremental analysis:
@@ -168,6 +175,11 @@ Shared helper library for Excel output:
 - `write_issue_rows()`: 逐筆寫入問題資料列
 - `set_column_widths()`: 調整欄寬
 - `save_workbook()`: 儲存分析檔案
+
+#### ExportCleanup Utilities (New)
+Utility helpers for managing generated exports:
+- `list_backups()`: Enumerates `_analysis_YYYYMMDD_HHMMSS.*` artifacts for a given base path
+- `cleanup_exports()`: Removes timestamped backups and, when requested, the canonical export file (used by CLI `--cleanup-exports`)
 
 #### Incremental Analysis Features
 - **Smart Date Range Detection**: Parses filenames to extract user names and date ranges
@@ -247,12 +259,12 @@ Key methods:
 
 ### Output Formats
 
-#### Automatic File Backup System
-- **Smart Backup**: Before creating new analysis files, existing files are automatically backed up
-- **Timestamp Naming**: Backup files use format `<original>_YYYYMMDD_HHMMSS.<ext>`
-- **Example**: `sample-attendance-data_analysis.xlsx` → `sample-attendance-data_analysis_20250827_165618.xlsx`
-- **User Control**: Users can manage their own file versions and retention policies
-- **Safety First**: No data loss from accidental overwrites
+#### Export Policy Controls
+- **Default `merge` policy**: Rewrites `<original>_analysis.(csv|xlsx)` in place to keep a single canonical export (no timestamp backups)
+- **Optional `archive` policy**: Use `--export-policy archive` to create `_analysis_YYYYMMDD_HHMMSS.*` backups before writing fresh results
+- **Cleanup helper**: `--cleanup-exports` 先列出候選檔案並詢問使用者；預設只移除 timestamp 備份，搭配 `--debug` 時會連同本次輸出的主檔案一起刪除
+- **Utility module**: `lib/export_cleanup.py` exposes reusable helpers for listing and deleting timestamped artifacts
+- **Web flow**: 前端在送出分析前會呼叫 `POST /api/exports/cleanup-preview` 取得 `token + snapshot`，並於 `/api/analyze` 提交 `cleanup_token`、`cleanup_snapshot` 完成確認刪除。
 
 #### Excel Format (Default) - Enhanced
 - File naming: `<original_filename>_analysis.xlsx`
@@ -332,18 +344,18 @@ The system includes comprehensive unit tests across multiple files under `test/`
 - Prefer absolute dates (YYYY‑MM‑DD) in logs to avoid ambiguity.
 - Data structure validation (3 sub-tests)
 
-#### **NEW: Incremental Analysis & Backup (5 tests)**
+#### **NEW: Incremental Analysis & Export Controls (5 tests)**
 - **Incremental Analysis Core**: Filename parsing for user/date extraction, format validation
 - **State Management**: JSON persistence, user state updates, overlap detection
-- **Backup System**: Automatic file backup with timestamp naming, size verification
+- **Export Policy Handling**: Merge vs archive pathways and log coverage
 - **Complete Work Day Logic**: Identification of days with both check-in/out records
 - **Enhanced Output**: Status column validation, new vs existing issue marking
 
-#### **NEW: File Backup Testing**
-- Automatic backup file creation with timestamp format `YYYYMMDD_HHMMSS`
-- Backup file integrity verification (size matching)
-- Non-existent file handling (graceful no-op behavior)
-- Proper cleanup of temporary test files
+#### **NEW: Export Cleanup Testing**
+- Timestamped backup detection via `lib.export_cleanup.list_backups`
+- Cleanup helper removing `_analysis_YYYYMMDD_HHMMSS.*` artifacts
+- Optional canonical deletion when `include_canonical=True`
+- CLI `--cleanup-exports` integration (including debug-only canonical removal)
 
 Run tests with: `python3 -m unittest test.test_attendance_analyzer`
 

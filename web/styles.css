@@ -8,8 +8,12 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 .btn { background: var(--primary); color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
+.btn-secondary { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+.btn-secondary.hidden { display: none; }
+.btn-ghost { background: transparent; border: 1px solid transparent; color: var(--muted); }
 .mr-8 { margin-right: 8px; }
 .ml-16 { margin-left: 16px; }
+.mt-16 { margin-top: 16px; }
 .hidden { display: none; }
 .muted { color: var(--muted); }
 .table-wrap { overflow-x: auto; }
@@ -19,4 +23,12 @@ th { background: #1e2128; text-align: left; }
 td.num { text-align: right; }
 input[type="file"], select { background: #0f1116; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
 input[type="radio"], input[type="checkbox"] { transform: scale(1.1); }
+
+.backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 90; }
+.modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal.hidden, .backdrop.hidden { display: none; }
+.modal-content { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: min(480px, 90%); box-shadow: 0 8px 32px rgba(0,0,0,.35); }
+.modal-content ul { list-style: none; padding-left: 0; margin: 8px 0; }
+.modal-content li { padding: 4px 0; border-bottom: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, SFMono-Regular, menlo, monospace; font-size: 0.9rem; }
+.modal-content li:last-child { border-bottom: none; }
 

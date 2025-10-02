@@ -24,9 +24,10 @@ class TestCliResetState(unittest.TestCase):
             os.chdir(tmpdir)
             try:
                 argv = ['attendance_analyzer.py', file_path, '--reset-state']
-                with self.assertLogs(level='INFO') as cm:
-                    with mock.patch('sys.argv', argv):
-                        mod.main()
+                with mock.patch.dict(os.environ, {"FHR_STATE_FILE": state_path}):
+                    with self.assertLogs(level='INFO') as cm:
+                        with mock.patch('sys.argv', argv):
+                            mod.main()
                 logs = "\n".join(cm.output)
                 self.assertIn("狀態檔 'attendance_state.json' 已清除使用者", logs)
                 self.assertIn(user_name, logs)

@@ -42,11 +42,21 @@
             <label class="ml-16"><input type="radio" name="output" value="csv" /> CSV</label>
           </div>
           <div class="row">
+            <span class="label" data-i18n="export_policy">匯出策略</span>
+            <label><input type="radio" name="export_policy" value="merge" checked /> <span data-i18n="export_merge">保留單一檔案</span></label>
+            <label class="ml-16"><input type="radio" name="export_policy" value="archive" /> <span data-i18n="export_archive">保留歷史備份</span></label>
+          </div>
+          <div class="row">
             <label><input type="checkbox" id="reset-state" name="reset_state" /> <span data-i18n="reset_state">重置狀態</span></label>
           </div>
           <div class="row">
             <label><input type="checkbox" id="debug-mode" name="debug" /> <span data-i18n="debug_mode_label">除錯模式（唯讀）</span></label>
             <small class="muted ml-16" data-i18n="debug_mode_hint">避免寫入狀態並輸出詳細除錯訊息</small>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="cleanup-exports" name="cleanup_exports" /> <span data-i18n="cleanup_exports">分析後清理備份</span></label>
+            <button type="button" id="cleanup-preview-btn" class="btn btn-secondary hidden" data-i18n="cleanup_preview">預覽要刪除的檔案</button>
+            <small class="muted ml-16" data-i18n="cleanup_hint">預覽後需確認才會刪除；除錯模式下會連同本次輸出的主檔案一併移除。</small>
           </div>
           <div class="row">
             <button type="submit" id="submit-btn" class="btn" data-i18n="analyze">開始分析</button>
@@ -62,6 +72,7 @@
         </div>
 
         <div id="status" class="row"></div>
+        <div id="cleanup-status" class="row"></div>
 
         <div class="table-wrap">
           <table id="issues-table">
@@ -85,6 +96,27 @@
     <footer class="container muted">
       <small>fhr · <span data-i18n="footer_note">台灣國定假日支援 · FastAPI + i18n</span></small>
     </footer>
+
+    <div id="modal-backdrop" class="backdrop hidden"></div>
+    <div id="cleanup-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-content">
+        <h3 data-i18n="cleanup_modal_title">確認清理檔案</h3>
+        <p class="muted" data-i18n="cleanup_modal_desc">以下檔案將在分析後刪除：</p>
+        <div id="cleanup-backup-container">
+          <strong data-i18n="cleanup_backups">備份檔案</strong>
+          <ul id="cleanup-backup-list"></ul>
+        </div>
+        <div id="cleanup-canonical-container" class="mt-16 hidden">
+          <strong data-i18n="cleanup_canonical">主檔案（除錯模式）</strong>
+          <ul id="cleanup-canonical-list"></ul>
+        </div>
+        <p id="cleanup-modal-empty" class="muted hidden" data-i18n="cleanup_none">沒有符合刪除條件的檔案。</p>
+        <div class="row space-between mt-16">
+          <button type="button" id="cleanup-cancel" class="btn btn-ghost" data-i18n="cancel">取消</button>
+          <button type="button" id="cleanup-confirm" class="btn" data-i18n="cleanup_confirm">確認清理並分析</button>
+        </div>
+      </div>
+    </div>
 
     <script src="/locales/i18n.js"></script>
     <script src="/app.js"></script>

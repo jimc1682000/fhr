@@ -57,7 +57,7 @@ class TestAnalyzerAdditionalPaths(unittest.TestCase):
             # Pre-create to force backup
             open(out_xlsx, 'wb').close()
             with self.assertLogs(level='INFO') as cm:
-                an.export_report(out_xlsx, 'excel')
+                an.export_report(out_xlsx, 'excel', export_policy='archive')
             logs = "\n".join(cm.output)
             self.assertIn('備份現有檔案', logs)
             self.assertTrue(os.path.exists(out_xlsx))

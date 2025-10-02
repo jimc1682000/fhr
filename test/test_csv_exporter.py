@@ -52,6 +52,29 @@ class TestCsvExporter(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_merge_replaces_existing_issue(self):
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp:
+            path = tmp.name
+        try:
+            first_issue = [
+                make_issue('2025/09/01', '遲到', 10, '遲到10分鐘', '10:30-10:40', 'calc', True)
+            ]
+            csv_exporter.save_csv(path, first_issue, True, None)
+
+            updated_issue = [
+                make_issue('2025/09/01', '遲到', 15, '遲到15分鐘', '10:30-10:45', 'calc', False)
+            ]
+            csv_exporter.save_csv(path, updated_issue, True, None, merge=True)
+
+            with open(path, encoding='utf-8-sig') as f:
+                rows = list(csv.reader(f, delimiter=';'))
+
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[1][2], '15')  # minutes updated
+            self.assertEqual(rows[1][-1], '已存在')
+        finally:
+            os.unlink(path)
+
 
 if __name__ == '__main__':
     unittest.main()

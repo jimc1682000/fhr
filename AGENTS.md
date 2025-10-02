@@ -25,6 +25,8 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Run specific test: `python3 -m unittest -q test.test_holiday_api_resilience`.
 - Optional Excel support: `pip install openpyxl`.
 - Debug mode（唯讀狀態 + 詳細日誌）：`python attendance_analyzer.py sample-attendance-data.txt --debug` 或設定 `FHR_DEBUG=true`。
+- Export controls: add `--export-policy archive` 以保留 timestamp 備份；使用 `--cleanup-exports` 會先列出候選檔案並要求確認，預設只刪備份，啟用 `--debug` 時才會連同本次輸出的主檔案一併移除。
+- Web API 提供 `POST /api/exports/cleanup-preview` 取得刪除清單（含 token + snapshot），需在後續呼叫 `/api/analyze` 時回傳以完成清理。
  - Lint (ruff，如未安裝則跑 fallback)：`make lint`。
  - 開發工具與 pre-commit 框架設置：
    - `pip install -r requirements-dev.txt`（包含 pre-commit）
@@ -98,3 +100,6 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 2. **After Implementation**: Update both implementation docs and navigation in `docs/index.md`
 3. **Feature Additions**: Add corresponding documentation tasks to `todos/` if documentation requires separate work
 4. **Testing**: Ensure documentation examples work as described in tests
+
+## Extended Reference
+- Please read `CLAUDE.md` in full before starting; it covers architecture details and complete workflow examples.

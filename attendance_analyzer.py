@@ -569,7 +569,7 @@ class AttendanceAnalyzer:
         
         return "\n".join(report)
     
-    def export_csv(self, filepath: str) -> None:
+    def export_csv(self, filepath: str, merge: bool = False) -> None:
         """匯出CSV格式報告（委派至 lib.csv_exporter）"""
         from lib import csv_exporter
 
@@ -577,7 +577,13 @@ class AttendanceAnalyzer:
         if self.incremental_mode and not self.issues and self.current_user:
             status_tuple = self._compute_incremental_status_row()
 
-        csv_exporter.save_csv(filepath, self.issues, self.incremental_mode, status_tuple)
+        csv_exporter.save_csv(
+            filepath,
+            self.issues,
+            self.incremental_mode,
+            status_tuple,
+            merge=merge,
+        )
     
     def export_excel(self, filepath: str) -> None:
         """匯出Excel格式報告（直接使用 openpyxl，避免循環導入）"""
@@ -663,22 +669,34 @@ class AttendanceAnalyzer:
 
         
 
-    def export_report(self, filepath: str, format_type: str = 'excel') -> None:
+    def export_report(
+        self,
+        filepath: str,
+        format_type: str = 'excel',
+        export_policy: str = 'merge',
+    ) -> str | None:
         """統一匯出介面
         Args:
             filepath: 檔案路徑
             format_type: 'excel' 或 'csv'
         """
-        # 匯出前先備份現有檔案（移至 lib.backup）
-        from lib.backup import backup_with_timestamp
-        backup_path = backup_with_timestamp(filepath)
-        if backup_path:
-            logger.info("📦 備份現有檔案: %s", os.path.basename(backup_path))
-        
+        backup_path = None
+
+        if export_policy == 'archive':
+            from lib.backup import backup_with_timestamp
+
+            backup_path = backup_with_timestamp(filepath)
+            if backup_path:
+                logger.info("📦 備份現有檔案: %s", os.path.basename(backup_path))
+        elif export_policy != 'merge':
+            raise ValueError(f"Unknown export policy: {export_policy}")
+
         if format_type.lower() == 'csv':
-            self.export_csv(filepath)
+            self.export_csv(filepath, merge=(export_policy == 'merge'))
         else:
             self.export_excel(filepath)
+
+        return backup_path
 
 
 def main():

@@ -5,9 +5,10 @@
 - 建議週五 WFH 日期
 - 統計摘要
 
-## 智慧備份
-- 建立新檔前自動備份：`<basename>_YYYYMMDD_HHMMSS.<ext>`
-- 避免覆蓋造成資料遺失，保留歷史版本
+## 匯出策略
+- 預設 `merge`：直接覆寫 `<basename>_analysis.<ext>`，只留下單一匯出檔案，不再產生新的 timestamp 備份。
+- `--export-policy archive`：在寫入新檔前，會先把舊的 `_analysis.<ext>` 改名為 `_analysis_YYYYMMDD_HHMMSS.<ext>`，保留歷史版本。
+- `--cleanup-exports`：執行前會列出候選檔案並要求確認；預設只刪 timestamp 備份，若同時使用 `--debug` 則會連本次輸出的主檔案一併刪除，適合驗證後快速清理。
 
 ## Excel（預設，推薦）
 - 檔名：`<原檔名>_analysis.xlsx`

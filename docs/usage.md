@@ -22,6 +22,8 @@ python attendance_analyzer.py <考勤檔案路徑> [格式] [選項]
   - `--full` / `-f`：完整重新分析
   - `--reset-state` / `-r`：清除使用者狀態
   - `--debug`：啟用除錯模式（詳細日誌、停用狀態寫入）
+  - `--export-policy {merge,archive}`：匯出策略；預設 `merge` 覆寫主檔案，可改用 `archive` 保留 timestamp 備份
+  - `--cleanup-exports`：清除匯出檔案前會列出候選並詢問確認；預設只刪 timestamp 備份，搭配 `--debug` 時亦會刪除當次輸出
 
 ## 範例
 - 增量分析：
@@ -39,5 +41,6 @@ python attendance_analyzer.py "202508-員工姓名-出勤資料.txt" --reset-sta
 python attendance_analyzer.py "sample-attendance-data.txt"
 python attendance_analyzer.py "sample-attendance-data.txt" csv
 python attendance_analyzer.py "sample-attendance-data.txt" --debug
+python attendance_analyzer.py "sample-attendance-data.txt" --export-policy archive
+python attendance_analyzer.py "sample-attendance-data.txt" --debug --cleanup-exports
 ```
-

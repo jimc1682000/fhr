@@ -56,7 +56,7 @@ def write_issue_rows(writer: csv.writer, issues: Iterable, incremental_mode: boo
 
 
 def _build_rows(
-    issues: list, incremental_mode: bool, status: tuple | None = None
+    issues: list[object], incremental_mode: bool, status: tuple | None = None
 ) -> list[list[str]]:
     rows: list[list[str]] = []
     rows.append(_header_row(incremental_mode))
@@ -83,11 +83,25 @@ def _row_key(row: list[str]) -> tuple:
     return tuple(row[:limit])
 
 
-def _merge_rows(_existing: list[list[str]], new_rows: list[list[str]]) -> list[list[str]]:
+def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[list[str]]:
+    """Merge existing CSV rows with new rows, deduplicating by key.
+
+    New rows take precedence over existing ones with the same key.
+    Status rows are always positioned after the header.
+    """
     header = new_rows[0]
     width = len(header)
     merged = OrderedDict()
 
+    # First, add existing rows (excluding header)
+    if existing:
+        for row in existing[1:]:  # Skip existing header
+            if not row:
+                continue
+            normalized = _normalize_row(row, width)
+            merged[_row_key(normalized)] = normalized
+
+    # Then add/update with new rows (they take precedence)
     for row in new_rows[1:]:
         if not row:
             continue
@@ -96,15 +110,18 @@ def _merge_rows(_existing: list[list[str]], new_rows: list[list[str]]) -> list[l
 
     result: list[list[str]] = [header]
 
+    # Extract status row if present
     status_key = None
     for key in list(merged):
         if key and key[0] == 'STATUS':
             status_key = key
             break
 
+    # Place status row immediately after header
     if status_key is not None:
         result.append(merged.pop(status_key))
 
+    # Add remaining rows
     result.extend(merged.values())
     return result
 
@@ -126,7 +143,16 @@ def save_csv(
     rows = _build_rows(issues_list, incremental_mode, status)
 
     if merge and os.path.exists(filepath):
-        rows = _merge_rows([], rows)
+        # Read existing CSV data for merging
+        existing_rows: list[list[str]] = []
+        try:
+            with open(filepath, 'r', encoding='utf-8-sig') as f:
+                reader = csv.reader(f, delimiter=';')
+                existing_rows = list(reader)
+        except (FileNotFoundError, IOError):
+            # If file doesn't exist or can't be read, proceed with new rows only
+            existing_rows = []
+        rows = _merge_rows(existing_rows, rows)
 
     with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
         writer = csv.writer(f, delimiter=';')

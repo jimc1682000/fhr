@@ -3,16 +3,24 @@
 Keeps behavior-compatible semantics: normal runs do not call sys.exit,
 error paths may call sys.exit(1) to match prior tests.
 """
+
+from __future__ import annotations
+
 import argparse
 import logging
+import os
 import sys
-from datetime import datetime
 
 
 def run(argv: list | None = None) -> None:
-    from attendance_analyzer import AttendanceAnalyzer, logger  # reuse same logger
-    from lib.filename import parse_range_and_user
-    from lib.state import AttendanceStateManager
+    from attendance_analyzer import logger  # reuse shared logger
+    from lib.service import (
+        AnalysisError,
+        AnalysisOptions,
+        AnalyzerService,
+        OutputRequest,
+        ResetStateError,
+    )
 
     parser = argparse.ArgumentParser(
         description='考勤分析系統 - 支援增量分析避免重複處理',
@@ -50,69 +58,56 @@ def run(argv: list | None = None) -> None:
     filepath = args.filepath
     format_type = args.format
     incremental_mode = args.incremental and not args.full
+    mode = 'incremental' if incremental_mode else 'full'
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
         logger.debug("🐞 CLI Debug 模式啟動：將略過狀態寫入並輸出詳細訊息。")
 
-    if args.reset_state:
-        # analyzer_temp = AttendanceAnalyzer()  # Variable assigned but never used
-        user_name, _, _ = parse_range_and_user(filepath)
-        if user_name:
-            state_manager = AttendanceStateManager(read_only=args.debug)
-            if args.debug:
-                logger.debug("🛡️  Debug 模式：略過清除使用者 %s 的狀態", user_name)
-            elif user_name in state_manager.state_data.get("users", {}):
-                del state_manager.state_data["users"][user_name]
-                state_manager.save_state()
-                logger.info(
-                    "🗑️  狀態檔 'attendance_state.json' 已清除使用者 %s 的記錄 @ %s",
-                    user_name,
-                    datetime.now().isoformat(),
-                )
-            else:
-                logger.info("ℹ️  使用者 %s 沒有現有狀態需要清除", user_name)
-        else:
-            logger.warning("⚠️  無法從檔名識別使用者，無法執行狀態重設")
-            sys.exit(1)
+    base, ext = os.path.splitext(filepath)
+    if ext.lower() != '.txt':
+        base = filepath
+
+    primary_ext = '.xlsx' if format_type == 'excel' else '.csv'
+    primary_output = OutputRequest(path=f"{base}_analysis{primary_ext}", format=format_type)
+
+    extra_outputs = []
+    if format_type == 'excel':
+        extra_outputs.append(OutputRequest(path=f"{base}_analysis.csv", format='csv'))
+
+    service = AnalyzerService()
+
+    options = AnalysisOptions(
+        source_path=filepath,
+        requested_format=format_type,
+        mode=mode,
+        reset_state=args.reset_state,
+        debug=args.debug,
+        output=primary_output,
+        extra_outputs=tuple(extra_outputs),
+    )
 
     try:
-        analyzer = AttendanceAnalyzer(debug=args.debug)
-
-        if incremental_mode:
-            logger.info("📂 正在解析考勤檔案... (增量分析模式)")
-        else:
-            logger.info("📂 正在解析考勤檔案... (完整分析模式)")
-
-        analyzer.parse_attendance_file(filepath, incremental=incremental_mode)
-
-        logger.info("📝 正在分組記錄...")
-        analyzer.group_records_by_day()
-
-        logger.info("🔍 正在分析考勤...")
-        analyzer.analyze_attendance()
-
-        logger.info("📊 正在生成報告...")
-        report = analyzer.generate_report()
-
-        logger.info("\n")
-        for line in report.split('\n'):
-            logger.info(line)
-
-        if format_type.lower() == 'csv':
-            output_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_report(output_filepath, 'csv')
-            logger.info("✅ CSV報告已匯出: %s", output_filepath)
-        else:
-            output_filepath = filepath.replace('.txt', '_analysis.xlsx')
-            analyzer.export_report(output_filepath, 'excel')
-            logger.info("✅ Excel報告已匯出: %s", output_filepath)
-
-        if format_type.lower() == 'excel':
-            csv_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_report(csv_filepath, 'csv')
-            logger.info("📝 同時匯出CSV格式: %s", csv_filepath)
-
-    except Exception as e:
-        logger.error("❌ 錯誤: %s", e)
+        result = service.run(options)
+    except ResetStateError as exc:
+        logger.warning("⚠️  %s", exc)
         sys.exit(1)
+    except AnalysisError as exc:
+        logger.error("❌ 錯誤: %s", exc)
+        sys.exit(1)
+
+    logger.info("\n")
+    for line in result.report_text.split('\n'):
+        logger.info(line)
+
+    if result.outputs:
+        primary = result.outputs[0]
+        if primary.actual_format == 'csv':
+            logger.info("✅ CSV報告已匯出: %s", primary.actual_path)
+        else:
+            logger.info("✅ Excel報告已匯出: %s", primary.actual_path)
+        for extra in result.outputs[1:]:
+            if extra.actual_format == 'csv':
+                logger.info("📝 同時匯出CSV格式: %s", extra.actual_path)
+            else:
+                logger.info("📝 另輸出Excel格式: %s", extra.actual_path)

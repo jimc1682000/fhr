@@ -151,6 +151,13 @@ Central processing engine with enhanced incremental analysis capabilities:
 - `export_report()`: Unified export interface with automatic backup
 - `_backup_existing_file()`: **NEW**: Automatic file backup with timestamp naming
 
+#### AnalyzerService（Shared Orchestrator）
+- 位置：`lib/service/analyzer.py`
+- 封裝完整流程（解析 ➜ 分組 ➜ 分析 ➜ 匯出 ➜ 報告），提供 `AnalysisOptions`/`OutputRequest`/`AnalysisResult` 等資料模型。
+- CLI (`lib/cli.py`) 與 FastAPI 服務 (`server/main.py`) 均呼叫 `AnalyzerService.run()`，確保輸出與錯誤處理一致。
+- 內建預覽 (issue previews)、狀態資訊、匯出檔案清單與 totals；後續 TUI 或新的 API 請直接重用。
+- 支援取消事件與進度 callback（供未來 UI 觀測）。
+
 #### AttendanceStateManager (New)
 JSON-based state management for incremental analysis:
 - `_load_state()`: Loads processing state from `attendance_state.json`
@@ -197,6 +204,10 @@ Key methods:
 - `_load_hardcoded_2025_holidays()`: Efficient 2025 holiday loading
 - `_load_dynamic_holidays(year)`: Dynamic loading for other years
 - `_get_years_from_records()`: Extracts years from attendance data
+
+### Shared Helpers
+- `lib/recent.py`: Read/write recent file列表（JSON 格式），供 CLI、Web、TUI 共用。
+- `lib/i18n.py`: 語系偵測與 gettext fallback helper，確保多介面使用相同字串 key。
 
 ## Key Behavioral Notes
 

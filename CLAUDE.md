@@ -45,6 +45,27 @@ python3 attendance_analyzer.py sample-attendance-data.txt
 python3 attendance_analyzer.py sample-attendance-data.txt csv
 ```
 
+### Textual TUI
+```bash
+# 啟動互動式介面
+python3 -m tui
+
+# 淺色主題或瀏覽器模式（需 textual-web）
+python3 -m tui --light
+python3 -m tui --webview
+```
+> TUI 提供表單式設定、進度日誌、異常預覽以及取消控制，並直接重用 `AnalyzerService`。
+
+- textual-web 僅適用於內部操作環境，請搭配 SSH 轉發或 HTTPS 代理再分享網址。
+- README.md 中嵌入的截圖存放於 `assets/tui-main.png`，如更新 UI 請重新產生並替換該檔案。
+
+**常用快捷鍵**
+
+- `Ctrl+D`：切換深/淺色主題
+- `Ctrl+L`：切換進度提示語系（繁體中文/English）
+- `Ctrl+C`：送出取消請求
+- `F5`：以最後一次表單資料重新分析
+
 ### Running Unit Tests
 ```bash
 # full suite (quiet)
@@ -52,6 +73,9 @@ python3 -m unittest -q
 
 # run a specific test module
 python3 -m unittest -q test.test_holiday_api_resilience
+
+# TUI headless smoke tests
+python3 -m unittest -q test.test_tui_app
 ```
 
 ### Development Tools & Pre-commit
@@ -108,6 +132,11 @@ Endpoints
 - `POST /api/analyze`：上傳 TXT，選擇模式/格式，可選重置狀態
 - `GET /api/download/{analysis_id}/{filename}`：下載結果（檔名含時間戳）
 - `GET /api/health`：健康檢查
+
+### Documentation touchpoints
+- `docs/index.md`：更新導覽、最後更新日期與 Textual 介面入口。
+- `docs/usage.md`：CLI/TUI 指南、textual-web 限制表格、截圖錄製指引。
+- `docs/architecture.md` / `docs/project-structure.md`：共享服務層流程圖與 `feat/tui` 遷移注意事項。
 
 ## CI（GitHub Actions）
 - Workflow：`.github/workflows/ci.yml`

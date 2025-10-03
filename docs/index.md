@@ -6,17 +6,19 @@
 
 | 我想要... | 推薦文件 | 預計時間 |
 |-----------|----------|----------|
-| **快速開始使用** | [README.md](../README.md) → [usage.md](usage.md) | 5 分鐘 |
+| **快速開始使用** | [README.md](../README.md) → [usage.md](usage.md#cli-快速開始) | 5 分鐘 |
 | **部署到生產環境** | [service.md](service.md) → [environment.md](environment.md) | 30 分鐘 |
 | **客製化設定** | [overview.md](overview.md) → [logic.md](logic.md) | 15 分鐘 |
 | **開發或貢獻程式碼** | [architecture.md](architecture.md) → [contributing.md](contributing.md) | 1 小時 |
 | **解決問題** | [troubleshooting.md](troubleshooting.md) → [quick-reference.md](quick-reference.md) | 10 分鐘 |
+| **操作 Textual 介面** | [usage.md](usage.md#textual-tui-操作) → [tui_capture_setup.md](tui_capture_setup.md) | 8 分鐘 |
 
 ## 📚 分層文件架構
 
 ### 🚀 **使用者文件** - 適合日常使用者
-- **[README.md](../README.md)** - 專案主頁與快速開始
+- **[README.md](../README.md)** - 專案主頁、安裝步驟與 TUI 截圖
 - **[usage.md](usage.md)** - 詳細使用指南
+- **[tui_capture_setup.md](tui_capture_setup.md)** - 錄影/截圖建議與 textual-web 操作注意事項
 - **[data-format.md](data-format.md)** - 檔案格式需求
 - **[output.md](output.md)** - 輸出格式說明與範例
 - **[incremental.md](incremental.md)** - 增量分析功能詳解
@@ -30,7 +32,7 @@
 - **[project-structure.md](project-structure.md)** - 專案檔案結構
 
 ### 🔧 **開發者文件** - 適合開發人員
-- **[architecture.md](architecture.md)** - 系統架構設計
+- **[architecture.md](architecture.md)** - 系統架構設計與共享服務層流程圖
 - **[logic.md](logic.md)** - 業務邏輯與計算規則
 - **[testing.md](testing.md)** - 測試框架與覆蓋率
 - **[contributing.md](contributing.md)** - 貢獻指南與開發流程
@@ -54,8 +56,9 @@
 ### 📋 **第一次使用**
 1. 閱讀 [README.md](../README.md) 了解基本功能
 2. 查看 [requirements.md](requirements.md) 確認系統需求
-3. 按照 [usage.md](usage.md) 完成第一次分析
-4. 遇到問題查閱 [troubleshooting.md](troubleshooting.md)
+3. 按照 [usage.md](usage.md#cli-快速開始) 完成第一次分析或啟動 TUI
+4. 需要視覺化終端介面時，參考 [usage.md](usage.md#textual-tui-操作) 與 [tui_capture_setup.md](tui_capture_setup.md)
+5. 遇到問題查閱 [troubleshooting.md](troubleshooting.md)
 
 ### 🌐 **部署 Web 服務**
 1. 查看 [service.md](service.md) 了解 Web 服務架構
@@ -105,6 +108,7 @@
 
 ### 💻 **多種使用方式**
 - **命令列工具**: 適合批次處理與自動化
+- **Textual TUI**: 進度視覺化、快捷鍵支援，`--webview` 可在瀏覽器展示
 - **Web 介面**: 提供圖形化操作與預覽
 - **Docker 容器**: 支援企業級部署與擴展
 - **API 服務**: 支援與其他系統整合
@@ -117,4 +121,4 @@
 
 ---
 
-**最後更新**: 2025-01-27 | **文件版本**: v2.1 | **系統版本**: 查看 [project-structure.md](project-structure.md)
+**最後更新**: 2025-02-05 | **文件版本**: v2.2 | **系統版本**: 查看 [project-structure.md](project-structure.md)

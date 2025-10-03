@@ -19,9 +19,20 @@
 - **📁 NEW: 支援跨月檔案格式 (`202508-202509-姓名-出勤資料.txt`)**
 - **💾 NEW: 智慧狀態管理 - 自動記住處理進度**
 - **📋 NEW: 增強輸出格式 - 標示新發現與已存在問題**
-- **🧠 NEW: 共用分析服務層 - CLI / Web / 未來 TUI 共用同一套 AnalyzerService**
+- **🧠 NEW: 共用分析服務層 - CLI / Web / Textual TUI 共用同一套 AnalyzerService**
+
+## ⚙️ 安裝與環境準備
+
+1. 建議建立虛擬環境並啟用：`python -m venv venv && source venv/bin/activate`
+2. 安裝核心依賴：`pip install -r requirements.txt`
+3. 需要開發/貢獻時再加裝工具：`pip install -r requirements-dev.txt`
+4. （可選）Excel 匯出建議加裝：`pip install openpyxl`
+
+> Textual 介面與 textual-web 模式皆隨 `requirements.txt` 安裝，無需額外手動處理。
 
 ## 🚀 快速開始 - 選擇適合的使用方式
+
+![Textual TUI 主畫面](assets/tui-main.png)
 
 ### 👤 個人用戶 (命令列工具)
 ```bash
@@ -34,6 +45,31 @@ python attendance_analyzer.py "202508-王小明-出勤資料.txt" csv
 # 跨月資料處理
 python attendance_analyzer.py "202508-202509-王小明-出勤資料.txt"
 ```
+
+### 🧾 視覺化終端介面 (Textual TUI)
+```bash
+# 啟動 Textual 介面（預設深色主題）
+python -m tui
+
+# 以淺色主題或指定瀏覽器模式啟動
+python -m tui --light
+python -m tui --webview  # textual-web 選配，適合透過瀏覽器分享畫面
+```
+
+> 💡 TUI 支援與 CLI/Web 相同的分析選項，並提供進度、日誌、異常預覽及快捷取消功能。`--webview` 會透過 textual-web 啟動瀏覽器會話，適合受限於終端環境或需要遠端示範。
+
+**textual-web 使用限制**
+
+- textual-web 目前僅提供內部工具情境，預設為關閉（需加上 `--webview`）。
+- 建議在具備 HTTPS 反向代理或 SSH 轉發環境下使用；請勿直接公開於網際網路。
+- 若系統尚未安裝 textual-web，可執行 `pip install textual-web` 取得依賴。
+
+**快捷鍵提示**
+
+- `Ctrl+D`：切換深/淺色主題
+- `Ctrl+L`：切換介面語言（繁體中文 ⇄ English，僅影響進度標示與提示文字）
+- `Ctrl+C`：送出取消分析請求
+- `F5`：重送上一筆分析表單資料
 
 ### 🖥️ 系統管理員 (Web 服務 + Docker)
 ```bash
@@ -57,10 +93,12 @@ python -m unittest -q                            # 執行測試套件
 make coverage                                     # 檢查測試覆蓋率
 ```
 
+> ✅ Textual 介面採用 headless 測試（`test/test_tui_app.py`），會驗證表單送出、取消、語系切換與 textual-web smoke 路徑，請在更新 UI 或多語系字串後執行完整測試。
+
 #### 共用分析服務層（AnalyzerService）
 - 核心流程（解析 ➜ 分組 ➜ 分析 ➜ 匯出 ➜ 報告）統一封裝於 `lib/service/analyzer.py`。
 - CLI (`lib/cli.py`) 與 Web API (`server/main.py`) 都透過 `AnalyzerService.run()` 執行，確保輸出行為一致。
-- 服務層提供 `AnalysisOptions`、`OutputRequest`、`AnalysisResult` 等資料模型，可供未來 TUI 或自動化腳本直接重用。
+- 服務層提供 `AnalysisOptions`、`OutputRequest`、`AnalysisResult` 等資料模型，可供 TUI 或自動化腳本直接重用。
 - `lib/recent.py`、`lib/i18n.py` 為共用的近期檔案與多語系 helper，後續新介面請使用這些工具維持一致體驗。
 
 ## 📊 系統能力與特色

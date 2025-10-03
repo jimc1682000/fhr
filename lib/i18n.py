@@ -31,6 +31,19 @@ _DEFAULT_FALLBACKS = {
         "Reset State": "重置狀態",
         "Output": "輸出",
         "Rows Previewed": "預覽列數",
+        "Parsing attendance data": "解析考勤資料",
+        "Grouping daily records": "整理每日紀錄",
+        "Applying analysis rules": "套用規則分析",
+        "Exporting reports": "匯出報表",
+        "⏳ Waiting for analysis to start": "⏳ 等待分析開始",
+        "🚀 Preparing analysis": "🚀 正在準備分析…",
+        "✅ Analysis complete": "✅ 分析完成",
+        "❌ Analysis failed": "❌ 分析失敗",
+        "🛑 Analysis cancelled": "🛑 分析已取消",
+        "🌐 Language switched to English": "🌐 已切換語系為 English",
+        "🌐 Language switched to Traditional Chinese": "🌐 已切換語系為 繁體中文",
+        "Traditional Chinese": "繁體中文",
+        "English": "English",
     }
 }
 
@@ -54,7 +67,7 @@ def get_translator(language: str | None = None) -> Callable[[str], str]:
     lang = language or detect_language()
     try:
         translation = gettext.translation(
-            "fhr", localedir="locales", languages=[lang], fallback=True
+            "fhr", localedir="locales", languages=[lang], fallback=False
         )
         return translation.gettext  # type: ignore[return-value]
     except Exception:

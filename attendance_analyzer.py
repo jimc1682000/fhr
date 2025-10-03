@@ -203,7 +203,10 @@ class AttendanceAnalyzer:
         
         # 初始化狀態管理器
         if self.incremental_mode:
-            self.state_manager = AttendanceStateManager(read_only=self.debug_mode)
+            if self.state_manager is None:
+                self.state_manager = AttendanceStateManager(read_only=self.debug_mode)
+            else:
+                self.state_manager.read_only = self.debug_mode
             
             # 解析檔名取得使用者資訊
             from lib.filename import parse_range_and_user

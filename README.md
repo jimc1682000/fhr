@@ -19,6 +19,7 @@
 - **📁 NEW: 支援跨月檔案格式 (`202508-202509-姓名-出勤資料.txt`)**
 - **💾 NEW: 智慧狀態管理 - 自動記住處理進度**
 - **📋 NEW: 增強輸出格式 - 標示新發現與已存在問題**
+- **🧠 NEW: 共用分析服務層 - CLI / Web / 未來 TUI 共用同一套 AnalyzerService**
 
 ## 🚀 快速開始 - 選擇適合的使用方式
 
@@ -55,6 +56,12 @@ make install-hooks                                # 安裝 Git pre-commit hooks
 python -m unittest -q                            # 執行測試套件
 make coverage                                     # 檢查測試覆蓋率
 ```
+
+#### 共用分析服務層（AnalyzerService）
+- 核心流程（解析 ➜ 分組 ➜ 分析 ➜ 匯出 ➜ 報告）統一封裝於 `lib/service/analyzer.py`。
+- CLI (`lib/cli.py`) 與 Web API (`server/main.py`) 都透過 `AnalyzerService.run()` 執行，確保輸出行為一致。
+- 服務層提供 `AnalysisOptions`、`OutputRequest`、`AnalysisResult` 等資料模型，可供未來 TUI 或自動化腳本直接重用。
+- `lib/recent.py`、`lib/i18n.py` 為共用的近期檔案與多語系 helper，後續新介面請使用這些工具維持一致體驗。
 
 ## 📊 系統能力與特色
 - **🎯 精準度**: 90%+ 測試覆蓋率  

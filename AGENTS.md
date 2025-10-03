@@ -4,6 +4,8 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 
 ## Project Structure & Module Organization
 - `attendance_analyzer.py` — main CLI and core logic (parsing, analysis, export).
+- `lib/service/` — 共用分析服務層（AnalyzerService + Options/Result 模型）。
+- `lib/recent.py`、`lib/i18n.py` — 近期檔案與多語系 helper，提供 CLI/Web/TUI 共用功能。
 - `lib/excel_exporter.py` — Excel helpers (headers, styles, widths, status row).
 - `test/` — unittest suite (multiple `test_*.py` files, e.g. parsing/logic/exports/holiday resilience).
 - `sample-attendance-data.txt` — example input.
@@ -38,6 +40,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Prefer standard library; add deps only when necessary and documented.
 - Use `logging` (logger.info/warning/error) for user‑visible messages; avoid `print`.
 - Keep CLI flags backward compatible; update `README.md` if modified.
+- 新增入口（TUI、自動化腳本等）應透過 `lib/service.AnalyzerService` 執行分析流程，確保結果與 CLI/Web 一致。
 
 ## Testing Guidelines
 - Framework: `unittest`. Place tests under `test/` using `test_*.py`.
@@ -73,6 +76,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 
 ## Agent‑Specific Notes
 - Keep file paths stable; avoid renaming `attendance_analyzer.py` or `lib/excel_exporter.py` without updating tests and docs.
+- `attendance_analyzer.py` 可共享 `AnalyzerService` 的狀態管理（透過注入 `state_manager`），新增功能時請優先擴充服務層。
 - When changing CLI behavior or output schema (e.g., status column, last_analysis_time), update `README.md` and add tests.
 - For holiday behavior changes, use existing `_try_load_from_gov_api` and fallback hooks; update docs and add tests for new scenarios.
 - Excel export: maintain widths (F=40, G=24 when incremental), headers, and status row semantics; keep tests aligned.

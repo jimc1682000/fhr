@@ -16,9 +16,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from attendance_analyzer import AttendanceAnalyzer, IssueType, logger as analyzer_logger
-from lib.filename import parse_range_and_user
-from lib.state import AttendanceStateManager
+from attendance_analyzer import logger as analyzer_logger
+from lib.service import (
+    AnalysisError,
+    AnalysisOptions,
+    AnalyzerService,
+    OutputRequest,
+    ResetStateError,
+)
 
 APP_ROOT = os.path.dirname(os.path.dirname(__file__))
 UPLOAD_DIR = os.path.join(APP_ROOT, "build", "uploads")
@@ -27,6 +32,8 @@ WEB_DIR = os.path.join(APP_ROOT, "web")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(OUTPUT_ROOT, exist_ok=True)
+
+SERVICE = AnalyzerService()
 
 
 class IssueDTO(BaseModel):
@@ -75,36 +82,21 @@ def _save_upload(upload: UploadFile, session_dir: str) -> str:
     return upload_path
 
 
-def _issues_to_dtos(analyzer: AttendanceAnalyzer, limit: int = 50) -> list[IssueDTO]:
+def _issues_to_dtos(issues: list, limit: int = 50) -> list[IssueDTO]:
     items: list[IssueDTO] = []
-    for issue in analyzer.issues[:limit]:
+    for preview in issues[:limit]:
         items.append(
             IssueDTO(
-                date=issue.date.strftime("%Y/%m/%d"),
-                type=issue.type.value,
-                duration_minutes=issue.duration_minutes,
-                description=issue.description,
-                time_range=getattr(issue, "time_range", ""),
-                calculation=getattr(issue, "calculation", ""),
-                status=("[NEW] 本次新發現" if getattr(issue, "is_new", False) else "已存在")
-                if analyzer.incremental_mode
-                else None,
+                date=preview.date,
+                type=preview.type,
+                duration_minutes=preview.duration_minutes,
+                description=preview.description,
+                time_range=preview.time_range,
+                calculation=preview.calculation,
+                status=preview.status,
             )
         )
     return items
-
-
-def _totals(analyzer: AttendanceAnalyzer) -> dict:
-    from collections import Counter
-    c = Counter([i.type.value for i in analyzer.issues])
-    return {
-        "FORGET_PUNCH": c.get(IssueType.FORGET_PUNCH.value, 0),
-        "LATE": c.get(IssueType.LATE.value, 0),
-        "OVERTIME": c.get(IssueType.OVERTIME.value, 0),
-        "WFH": c.get(IssueType.WFH.value, 0),
-        "WEEKDAY_LEAVE": c.get(IssueType.WEEKDAY_LEAVE.value, 0),
-        "TOTAL": len(analyzer.issues),
-    }
 
 
 logger = logging.getLogger("fhr.service")
@@ -188,91 +180,69 @@ def create_app() -> FastAPI:
         upload_path = _save_upload(file, session_dir)
 
         try:
-            # Optional reset of user state and detect first-time user
-            user_name, _, _ = parse_range_and_user(upload_path)
-            reset_applied = False
-            sm = AttendanceStateManager(read_only=debug_mode)
-            if reset_state and user_name:
-                if debug_mode:
-                    logger.debug("🛡️  Debug 模式：略過清除使用者 %s 的狀態", user_name)
-                elif user_name in sm.state_data.get("users", {}):
-                    del sm.state_data["users"][user_name]
-                    sm.save_state()
-                    reset_applied = True
-
-            # Determine if first-time user (post-reset state)
-            first_time_user = False
-            if user_name:
-                ranges = sm.get_user_processed_ranges(user_name)
-                first_time_user = (not ranges)
-
             requested_mode = mode
-            # If first-time user is recognized, we still run analyzer in incremental mode
-            # to persist state (ranges empty -> analyze all days),
-            # but expose effective mode as 'full' in the response.
-            incremental = (mode == "incremental") or first_time_user
-            analyzer = AttendanceAnalyzer(debug=debug_mode)
-            analyzer.parse_attendance_file(upload_path, incremental=incremental)
-            analyzer.group_records_by_day()
-            analyzer.analyze_attendance()
-
-            # Prepare output placement
             out_session = os.path.join(OUTPUT_ROOT, session_id)
             os.makedirs(out_session, exist_ok=True)
             base = os.path.basename(upload_path)
             ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             stem = base[:-4] if base.lower().endswith('.txt') else base
-            if output == "csv":
-                out_path = os.path.join(out_session, f"{stem}_analysis_{ts}.csv")
-                analyzer.export_report(out_path, "csv")
-                actual_format: Literal["csv", "excel"] = "csv"
-            else:
-                out_path = os.path.join(out_session, f"{stem}_analysis_{ts}.xlsx")
-                analyzer.export_report(out_path, "excel")
-                # If Excel export fell back to CSV (when openpyxl unavailable)
-                if not os.path.exists(out_path):
-                    csv_fallback = out_path.replace(".xlsx", ".csv")
-                    if os.path.exists(csv_fallback):
-                        out_path = csv_fallback
-                        actual_format = "csv"
-                    else:
-                        raise HTTPException(
-                            status_code=500,
-                            detail="Failed to generate output file"
-                        )
-                else:
-                    actual_format = "excel"
+            primary_ext = '.csv' if output == 'csv' else '.xlsx'
+            primary_output_path = os.path.join(
+                out_session, f"{stem}_analysis_{ts}{primary_ext}"
+            )
 
-            # Build preview/status
+            options = AnalysisOptions(
+                source_path=upload_path,
+                requested_format=output,
+                mode=requested_mode,
+                reset_state=bool(reset_state),
+                debug=debug_mode,
+                output=OutputRequest(path=primary_output_path, format=output),
+                extra_outputs=tuple(),
+                add_recent=False,
+            )
+
+            result = SERVICE.run(options)
+
+            if not result.outputs:
+                raise HTTPException(status_code=500, detail="Failed to generate output file")
+
+            primary_output = result.outputs[0]
+            download_path = primary_output.actual_path
+            download_rel = os.path.relpath(download_path, APP_ROOT)
+            download_url = f"/api/download/{session_id}/{os.path.basename(download_path)}"
+
             status_info = None
-            status_tuple = analyzer._compute_incremental_status_row()
-            if incremental and not analyzer.issues and status_tuple:
-                last_date, complete_days, last_time = status_tuple
+            if result.status and result.effective_mode == "incremental" and not result.issues:
+                status = result.status
                 status_info = StatusDTO(
-                    last_date=last_date, complete_days=complete_days, last_analysis_time=last_time
+                    last_date=status.last_date,
+                    complete_days=status.complete_days,
+                    last_analysis_time=status.last_analysis_time,
                 )
-
-            download_rel = os.path.relpath(out_path, APP_ROOT)
-            download_url = f"/api/download/{session_id}/{os.path.basename(out_path)}"
 
             return AnalyzeResponse(
                 analysis_id=session_id,
-                user=user_name,
-                mode=("full" if first_time_user or requested_mode == "full" else "incremental"),
+                user=result.user_name,
+                mode=result.effective_mode,
                 requested_mode=requested_mode,
                 requested_format=output,
-                actual_format=actual_format,
+                actual_format=primary_output.actual_format,
                 source_filename=os.path.basename(file.filename or base),
                 reset_requested=bool(reset_state),
-                reset_applied=reset_applied,
-                first_time_user=first_time_user,
+                reset_applied=result.reset_applied,
+                first_time_user=result.first_time_user,
                 output_filename=download_rel,
                 download_url=download_url,
                 status=status_info,
-                issues_preview=_issues_to_dtos(analyzer, limit=100),
-                totals=_totals(analyzer),
+                issues_preview=_issues_to_dtos(result.issues_preview, limit=100),
+                totals=result.totals,
                 debug_mode=debug_mode,
             )
+        except ResetStateError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except AnalysisError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
         finally:
             if debug_mode and not GLOBAL_DEBUG_MODE:
                 logger.setLevel(prev_logger_level)

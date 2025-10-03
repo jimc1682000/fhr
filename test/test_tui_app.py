@@ -13,6 +13,7 @@ from lib.service import (
     ExportedFile,
     IncrementalStatus,
     IssuePreview,
+    ResetStateError,
 )
 from tui.app import AnalysisForm, AttendanceAnalyzerApp, run_app
 
@@ -162,6 +163,89 @@ class AttendanceAnalyzerAppUITest(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             toggled = app.progress_stage.renderable.plain
             self.assertIn("Waiting", toggled)
+
+    async def test_invalid_preview_limit_shows_error(self) -> None:
+        async with AttendanceAnalyzerApp().run_test() as pilot:
+            app = pilot.app
+            form = app.query_one(AnalysisForm)
+            form.source_input.value = self.sample_path
+            form.preview_input.value = "abc"
+
+            with patch.object(app, "run_worker") as mock_run_worker:
+                form.submit()
+                await pilot.pause()
+
+            self.assertFalse(mock_run_worker.called)
+            self.assertIn("預覽筆數需為整數", form.status_message.renderable.plain)
+            self.assertFalse(form.busy)
+
+    async def test_missing_source_path_shows_error(self) -> None:
+        async with AttendanceAnalyzerApp().run_test() as pilot:
+            app = pilot.app
+            form = app.query_one(AnalysisForm)
+            form.source_input.value = ""
+
+            with patch.object(app, "run_worker") as mock_run_worker:
+                form.submit()
+                await pilot.pause()
+
+            self.assertFalse(mock_run_worker.called)
+            self.assertIn("請先輸入考勤檔案路徑", form.status_message.renderable.plain)
+            self.assertFalse(form.busy)
+
+    async def test_reset_state_error_shows_warning(self) -> None:
+        async with AttendanceAnalyzerApp().run_test() as pilot:
+            app = pilot.app
+            form = app.query_one(AnalysisForm)
+            form.source_input.value = self.sample_path
+
+            def fake_worker(work, *args, **kwargs):
+                app._handle_error(ResetStateError("需要重置狀態"))
+
+                class _Worker:
+                    def __init__(self) -> None:
+                        self.is_running = False
+                        self.error = ResetStateError("需要重置狀態")
+
+                    def cancel(self) -> None:  # pragma: no cover - interface
+                        self.is_running = False
+
+                return _Worker()
+
+            with patch.object(app, "run_worker", side_effect=fake_worker):
+                form.submit()
+                await pilot.pause()
+
+            self.assertIn("⚠️", form.status_message.renderable.plain)
+            self.assertIn("需要重置狀態", form.status_message.renderable.plain)
+            self.assertFalse(form.busy)
+
+    async def test_unexpected_error_shows_generic_message(self) -> None:
+        async with AttendanceAnalyzerApp().run_test() as pilot:
+            app = pilot.app
+            form = app.query_one(AnalysisForm)
+            form.source_input.value = self.sample_path
+
+            def fake_worker(work, *args, **kwargs):
+                app._handle_error(RuntimeError("boom"))
+
+                class _Worker:
+                    def __init__(self) -> None:
+                        self.is_running = False
+                        self.error = RuntimeError("boom")
+
+                    def cancel(self) -> None:  # pragma: no cover - interface
+                        self.is_running = False
+
+                return _Worker()
+
+            with patch.object(app, "run_worker", side_effect=fake_worker):
+                form.submit()
+                await pilot.pause()
+
+            self.assertIn("未預期錯誤", form.status_message.renderable.plain)
+            self.assertFalse(form.busy)
+            self.assertIn("❌", app.progress_stage.renderable.plain)
 
 
 class RunAppSmokeTest(unittest.TestCase):

@@ -80,6 +80,13 @@ make coverage                                     # 檢查測試覆蓋率
   - 日誌層級提升為 DEBUG，顯示解析、分組與分析細節。
   - 停用狀態檔寫入，確保不會覆寫 `attendance_state.json`。
 - 後端服務可設定環境變數 `FHR_DEBUG=true` 取得相同效果。
+- 測試後要清理輸出可加上 `--cleanup-exports`（僅在 `--debug` 下會連同主檔案移除）。
+
+### 匯出策略
+
+- CLI 預設採用 `merge` 策略，直接覆寫 `<原檔名>_analysis.(csv|xlsx)`，僅保留單一輸出檔案不再產生 timestamp 備份。
+- 使用 `--export-policy archive` 時，匯出前會先將既有檔案轉成 `_analysis_YYYYMMDD_HHMMSS.*` 備份，再生成新的主檔。
+- 啟用 `--cleanup-exports` 會先列出可移除的檔案並要求確認；預設只刪 timestamp 備份，若同時開啟 `--debug` 會連剛產出的主檔一起移除，方便驗證後清場。
 
 ### 常見錯誤提示
 
@@ -121,7 +128,7 @@ make coverage                                     # 檢查測試覆蓋率
 ## Web 服務（Backend + Frontend）
 
 - 後端：FastAPI，提供上傳、分析、下載 API，自動產生 OpenAPI 文件。
-- 前端：輕量靜態頁面（vanilla + i18next）支援 i18n，提供上傳、選擇增量/完整、CSV/Excel、重置狀態、預覽與下載。
+- 前端：輕量靜態頁面（vanilla + i18next）支援 i18n，提供上傳、模式/輸出切換、重置/除錯開關，並在啟用清理時 **先行預覽 + 確認** 要刪除的檔案。
 
 啟動方式：
 

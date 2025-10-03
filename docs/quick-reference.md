@@ -12,6 +12,8 @@
 | **CSV 輸出** | `python attendance_analyzer.py file.txt csv` | 如無 openpyxl 的備選方案 |
 | **重置使用者狀態** | `python attendance_analyzer.py file.txt --reset-state` | 清除處理歷史記錄 |
 | **Debug 模式** | `python attendance_analyzer.py file.txt --debug` | 詳細日誌、停用狀態寫入 |
+| **保留 timestamp 備份** | `python attendance_analyzer.py file.txt --export-policy archive` | 匯出前備份舊檔案 |
+| **清理匯出檔案** | `python attendance_analyzer.py file.txt --cleanup-exports` | 列出待刪清單並詢問；預設刪 timestamp，Debug 模式也刪主檔 |
 | **顯示幫助** | `python attendance_analyzer.py --help` | 完整參數說明 |
 
 ### Web 服務操作  
@@ -65,7 +67,7 @@ YYYYMM-YYYYMM-姓名-出勤資料.txt
 |------|----------|------|
 | **Excel** | `file_analysis.xlsx` | 色彩標示、欄寬最佳化 |
 | **CSV** | `file_analysis.csv` | UTF-8-BOM、分號分隔 |
-| **備份檔** | `file_analysis_20250127_143022.xlsx` | 時間戳防覆蓋 |
+| **備份檔（archive 模式）** | `file_analysis_20250127_143022.xlsx` | 使用 `--export-policy archive` 時產生 |
 
 ## ⚙️ 設定速查
 

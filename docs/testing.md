@@ -36,3 +36,18 @@ tr.results().write_results(show_missing=True, summary=True, coverdir='coverage_r
 print('Coverage report written to coverage_report/.')
 PY
 ```
+
+## 手動驗證
+
+### CLI 清理流程
+1. 準備一個會產生多份 `_analysis_YYYYMMDD_HHMMSS.*` 備份的 TXT 檔。
+2. 執行 `python attendance_analyzer.py <file> csv --export-policy archive` 至少一次，確保建立備份。
+3. 再執行 `python attendance_analyzer.py <file> csv --cleanup-exports`，確認終端列出備份清單並詢問是否刪除。
+4. 輸入 `n` 應顯示「已取消匯出清理」，檔案保持不動；再次執行並輸入 `y`，檢查備份被刪除且主檔保留（除非同時加上 `--debug`）。
+
+### Web UI 清理預覽
+1. 啟動服務：`uvicorn server.main:app --reload`。
+2. 於瀏覽器開啟 http://localhost:8000/，上傳 `sample-attendance-data.txt`。
+3. 勾選「分析後清理備份」，點擊「預覽要刪除的檔案」，確認 Modal 列出時間戳備份；若開啟 Debug，會額外列出主檔案。
+4. 按下「確認清理並分析」後，Modal 關閉並送出分析；若在 Modal 開啟期間手動增減備份，送出時會收到重新預覽提示。
+5. 分析結束後，畫面下方的清理狀態會顯示實際結果（成功刪除/略過/需重試）。

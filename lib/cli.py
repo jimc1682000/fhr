@@ -5,6 +5,7 @@ error paths may call sys.exit(1) to match prior tests.
 """
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime
 
@@ -44,12 +45,25 @@ def run(argv: list | None = None) -> None:
                         help='清除指定使用者的狀態記錄')
     parser.add_argument('--debug', action='store_true',
                         help='啟用 debug 模式（詳細日誌、不寫入狀態檔）')
+    parser.add_argument(
+        '--export-policy',
+        choices=['merge', 'archive'],
+        default='merge',
+        help='匯出策略：merge 直接覆寫主檔案，archive 保留 timestamp 備份。',
+    )
+    parser.add_argument(
+        '--cleanup-exports',
+        action='store_true',
+        help='清除 timestamp 備份；搭配 --debug 時同時刪除本次產出的匯出檔案。',
+    )
 
     args = parser.parse_args(argv[1:] if argv is not None else None)
 
     filepath = args.filepath
     format_type = args.format
     incremental_mode = args.incremental and not args.full
+    export_policy = args.export_policy
+    cleanup_exports = args.cleanup_exports
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
@@ -99,19 +113,91 @@ def run(argv: list | None = None) -> None:
         for line in report.split('\n'):
             logger.info(line)
 
+        exported_files: list[str] = []
+        backup_files: list[str] = []
+
         if format_type.lower() == 'csv':
             output_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_report(output_filepath, 'csv')
+            backup_path = analyzer.export_report(
+                output_filepath, 'csv', export_policy=export_policy
+            )
+            exported_files.append(output_filepath)
+            if backup_path:
+                backup_files.append(backup_path)
             logger.info("✅ CSV報告已匯出: %s", output_filepath)
         else:
             output_filepath = filepath.replace('.txt', '_analysis.xlsx')
-            analyzer.export_report(output_filepath, 'excel')
+            backup_path = analyzer.export_report(
+                output_filepath, 'excel', export_policy=export_policy
+            )
+            exported_files.append(output_filepath)
+            if backup_path:
+                backup_files.append(backup_path)
             logger.info("✅ Excel報告已匯出: %s", output_filepath)
 
         if format_type.lower() == 'excel':
             csv_filepath = filepath.replace('.txt', '_analysis.csv')
-            analyzer.export_report(csv_filepath, 'csv')
+            backup_path = analyzer.export_report(
+                csv_filepath, 'csv', export_policy=export_policy
+            )
+            exported_files.append(csv_filepath)
+            if backup_path:
+                backup_files.append(backup_path)
             logger.info("📝 同時匯出CSV格式: %s", csv_filepath)
+
+        if cleanup_exports:
+            from lib.export_cleanup import (
+                cleanup_exports as cleanup_exports_helper,
+                list_backups,
+            )
+
+            timestamp_candidates: set[str] = set()
+            for path in exported_files:
+                for candidate in list_backups(path):
+                    timestamp_candidates.add(os.path.abspath(candidate))
+            for backup in backup_files:
+                if os.path.exists(backup):
+                    timestamp_candidates.add(os.path.abspath(backup))
+
+            canonical_candidates: set[str] = set()
+            if args.debug:
+                for path in exported_files:
+                    if os.path.exists(path):
+                        canonical_candidates.add(os.path.abspath(path))
+
+            if not timestamp_candidates and not canonical_candidates:
+                logger.info("ℹ️ 沒有可清除的匯出檔案")
+            else:
+                logger.info("🧹 可清除匯出檔案：")
+                for candidate in sorted(timestamp_candidates):
+                    logger.info("   - %s", os.path.basename(candidate))
+                for candidate in sorted(canonical_candidates):
+                    logger.info("   - %s (本次輸出)", os.path.basename(candidate))
+
+                response = input("是否刪除上述檔案？[y/N]: ").strip().lower()
+                if response not in {"y", "yes"}:
+                    logger.info("ℹ️ 已取消匯出清理")
+                else:
+                    removed_paths: set[str] = set()
+                    for path in exported_files:
+                        removed = cleanup_exports_helper(
+                            path, include_canonical=args.debug
+                        )
+                        removed_paths.update(os.path.abspath(p) for p in removed)
+                    for backup in backup_files:
+                        if os.path.exists(backup):
+                            os.remove(backup)
+                            removed_paths.add(os.path.abspath(backup))
+                    if removed_paths:
+                        removed_display = ', '.join(
+                            sorted(os.path.basename(p) for p in removed_paths)
+                        )
+                        if args.debug:
+                            logger.info("🧹 Debug 匯出檔案已清除: %s", removed_display)
+                        else:
+                            logger.info("🧹 已移除 timestamp 備份: %s", removed_display)
+                    else:
+                        logger.info("ℹ️ 沒有檔案被刪除")
 
     except Exception as e:
         logger.error("❌ 錯誤: %s", e)

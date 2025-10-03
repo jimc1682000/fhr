@@ -2,7 +2,7 @@ fhr Service (Backend + Frontend)
 
 Overview
 - FastAPI backend exposing analysis endpoints with auto-generated OpenAPI docs.
-- Static web UI (vanilla + i18next) to upload TXT, choose mode/output, toggle reset/debug options, preview result, and download.
+- 靜態 Web UI（vanilla + i18next）支援上傳 TXT、切換模式/輸出、重置/除錯開關，並在勾選「分析後清理備份」時彈出預覽 Modal，列出將刪除的時間戳備份/主檔案後再確認。
 - Reuses existing analyzer logic without renaming core files.
 
 Run
@@ -44,6 +44,10 @@ API
   - output: `csv|excel` (default `excel`)
   - reset_state: `true|false` (default `false`)
   - debug: `true|false` (default `false`, read-only with verbose logs)
+  - export_policy: `merge|archive`（default `merge`）
+  - cleanup_exports: `true|false`（default `false`，啟用時需附上預覽 token）
+  - cleanup_token: 哈希字串（僅在 `cleanup_exports=true` 時必填）
+  - cleanup_snapshot: JSON（`cleanup_preview` 回傳的 snapshot，僅在 `cleanup_exports=true` 時必填）
   - 200 OK → JSON body:
     - analysis_id, user, mode (effective), requested_mode, requested_format, actual_format
     - source_filename, reset_requested (bool), reset_applied (bool)
@@ -53,14 +57,25 @@ API
     - status: { last_date, complete_days, last_analysis_time } | null
     - issues_preview: first 100 items with fields {date, type, duration_minutes, description, time_range, calculation, status?}
     - totals: counts per category
+     - cleanup: { status: `performed|skipped|stale`, deleted: [...], preview?: {...} }
+- 409 → 預覽失效或狀態變動（response.detail.preview 提供最新清單，需要重新確認）
+- POST `/api/exports/cleanup-preview`
+  - JSON body: { filename, output, debug, export_policy }
+  - 200 OK → { items: [{name, kind, size, mtime, delete}], token, snapshot }
+  - snapshot + token 需回傳給 `/api/analyze` 才會執行清理
 - GET `/api/download/{analysis_id}/{filename}` → file download
 - GET `/api/health` → uptime ping
+
+Web UI Flow
+- 勾選「分析後清理備份」後，需先點選「預覽要刪除的檔案」開啟 Modal，確認備份清單與除錯模式下的主檔案。
+- Modal 按下「確認清理並分析」才會夾帶 `cleanup_token` + `cleanup_snapshot` 送出 `/api/analyze`；取消則保留原檔、需重新預覽。
+- 若預覽與實際狀態不符（例：期間新增備份），後端會回傳最新清單並要求再次確認。
 
 Notes
 - If `openpyxl` is missing and `output=excel`, the backend falls back to CSV and returns `actual_format = csv`.
 - Holiday API retries are minimized in service mode via `HOLIDAY_API_MAX_RETRIES=0` to keep requests fast when network is restricted.
 - Uploaded files and outputs are placed under `build/uploads/` and `build/api-outputs/`.
-- Download filenames include a UTC timestamp suffix (e.g., `_analysis_YYYYMMDD_HHMMSS.ext`) to avoid overwriting repeated downloads.
+- Download 欄位仍提供每次分析的唯一路徑；同時在 canonical 目錄保留（或覆寫）`<stem>_analysis.(csv|xlsx)` 以支援 CLI/服務共用清理流程。
 
 Example (curl)
 ```bash

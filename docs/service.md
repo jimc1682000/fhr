@@ -61,6 +61,7 @@ Notes
 - Holiday API retries are minimized in service mode via `HOLIDAY_API_MAX_RETRIES=0` to keep requests fast when network is restricted.
 - Uploaded files and outputs are placed under `build/uploads/` and `build/api-outputs/`.
 - Download filenames include a UTC timestamp suffix (e.g., `_analysis_YYYYMMDD_HHMMSS.ext`) to avoid overwriting repeated downloads.
+- Textual TUI 的 `--webview` 會重用相同服務層邏輯，但預設僅供內部操作；若要對外暴露請配置 HTTPS 與存取控制，並監控 textual-web session 的閒置時間。
 
 Example (curl)
 ```bash

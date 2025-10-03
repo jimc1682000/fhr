@@ -12,6 +12,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Generated (ignored): `*_analysis.(xlsx|csv)`, timestamped backups, `attendance_state.json`.
 - `server/` — FastAPI 後端服務（REST API、靜態檔掛載，支援全域/請求層級 Debug 模式）。
 - `web/` — 前端靜態頁面（vanilla + i18next，包含 Debug 模式核取方塊）。
+- `tui/` — Textual 文字介面（表單設定、進度日誌、異常預覽、textual-web 選配入口）。
 - `docs/` — 完整文檔系統（23個文件，分層架構：使用者→運維→開發者→企業級）。
 - `todos/` — 改進項目管理（立即可執行任務 + 需要開發支援的功能）。
 - `Dockerfile`、`docker-compose.yml` — 服務容器化與佈署。
@@ -46,6 +47,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - Framework: `unittest`. Place tests under `test/` using `test_*.py`.
 - Cover parsing, business rules (late/OT/WFH), exports (Excel/CSV), and state handling.
 - Include edge cases for date ranges and Friday/holiday WFH logic.
+  - 新增的 Textual 介面使用 `test/test_tui_app.py` 進行 headless UI 驗證（表單流程、取消、語系切換、textual-web smoke 路徑）。
   - **Important**: All Fridays (with or without attendance) should suggest WFH, except national holidays
 - For holiday API logic: mock `urllib.request.urlopen`; do not perform real network calls.
 - Prefer fast, deterministic tests; if covering backoff, set env vars to disable delays.
@@ -102,3 +104,4 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 2. **After Implementation**: Update both implementation docs and navigation in `docs/index.md`
 3. **Feature Additions**: Add corresponding documentation tasks to `todos/` if documentation requires separate work
 4. **Testing**: Ensure documentation examples work as described in tests
+5. Textual 介面更新時：同步替換 `assets/tui-main.png`、更新 `README.md` 截圖說明，並在 `docs/usage.md` 與 `docs/index.md` 調整對應導覽。

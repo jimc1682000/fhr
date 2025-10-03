@@ -2,9 +2,12 @@ import json
 import os
 import shutil
 import tempfile
+import threading
 import unittest
 
 from lib.service import (
+    AnalysisCancelled,
+    AnalysisError,
     AnalysisOptions,
     AnalyzerService,
     OutputRequest,
@@ -104,6 +107,59 @@ class TestAnalyzerService(unittest.TestCase):
         with open(self.state_path, encoding="utf-8") as fh:
             data = json.load(fh)
         self.assertNotIn("阿明", data.get("users", {}))
+
+    def test_invalid_mode_raises(self) -> None:
+        options = AnalysisOptions(source_path="missing.txt", mode="unknown")  # type: ignore[arg-type]
+        with self.assertRaises(AnalysisError):
+            options.normalized_mode()
+
+    def test_invalid_format_raises(self) -> None:
+        options = AnalysisOptions(source_path="missing.txt", requested_format="pdf")  # type: ignore[arg-type]
+        with self.assertRaises(AnalysisError):
+            options.normalized_format()
+
+    def test_progress_callback_reports_all_stages(self) -> None:
+        sample = self._copy_sample()
+        output = os.path.join(self.tmp.name, "result_analysis.csv")
+        service = AnalyzerService()
+        options = AnalysisOptions(
+            source_path=sample,
+            requested_format="csv",
+            mode="incremental",
+            output=OutputRequest(path=output, format="csv"),
+            add_recent=False,
+            preview_limit=3,
+        )
+        stages: list[str] = []
+
+        def capture(stage: str, index: int | None, total: int | None) -> None:
+            stages.append(stage)
+
+        result = service.run(options, progress_cb=capture)
+        self.assertTrue(os.path.exists(output))
+        self.assertEqual(stages, ["parse", "group", "analyze", "export"])
+        self.assertEqual(len(result.issues_preview), 3)
+
+    def test_cancel_event_interrupts_run(self) -> None:
+        sample = self._copy_sample()
+        output = os.path.join(self.tmp.name, "cancel.csv")
+        service = AnalyzerService()
+        options = AnalysisOptions(
+            source_path=sample,
+            requested_format="csv",
+            mode="incremental",
+            output=OutputRequest(path=output, format="csv"),
+            add_recent=False,
+        )
+        cancel = threading.Event()
+
+        def capture(stage: str, _index: int | None, _total: int | None) -> None:
+            if stage == "group":
+                cancel.set()
+
+        with self.assertRaises(AnalysisCancelled):
+            service.run(options, progress_cb=capture, cancel_event=cancel)
+        self.assertFalse(os.path.exists(output))
 
 
 if __name__ == '__main__':

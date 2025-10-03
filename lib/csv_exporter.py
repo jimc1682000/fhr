@@ -146,10 +146,10 @@ def save_csv(
         # Read existing CSV data for merging
         existing_rows: list[list[str]] = []
         try:
-            with open(filepath, 'r', encoding='utf-8-sig') as f:
+            with open(filepath, encoding='utf-8-sig') as f:
                 reader = csv.reader(f, delimiter=';')
                 existing_rows = list(reader)
-        except (FileNotFoundError, IOError):
+        except (FileNotFoundError, OSError):
             # If file doesn't exist or can't be read, proceed with new rows only
             existing_rows = []
         rows = _merge_rows(existing_rows, rows)

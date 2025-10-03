@@ -83,7 +83,7 @@ def cleanup_exports(filepath: str, include_canonical: bool = False) -> list[str]
             continue
         except (PermissionError, OSError) as e:
             # Log but don't fail - allow partial cleanup
-            logger.warning(f"Failed to remove backup {backup}: {e}")
+            logger.warning("Failed to remove backup %s: %s", backup, e)
             continue
 
     if include_canonical and os.path.exists(filepath):
@@ -91,7 +91,7 @@ def cleanup_exports(filepath: str, include_canonical: bool = False) -> list[str]
             os.remove(filepath)
             removed.append(filepath)
         except (PermissionError, OSError) as e:
-            logger.error(f"Failed to remove canonical file {filepath}: {e}")
+            logger.error("Failed to remove canonical file %s: %s", filepath, e)
             # Re-raise for canonical file as this is more critical
             raise
 

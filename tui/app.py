@@ -418,6 +418,7 @@ class AttendanceAnalyzerApp(App[None]):
         self._progress_message_id = _WAITING_MESSAGE
         self._progress_message_style = "bold $text"
         self._progress_message_suffix: str | None = None
+        self.progress_stage: Static | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -698,7 +699,7 @@ class AttendanceAnalyzerApp(App[None]):
         self.progress_stage.update(Text(f"{translated}{suffix_text}", style=style))
 
     def _refresh_progress_message(self) -> None:
-        if not hasattr(self, "progress_stage"):
+        if self.progress_stage is None:
             return
         suffix_text = self._progress_message_suffix or ""
         translated = self._translate(self._progress_message_id)

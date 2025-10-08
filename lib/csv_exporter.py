@@ -79,7 +79,8 @@ def _normalize_row(row: list[str], width: int) -> list[str]:
 def _row_key(row: list[str]) -> tuple:
     if len(row) > 1 and row[1] == '狀態資訊':
         return ('STATUS', row[0])
-    limit = min(6, len(row))
+    # Use only date and type as key to allow updating same-day same-type issues
+    limit = min(2, len(row))
     return tuple(row[:limit])
 
 

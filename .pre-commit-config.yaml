@@ -22,6 +22,12 @@ repos:
         args: ['--maxkb=1000']
       - id: check-merge-conflict
 
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.9.1
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
   - repo: local
     hooks:
       - id: python-type-check

@@ -1,0 +1,142 @@
+version: '3'
+
+vars:
+  PROJECT_NAME: fhr
+  CHANGELOG_FILE: CHANGELOG.md
+
+tasks:
+  # Development tasks
+  test:
+    desc: Run all unit tests
+    cmds:
+      - python3 -m unittest -q
+
+  test-verbose:
+    desc: Run all unit tests with verbose output
+    cmds:
+      - python3 -m unittest -v
+
+  test-coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - python3 -m coverage run -m unittest discover -s test
+      - python3 -m coverage report
+      - python3 -m coverage html
+
+  lint:
+    desc: Run linting checks
+    cmds:
+      - ruff check .
+      - black --check .
+
+  format:
+    desc: Auto-format code
+    cmds:
+      - ruff check --fix .
+      - black .
+
+  # Changelog and release tasks
+  changelog-preview:
+    desc: Preview unreleased changes without modifying files
+    cmds:
+      - git-cliff --unreleased
+
+  changelog-update:
+    desc: Update CHANGELOG.md with unreleased changes
+    cmds:
+      - git-cliff --unreleased --prepend {{.CHANGELOG_FILE}}
+      - echo "CHANGELOG.md updated successfully"
+
+  changelog-full:
+    desc: Regenerate complete CHANGELOG.md from entire git history
+    cmds:
+      - git-cliff --output {{.CHANGELOG_FILE}}
+      - echo "Full CHANGELOG.md regenerated"
+
+  bump:
+    desc: Interactive version bump with commitizen
+    cmds:
+      - cz bump --changelog
+      - echo "Version bumped and changelog updated"
+      - echo "Remember to push with tags - git push --follow-tags"
+
+  bump-patch:
+    desc: Bump patch version (1.0.X)
+    cmds:
+      - cz bump --increment PATCH --changelog
+      - git push --follow-tags
+
+  bump-minor:
+    desc: Bump minor version (1.X.0)
+    cmds:
+      - cz bump --increment MINOR --changelog
+      - git push --follow-tags
+
+  bump-major:
+    desc: Bump major version (X.0.0)
+    cmds:
+      - cz bump --increment MAJOR --changelog
+      - git push --follow-tags
+
+  # Server tasks
+  server:
+    desc: Start FastAPI development server
+    cmds:
+      - uvicorn server.main:app --reload
+
+  server-prod:
+    desc: Start FastAPI production server
+    cmds:
+      - uvicorn server.main:app --host 0.0.0.0 --port 8000
+
+  docker-build:
+    desc: Build Docker image
+    cmds:
+      - docker compose build
+
+  docker-up:
+    desc: Start Docker containers
+    cmds:
+      - docker compose up -d
+
+  docker-down:
+    desc: Stop Docker containers
+    cmds:
+      - docker compose down
+
+  docker-logs:
+    desc: View Docker container logs
+    cmds:
+      - docker compose logs -f
+
+  # TUI tasks
+  tui:
+    desc: Start Textual TUI interface
+    cmds:
+      - python3 -m tui
+
+  tui-light:
+    desc: Start TUI with light theme
+    cmds:
+      - python3 -m tui --light
+
+  tui-web:
+    desc: Start TUI in browser mode (requires textual-web)
+    cmds:
+      - python3 -m tui --webview
+
+  # Utility tasks
+  clean:
+    desc: Clean temporary files and caches
+    cmds:
+      - rm -rf __pycache__ */__pycache__ */*/__pycache__
+      - rm -rf .pytest_cache .ruff_cache .mypy_cache
+      - rm -rf htmlcov .coverage coverage_report
+      - rm -rf *.pyc */*.pyc */*/*.pyc
+      - rm -rf build dist *.egg-info
+      - echo "Cleaned temporary files"
+
+  help:
+    desc: Show available tasks
+    cmds:
+      - task --list

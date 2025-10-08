@@ -26,3 +26,16 @@ line-length = 100
 target-version = ['py311']
 include = '\\.pyi?$'
 exclude = '/(coverage_report|build|dist|fhr.egg-info|.venv|venv)/'
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.0.0"
+version_files = [
+    "pyproject.toml:version",
+]
+tag_format = "v$version"
+update_changelog_on_bump = true
+changelog_file = "CHANGELOG.md"
+changelog_incremental = true
+annotated_tag = true
+bump_message = "chore(release): bump version $current_version → $new_version"

@@ -67,9 +67,9 @@ class TestExportCleanup(unittest.TestCase):
             backup = os.path.join(tmp, 'sample_analysis_20250930_120000.csv')
             open(backup, 'w').close()
 
-            # Make the backup read-only
+            # Make the directory read-only to prevent file deletion
             import stat
-            os.chmod(backup, stat.S_IRUSR)
+            os.chmod(tmp, stat.S_IRUSR | stat.S_IXUSR)
 
             try:
                 # Should log warning but not crash
@@ -79,8 +79,8 @@ class TestExportCleanup(unittest.TestCase):
                 # File should still exist
                 self.assertTrue(os.path.exists(backup))
             finally:
-                # Cleanup - restore permissions
-                os.chmod(backup, stat.S_IWUSR | stat.S_IRUSR)
+                # Cleanup - restore directory permissions first
+                os.chmod(tmp, stat.S_IRWXU)
                 os.unlink(backup)
 
 

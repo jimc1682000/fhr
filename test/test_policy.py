@@ -2,7 +2,13 @@ import unittest
 from datetime import datetime
 
 from attendance_analyzer import AttendanceRecord, AttendanceType, WorkDay
-from lib.policy import Rules, calculate_late_minutes, calculate_overtime_minutes, is_full_day_absent
+from lib.policy import (
+    Rules,
+    calculate_expected_checkout,
+    calculate_late_minutes,
+    calculate_overtime_minutes,
+    is_full_day_absent,
+)
 
 
 def mk_record(dt_str_sched: str, dt_str_actual: str, typ: AttendanceType):
@@ -101,7 +107,12 @@ class TestPolicy(unittest.TestCase):
                          "2025/07/01 17:00", "2025/07/01 20:01", AttendanceType.CHECKOUT
                      ),
                      is_friday=False)
-        actual, applicable, _range, _calc = calculate_overtime_minutes(wd, self.rules)
+        # Calculate expected checkout based on work start at 09:00
+        work_start = datetime.strptime("2025/07/01 09:00", "%Y/%m/%d %H:%M")
+        expected_checkout = calculate_expected_checkout(wd, self.rules, work_start)
+        actual, applicable, _range, _calc = calculate_overtime_minutes(
+            wd, self.rules, expected_checkout
+        )
         self.assertEqual(applicable, 120)
 
 

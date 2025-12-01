@@ -19,6 +19,7 @@ python3 attendance_analyzer.py <attendance_file_path> [format] [options]
 - `--incremental` / `-i`: Enable incremental analysis (default)
 - `--full` / `-f`: Force complete re-analysis
 - `--reset-state` / `-r`: Clear user's processing state
+- `--unprocessed-only` / `-u`: Analyze only records with empty processing status (未處理), skip processed records (已處理)
 - `--debug`: Enable read-only debug mode with verbose logging
 - `--export-policy {merge,archive}`: Control export behavior; default `merge` keeps a single output file, `archive` preserves timestamped backups
 - `--cleanup-exports`: Remove timestamp backups; in debug mode also deletes the freshly generated export for quick cleanups
@@ -30,6 +31,9 @@ python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt
 
 # Force complete re-analysis
 python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --full
+
+# Analyze only unprocessed records (skip records marked as 已處理)
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --unprocessed-only
 
 # Clear state and re-analyze
 python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-state

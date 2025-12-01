@@ -33,7 +33,9 @@ class TestPolicyMore(unittest.TestCase):
     def test_overtime_early_return_when_incomplete(self):
         rules = Rules()
         wd = W(ci=datetime(2025,7,1,9,0), co=None)
-        actual, applicable, tr, calc = calculate_overtime_minutes(wd, rules)
+        # expected_checkout can be any value since co=None triggers early return
+        expected_checkout = datetime(2025, 7, 1, 18, 0)
+        actual, applicable, tr, calc = calculate_overtime_minutes(wd, rules, expected_checkout)
         self.assertEqual((actual, applicable, tr, calc), (0, 0, '', ''))
 
 

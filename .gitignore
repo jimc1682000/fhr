@@ -135,6 +135,9 @@ dmypy.json
 # 增量分析狀態檔案（包含使用者識別資訊）
 attendance_state.json
 
+# TUI 近期檔案紀錄（包含使用者檔案路徑）
+.fhr_recent.json
+
 # 除錯和測試檔案
 debug_*.html
 debug_*.py

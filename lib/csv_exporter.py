@@ -88,7 +88,7 @@ def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[li
     """Merge existing CSV rows with new rows, deduplicating by key.
 
     New rows take precedence over existing ones with the same key.
-    Status rows are always positioned after the header.
+    Status rows should only appear when there are NO other data rows in the final result.
     """
     header = new_rows[0]
     width = len(header)
@@ -109,6 +109,12 @@ def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[li
         normalized = _normalize_row(row, width)
         merged[_row_key(normalized)] = normalized
 
+    # Check if merged result has any non-status data rows
+    has_any_issues = any(
+        key and key[0] != 'STATUS'
+        for key in merged
+    )
+
     result: list[list[str]] = [header]
 
     # Extract status row if present
@@ -118,9 +124,14 @@ def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[li
             status_key = key
             break
 
-    # Place status row immediately after header
+    # Only include status row if there are NO other data rows
     if status_key is not None:
-        result.append(merged.pop(status_key))
+        if has_any_issues:
+            # Remove status row when other issues exist
+            merged.pop(status_key)
+        else:
+            # Place status row immediately after header when it's the only data
+            result.append(merged.pop(status_key))
 
     # Add remaining rows
     result.extend(merged.values())

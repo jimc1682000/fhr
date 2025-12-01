@@ -2,6 +2,7 @@
 
 Pure string assembly; no dependency on analyzer types.
 """
+
 from collections.abc import Iterable
 
 
@@ -42,13 +43,15 @@ def build_issue_section(
     return lines
 
 
-def build_summary(forget: int, late: int, overtime: int, weekday_leave: int, wfh: int) -> list[str]:
+def build_summary(
+    forget: int, late: int, overtime: int, early_leave: int, weekday_leave: int, wfh: int
+) -> list[str]:
     return [
         "## 📊 統計摘要：\n",
         f"- 🔄 建議忘刷卡天數：{forget} 天",
         f"- 😰 需要請遲到天數：{late} 天",
         f"- 💪 加班天數：{overtime} 天",
+        f"- ⏰ 早退天數：{early_leave} 天",
         f"- 📝 需要請假天數：{weekday_leave} 天",
         f"- 🏠 建議WFH天數：{wfh} 天",
     ]
-

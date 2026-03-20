@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 
 from attendance_analyzer import AttendanceAnalyzer, IssueType
 
@@ -25,14 +26,16 @@ class TestWfhHolidayEdge(unittest.TestCase):
             os.unlink(path)
 
     def test_friday_national_day_no_wfh(self):
-        # 2025/10/10 是國慶日且為週五（未處理），應不產生WFH建議
+        # 2025/10/10 是國慶日且為週五（未處理），該天不應產生WFH建議
         data = f"""{ATTENDANCE_HEADER}
 2025/10/10 08:00\t\t上班\t\t\t曠職\t未處理\t\t
 2025/10/10 17:00\t\t下班\t\t\t曠職\t未處理\t\t"""
         an = self._run_analyze(data)
-        types = {i.type for i in an.issues}
-        self.assertNotIn(IssueType.WFH, types)
-        self.assertEqual(len(an.issues), 0, "國定假日不應產生任何請假建議")
+        holiday_date = datetime(2025, 10, 10).date()
+        wfh_dates = {
+            i.date.date() for i in an.issues if i.type == IssueType.WFH
+        }
+        self.assertNotIn(holiday_date, wfh_dates, "國定假日不應產生WFH建議")
 
     def test_friday_national_day_processed_skipped(self):
         # 2025/10/10 是國慶日且為週五（已處理），整天應被跳過

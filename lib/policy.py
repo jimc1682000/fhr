@@ -6,10 +6,10 @@ from typing import Any
 
 @dataclass
 class Rules:
+    schedule_start: str = "09:30"  # 個人班表起始時間
+    schedule_end: str = "18:30"  # 個人班表結束時間
     earliest_checkin: str = "08:00"  # 最早上班時間
-    latest_checkin: str = "10:30"  # 最晚上班時間（晚於此算遲到）
-    standard_checkout: str = "17:00"  # 標準下班時間
-    latest_makeup: str = "19:30"  # 最晚補時下班時間
+    latest_checkin: str = "10:00"  # 遲到門檻（超過此時間需請假）
     lunch_start: str = "12:30"
     lunch_end: str = "13:30"
     work_hours: int = 8
@@ -33,7 +33,7 @@ def is_full_day_absent(workday: Any) -> bool:
 
 
 def calculate_late_minutes(workday: Any, rules: Rules) -> tuple[int, str, str]:
-    """計算遲到時間（晚於 10:30 才算遲到）
+    """計算遲到時間（晚於遲到門檻需從班表起始請假）
 
     Returns:
         (late_minutes, time_range, calculation_str)
@@ -42,40 +42,25 @@ def calculate_late_minutes(workday: Any, rules: Rules) -> tuple[int, str, str]:
     if not ch or not ch.actual_time:
         return 0, "", ""
 
-    latest_checkin = datetime.strptime(
-        f"{workday.date.strftime('%Y/%m/%d')} {rules.latest_checkin}", "%Y/%m/%d %H:%M"
-    )
+    date_str = workday.date.strftime("%Y/%m/%d")
+    latest_checkin = datetime.strptime(f"{date_str} {rules.latest_checkin}", "%Y/%m/%d %H:%M")
     actual_checkin = ch.actual_time
 
     if actual_checkin <= latest_checkin:
         return 0, "", ""
 
-    delta = actual_checkin - latest_checkin
+    # 遲到分鐘數 = 實際到班 - 班表起始時間
+    schedule_start = datetime.strptime(f"{date_str} {rules.schedule_start}", "%Y/%m/%d %H:%M")
+    delta = actual_checkin - schedule_start
     late_minutes = int(delta.total_seconds() // 60)
 
-    # 午休時間扣除邏輯保持不變
-    if late_minutes > 120:
-        lunch_start = datetime.strptime(
-            f"{workday.date.strftime('%Y/%m/%d')} {rules.lunch_start}", "%Y/%m/%d %H:%M"
-        )
-        if actual_checkin > lunch_start:
-            late_minutes -= 60
-            calculation = (
-                f"實際上班: {actual_checkin.strftime('%H:%M')}, 最晚上班: {rules.latest_checkin}, "
-                f"遲到: {int(delta.total_seconds() // 60)}分鐘 - 60分鐘午休 = {late_minutes}分鐘"
-            )
-        else:
-            calculation = (
-                f"實際上班: {actual_checkin.strftime('%H:%M')}, "
-                f"最晚上班: {rules.latest_checkin}, 遲到: {late_minutes}分鐘"
-            )
-    else:
-        calculation = (
-            f"實際上班: {actual_checkin.strftime('%H:%M')}, "
-            f"最晚上班: {rules.latest_checkin}, 遲到: {late_minutes}分鐘"
-        )
+    time_range = f"{rules.schedule_start}~{actual_checkin.strftime('%H:%M')}"
+    calculation = (
+        f"實際上班: {actual_checkin.strftime('%H:%M')}, "
+        f"班表起始: {rules.schedule_start}, "
+        f"需請假: {late_minutes}分鐘"
+    )
 
-    time_range = f"{rules.latest_checkin}~{actual_checkin.strftime('%H:%M')}"
     return late_minutes, time_range, calculation
 
 
@@ -83,8 +68,6 @@ def calculate_leave_suggestion(
     workday: Any, rules: Rules, late_minutes: int
 ) -> tuple[str, str, int]:
     """計算遲到請假建議（湊整到小時）
-
-    注意：late_minutes 可能已扣除午休時間，這裡需要重新計算原始遲到時間
 
     Returns:
         (leave_start_time, leave_end_time, leave_hours)
@@ -94,51 +77,41 @@ def calculate_leave_suggestion(
 
     ch = workday.checkin_record
     actual_checkin = ch.actual_time
-    latest_checkin = datetime.strptime(
-        f"{workday.date.strftime('%Y/%m/%d')} {rules.latest_checkin}", "%Y/%m/%d %H:%M"
-    )
+    date_str = workday.date.strftime("%Y/%m/%d")
+    schedule_start = datetime.strptime(f"{date_str} {rules.schedule_start}", "%Y/%m/%d %H:%M")
 
-    # 計算原始遲到時間（不扣午休）
-    delta = actual_checkin - latest_checkin
-    original_late_minutes = int(delta.total_seconds() // 60)
+    leave_hours = math.ceil(late_minutes / 60)
 
-    # 湊整到小時
-    leave_hours = math.ceil(original_late_minutes / 60)
-
-    # 計算需要補的時間（讓遲到時段湊整成整數小時）
-    padding_minutes = (leave_hours * 60) - original_late_minutes
-
-    # 請假起始 = 最晚上班時間 - 補的時間
-    leave_start = latest_checkin - timedelta(minutes=padding_minutes)
-    leave_end = actual_checkin
-
-    return (leave_start.strftime("%H:%M"), leave_end.strftime("%H:%M"), leave_hours)
+    return (schedule_start.strftime("%H:%M"), actual_checkin.strftime("%H:%M"), leave_hours)
 
 
 def calculate_expected_checkout(workday: Any, rules: Rules, work_start_time: datetime) -> datetime:
-    """計算預期下班時間（工作起始時間 + 9小時）
+    """計算預期下班時間
+
+    遲到（>10:00）：預期下班 = 班表結束時間
+    正常（<=10:00）：預期下班 = 實際到班 + 9小時
 
     Args:
         workday: 工作日資料
         rules: 業務規則
-        work_start_time: 工作起始時間（請假/忘刷卡後的時間）
+        work_start_time: 實際工作起始時間
 
     Returns:
         預期下班時間
     """
-    latest_makeup = datetime.strptime(
-        f"{workday.date.strftime('%Y/%m/%d')} {rules.latest_makeup}", "%Y/%m/%d %H:%M"
-    )
+    date_str = workday.date.strftime("%Y/%m/%d")
+    latest_checkin = datetime.strptime(f"{date_str} {rules.latest_checkin}", "%Y/%m/%d %H:%M")
 
-    # 預期下班 = 工作起始時間 + 8小時工作 + 1小時午休
+    ch = workday.checkin_record
+    actual_checkin = ch.actual_time if ch and ch.actual_time else work_start_time
+
+    if actual_checkin > latest_checkin:
+        # 遲到：預期下班 = 班表結束時間
+        return datetime.strptime(f"{date_str} {rules.schedule_end}", "%Y/%m/%d %H:%M")
+
+    # 正常：預期下班 = 實際到班 + 9小時
     total_hours = rules.work_hours + rules.lunch_hours
-    expected_checkout = work_start_time + timedelta(hours=total_hours)
-
-    # 補時上限是 19:30
-    if expected_checkout > latest_makeup:
-        expected_checkout = latest_makeup
-
-    return expected_checkout
+    return work_start_time + timedelta(hours=total_hours)
 
 
 def optimize_forget_punch(

@@ -82,8 +82,8 @@ class TestPolicy(unittest.TestCase):
         )
         self.assertFalse(is_full_day_absent(wd_present))
 
-    def test_late_across_lunch_deduct(self):
-        # checkin at 13:30 vs latest 10:30 -> 180m; cross lunch deduct 60 => 120m
+    def test_late_from_schedule_start(self):
+        # checkin at 13:30, schedule_start 09:30 -> 240 minutes late
         date = datetime.strptime("2025/07/01", "%Y/%m/%d")
         wd = WorkDay(date=date,
                      checkin_record=mk_record(
@@ -94,7 +94,7 @@ class TestPolicy(unittest.TestCase):
                      ),
                      is_friday=False)
         minutes, _range, _calc = calculate_late_minutes(wd, self.rules)
-        self.assertEqual(minutes, 120)
+        self.assertEqual(minutes, 240)  # 13:30 - 09:30 = 240 min
 
     def test_overtime_rounding(self):
         # checkin 09:00 => expected out 18:00; actual 20:01 => 121m actual, applicable 120m

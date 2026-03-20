@@ -15,7 +15,7 @@ class TestConfigErrorHandling(unittest.TestCase):
             logs = "\n".join(cm.output)
             self.assertIn('找不到設定檔', logs)
             # Verify a known default remains in effect
-            self.assertEqual(an.config.latest_checkin, '10:30')
+            self.assertEqual(an.config.latest_checkin, '10:00')
 
     def test_invalid_json_logs_warning(self):
         with tempfile.TemporaryDirectory() as tmp:

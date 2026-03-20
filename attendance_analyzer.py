@@ -365,6 +365,10 @@ class AttendanceAnalyzer:
         for workday in workdays_to_analyze:
             self._analyze_single_workday(workday, rules)
 
+        # 補上涵蓋月份中所有週五的 WFH 建議（方便提前請假）
+        if workdays_to_analyze:
+            self._add_monthly_wfh_issues()
+
         if self.incremental_mode and self.current_user and workdays_to_analyze:
             self._update_processing_state()
         logger.debug("🧮  分析完成，產生 %d 筆待處理事項", len(self.issues))
@@ -403,6 +407,52 @@ class AttendanceAnalyzer:
             return []
         logger.debug("🗂️  非增量模式，將處理 %d 個工作日", len(self.workdays))
         return self._filter_processed_workdays(self.workdays)
+
+    def _get_covered_months(self) -> set[tuple[int, int]]:
+        """取得出勤資料涵蓋的所有月份 (year, month)"""
+        months: set[tuple[int, int]] = set()
+        for wd in self.workdays:
+            d = wd.date
+            months.add((d.year, d.month))
+        return months
+
+    def _add_monthly_wfh_issues(self) -> None:
+        """補上涵蓋月份中所有週五的 WFH 建議，方便提前一次請完"""
+        import calendar
+
+        existing_wfh_dates = {
+            issue.date.date() for issue in self.issues if issue.type == IssueType.WFH
+        }
+
+        covered_months = self._get_covered_months()
+        added = 0
+        for year, month in sorted(covered_months):
+            cal = calendar.Calendar()
+            for day in cal.itermonthdays2(year, month):
+                date_num, weekday = day
+                if date_num == 0 or weekday != 4:  # 只看週五
+                    continue
+                from datetime import date
+
+                friday = date(year, month, date_num)
+                if friday in existing_wfh_dates:
+                    continue
+                if friday in {d.date() if hasattr(d, "date") else d for d in self.holidays}:
+                    continue
+                self.issues.append(
+                    Issue(
+                        date=datetime.combine(friday, datetime.min.time()),
+                        type=IssueType.WFH,
+                        duration_minutes=9 * 60,
+                        description="建議申請整天WFH假 🏠💻",
+                    )
+                )
+                added += 1
+
+        if added > 0:
+            logger.info("📅 自動補上 %d 個週五 WFH 建議", added)
+            # 重新排序所有 issues，確保日期順序正確
+            self.issues.sort(key=lambda x: x.date)
 
     def _handle_absent_day(self, workday: WorkDay) -> bool:
         from lib.policy import is_full_day_absent

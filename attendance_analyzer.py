@@ -348,6 +348,8 @@ class AttendanceAnalyzer:
         from lib.policy import Rules
 
         rules = Rules(
+            schedule_start=self.config.schedule_start,
+            schedule_end=self.config.schedule_end,
             earliest_checkin=self.config.earliest_checkin,
             latest_checkin=self.config.latest_checkin,
             lunch_start=self.config.lunch_start,
@@ -367,6 +369,22 @@ class AttendanceAnalyzer:
             self._update_processing_state()
         logger.debug("🧮  分析完成，產生 %d 筆待處理事項", len(self.issues))
 
+    @staticmethod
+    def _is_workday_processed(workday: WorkDay) -> bool:
+        """檢查工作日是否有任何記錄已標記為「已處理」"""
+        for rec in (workday.checkin_record, workday.checkout_record):
+            if rec and rec.processed == "已處理":
+                return True
+        return False
+
+    def _filter_processed_workdays(self, workdays: list[WorkDay]) -> list[WorkDay]:
+        """過濾掉已處理的工作日，回傳未處理的工作日清單"""
+        filtered = [wd for wd in workdays if not self._is_workday_processed(wd)]
+        skipped = len(workdays) - len(filtered)
+        if skipped > 0:
+            logger.info("⏭️  跳過已處理工作日: %d 天", skipped)
+        return filtered
+
     def _get_workdays_to_analyze(self) -> list[WorkDay]:
         if self.incremental_mode and self.current_user:
             complete_days = self._identify_complete_work_days()
@@ -379,11 +397,12 @@ class AttendanceAnalyzer:
                 formatted_dates = [d.strftime("%Y-%m-%d") for d in unprocessed_dates]
                 logger.debug("📆  新增待處理日期: %s", formatted_dates)
                 unprocessed_date_set = {d.date() for d in unprocessed_dates}
-                return [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
+                candidates = [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
+                return self._filter_processed_workdays(candidates)
             logger.info("✅ 增量分析: 沒有新的工作日需要處理")
             return []
         logger.debug("🗂️  非增量模式，將處理 %d 個工作日", len(self.workdays))
-        return self.workdays
+        return self._filter_processed_workdays(self.workdays)
 
     def _handle_absent_day(self, workday: WorkDay) -> bool:
         from lib.policy import is_full_day_absent
@@ -411,7 +430,6 @@ class AttendanceAnalyzer:
         return False
 
     def _analyze_single_workday(self, workday: WorkDay, rules) -> None:
-        from datetime import datetime
 
         from lib.policy import (
             calculate_early_leave,
@@ -419,7 +437,6 @@ class AttendanceAnalyzer:
             calculate_late_minutes,
             calculate_leave_suggestion,
             calculate_overtime_minutes,
-            optimize_forget_punch,
         )
 
         if self._handle_absent_day(workday):
@@ -437,87 +454,33 @@ class AttendanceAnalyzer:
             )
             return
 
-        # 1. 計算遲到
+        # 1. 計算遲到（超過遲到門檻，從班表起始算起）
         late_minutes, late_time_range, late_calculation = calculate_late_minutes(workday, rules)
 
         # 2. 確定工作起始時間
         ch = workday.checkin_record
-        co = workday.checkout_record
         actual_checkin = ch.actual_time
-        actual_checkout = co.actual_time
 
-        earliest_checkin = datetime.strptime(
-            f"{workday.date.strftime('%Y/%m/%d')} {rules.earliest_checkin}", "%Y/%m/%d %H:%M"
-        )
-        latest_checkin = datetime.strptime(
-            f"{workday.date.strftime('%Y/%m/%d')} {rules.latest_checkin}", "%Y/%m/%d %H:%M"
-        )
+        work_start_time = actual_checkin
 
-        work_start_time = max(earliest_checkin, min(actual_checkin, latest_checkin))
-
-        # 3. 處理遲到情況
+        # 3. 處理遲到情況（全部走請假）
         if late_minutes > 0:
-            month_key = workday.date.strftime("%Y-%m")
-            can_use_forget_punch = (
-                late_minutes <= self.config.forget_punch_max_minutes
-                and self.forget_punch_usage[month_key]
-                < self.config.forget_punch_allowance_per_month
+            leave_start, leave_end, leave_hours = calculate_leave_suggestion(
+                workday, rules, late_minutes
             )
 
-            if can_use_forget_punch:
-                # 使用忘刷卡，優化時段以減少早退
-                forget_start, forget_end = optimize_forget_punch(
-                    workday, rules, late_minutes, actual_checkout
+            self.issues.append(
+                Issue(
+                    date=workday.date,
+                    type=IssueType.LATE,
+                    duration_minutes=late_minutes,
+                    description=f"遲到{late_minutes}分鐘 ⏱️",
+                    time_range=f"{leave_start}~{leave_end}",
+                    calculation=f"建議請假 {leave_hours} 小時: {leave_start}~{leave_end}",
                 )
-                work_start_time = datetime.strptime(
-                    f"{workday.date.strftime('%Y/%m/%d')} {forget_start}", "%Y/%m/%d %H:%M"
-                )
+            )
 
-                self.forget_punch_usage[month_key] += 1
-                remaining = (
-                    self.config.forget_punch_allowance_per_month
-                    - self.forget_punch_usage[month_key]
-                )
-
-                self.issues.append(
-                    Issue(
-                        date=workday.date,
-                        type=IssueType.FORGET_PUNCH,
-                        duration_minutes=0,
-                        description=f"遲到{late_minutes}分鐘，建議使用忘刷卡 🔄✅",
-                        time_range=f"{forget_start}~{forget_end}",
-                        calculation=(
-                            f"建議忘刷卡時段: {forget_start}~{forget_end} (本月剩餘: {remaining}次)"
-                        ),
-                    )
-                )
-            else:
-                # 請遲到假（湊整）
-                leave_start, leave_end, leave_hours = calculate_leave_suggestion(
-                    workday, rules, late_minutes
-                )
-                work_start_time = datetime.strptime(
-                    f"{workday.date.strftime('%Y/%m/%d')} {leave_start}", "%Y/%m/%d %H:%M"
-                )
-
-                reason = (
-                    "超過1小時"
-                    if late_minutes > self.config.forget_punch_max_minutes
-                    else "本月忘刷卡額度已用完"
-                )
-
-                self.issues.append(
-                    Issue(
-                        date=workday.date,
-                        type=IssueType.LATE,
-                        duration_minutes=late_minutes,
-                        description=f"遲到{late_minutes}分鐘 ⏱️ ({reason})",
-                        time_range=f"{leave_start}~{leave_end}",
-                        calculation=f"建議請假 {leave_hours} 小時: {leave_start}~{leave_end}",
-                    )
-                )
-
-        # 4. 計算預期下班時間
+        # 4. 計算預期下班時間（遲到→班表結束；正常→到班+9h）
         expected_checkout = calculate_expected_checkout(workday, rules, work_start_time)
 
         # 5. 檢查早退
@@ -538,7 +501,7 @@ class AttendanceAnalyzer:
 
         # 6. 檢查加班
         (
-            actual_overtime,
+            _actual_overtime,
             applicable_overtime,
             overtime_time_range,
             overtime_calculation,

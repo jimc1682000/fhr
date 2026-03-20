@@ -25,23 +25,39 @@ class TestWfhHolidayEdge(unittest.TestCase):
             os.unlink(path)
 
     def test_friday_national_day_no_wfh(self):
-        # 2025/10/10 是國慶日且為週五，應不產生WFH建議
+        # 2025/10/10 是國慶日且為週五（未處理），應不產生WFH建議
         data = f"""{ATTENDANCE_HEADER}
-2025/10/10 08:00\t\t上班\t\t\t曠職\t已處理\t\t
-2025/10/10 17:00\t\t下班\t\t\t曠職\t已處理\t\t"""
+2025/10/10 08:00\t\t上班\t\t\t曠職\t未處理\t\t
+2025/10/10 17:00\t\t下班\t\t\t曠職\t未處理\t\t"""
         an = self._run_analyze(data)
         types = {i.type for i in an.issues}
         self.assertNotIn(IssueType.WFH, types)
         self.assertEqual(len(an.issues), 0, "國定假日不應產生任何請假建議")
 
+    def test_friday_national_day_processed_skipped(self):
+        # 2025/10/10 是國慶日且為週五（已處理），整天應被跳過
+        data = f"""{ATTENDANCE_HEADER}
+2025/10/10 08:00\t\t上班\t\t\t曠職\t已處理\t\t
+2025/10/10 17:00\t\t下班\t\t\t曠職\t已處理\t\t"""
+        an = self._run_analyze(data)
+        self.assertEqual(len(an.issues), 0, "已處理的工作日應直接跳過")
+
     def test_normal_friday_wfh(self):
-        # 一般週五曠職 → 產生WFH建議
+        # 一般週五曠職（未處理）→ 產生WFH建議
+        data = f"""{ATTENDANCE_HEADER}
+2025/07/04 08:00\t\t上班\t\t\t曠職\t未處理\t\t
+2025/07/04 17:00\t\t下班\t\t\t曠職\t未處理\t\t"""
+        an = self._run_analyze(data)
+        types = [i.type for i in an.issues]
+        self.assertIn(IssueType.WFH, types)
+
+    def test_normal_friday_processed_skipped(self):
+        # 一般週五曠職（已處理）→ 整天跳過，不產生任何建議
         data = f"""{ATTENDANCE_HEADER}
 2025/07/04 08:00\t\t上班\t\t\t曠職\t已處理\t\t
 2025/07/04 17:00\t\t下班\t\t\t曠職\t已處理\t\t"""
         an = self._run_analyze(data)
-        types = [i.type for i in an.issues]
-        self.assertIn(IssueType.WFH, types)
+        self.assertEqual(len(an.issues), 0, "已處理的工作日應直接跳過")
 
 
 if __name__ == '__main__':

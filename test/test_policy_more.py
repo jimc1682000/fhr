@@ -15,14 +15,15 @@ class W:
 
 
 class TestPolicyMore(unittest.TestCase):
-    def test_late_over_120_before_lunch_no_deduction(self):
-        # Make latest_checkin very early so 11:30 becomes >120 mins late, but before lunch start.
-        rules = Rules(latest_checkin='09:00')  # lunch_start default 12:30
+    def test_late_from_schedule_start_no_lunch_deduction(self):
+        # 11:30 arrival, latest_checkin 09:00, schedule_start 09:30
+        # -> 120 min late, no lunch deduction
+        rules = Rules(latest_checkin='09:00', schedule_start='09:30')
         wd = W(ci=datetime(2025,7,1,11,30), co=datetime(2025,7,1,20,0))
         mins, tr, calc = calculate_late_minutes(wd, rules)
-        self.assertGreater(mins, 120)
-        self.assertIn('遲到:', calc)
-        self.assertNotIn('午休', calc)  # no deduction branch
+        self.assertEqual(mins, 120)  # 11:30 - 09:30 = 120 min
+        self.assertIn('需請假:', calc)
+        self.assertNotIn('午休', calc)
 
     def test_late_early_return_when_missing_checkin(self):
         rules = Rules()

@@ -242,13 +242,10 @@ class AttendanceAnalyzer:
         # 解析檔案內容
         with open(filepath, encoding="utf-8") as f:
             lines = f.readlines()
-        logger.debug("📥  讀入檔案 %s，共 %d 行資料 (含表頭)", filepath, len(lines))
+        logger.debug("📥  讀入檔案 %s，共 %d 行資料", filepath, len(lines))
 
         parsed_records = 0
         for line_num, line in enumerate(lines, 1):
-            if line_num == 1:  # 跳過表頭
-                continue
-
             line = line.strip()
             if not line:
                 continue
@@ -260,7 +257,7 @@ class AttendanceAnalyzer:
                     parsed_records += 1
             except (ValueError, IndexError) as e:
                 logger.warning("第%d行解析失敗: %s", line_num, e)
-        skipped_lines = max(len(lines) - 1 - parsed_records, 0)
+        skipped_lines = max(len(lines) - parsed_records, 0)
         logger.debug(
             "✅  完成解析，有效紀錄 %d 筆，略過 %d 行",
             parsed_records,
@@ -691,7 +688,11 @@ class AttendanceAnalyzer:
         from lib import csv_exporter
 
         status_tuple = None
-        if self.incremental_mode and not self.issues and self.current_user:
+        # Auto-filled Friday WFH suggestions are calendar-derived, not
+        # attendance-derived. Only suppress the status row when there are
+        # real attendance issues.
+        non_wfh_issues = [i for i in self.issues if i.type != IssueType.WFH]
+        if self.incremental_mode and not non_wfh_issues and self.current_user:
             status_tuple = self._compute_incremental_status_row()
 
         csv_exporter.save_csv(
@@ -733,7 +734,8 @@ class AttendanceAnalyzer:
         ws.append(headers)
 
         # data_start_appended = False  # Variable assigned but never used
-        if self.incremental_mode and not self.issues and self.current_user:
+        non_wfh_issues = [i for i in self.issues if i.type != IssueType.WFH]
+        if self.incremental_mode and not non_wfh_issues and self.current_user:
             status_tuple = self._compute_incremental_status_row()
             if status_tuple:
                 last_date, total, last_time = status_tuple

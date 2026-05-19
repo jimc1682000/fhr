@@ -60,7 +60,10 @@ def _build_rows(
 ) -> list[list[str]]:
     rows: list[list[str]] = []
     rows.append(_header_row(incremental_mode))
-    if status and incremental_mode and not issues:
+    # Auto-filled Friday WFH suggestions are calendar-derived, so they should
+    # not suppress the "all dates processed" status row.
+    non_wfh_issues = [i for i in issues if getattr(getattr(i, "type", None), "name", "") != "WFH"]
+    if status and incremental_mode and not non_wfh_issues:
         last_date, complete_days, last_analysis_time = status
         rows.append(_status_row(last_date, complete_days, last_analysis_time))
     for issue in issues:

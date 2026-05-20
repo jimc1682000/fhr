@@ -16,7 +16,6 @@ from lib.importers.portal_json import (
 )
 from lib.schema import SchemaVersionError
 
-
 SAMPLE_RECORDS = [
     {
         "scheduledTime": "2026/04/01 09:30",

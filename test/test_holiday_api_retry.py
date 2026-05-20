@@ -17,14 +17,10 @@ class TestHolidayApiRetry(unittest.TestCase):
             seq = [
                 Exception("temporary failure"),
                 Exception("temporary failure"),
-                {
-                    "result": {
-                        "records": [
-                            {"isHoliday": 1, "date": "2026-01-01"},
-                            {"isHoliday": 0, "date": "2026-01-02"},
-                        ]
-                    }
-                }
+                [
+                    {"date": "20260101", "week": "四", "isHoliday": True, "description": "元旦"},
+                    {"date": "20260102", "week": "五", "isHoliday": False, "description": ""},
+                ],
             ]
             with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
                 ok = analyzer._try_load_from_gov_api(2026)
@@ -53,7 +49,7 @@ class TestHolidayApiRetry(unittest.TestCase):
             analyzer = AttendanceAnalyzer()
             seq = [
                 TimeoutError("timed out"),
-                {"result": {"records": [{"isHoliday": 1, "date": "2027-10-10"}]}}
+                [{"date": "20271010", "week": "日", "isHoliday": True, "description": "國慶日"}],
             ]
             with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
                 ok = analyzer._try_load_from_gov_api(2027)

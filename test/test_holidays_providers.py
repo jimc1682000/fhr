@@ -40,7 +40,9 @@ class TestHolidaysProviders(unittest.TestCase):
     def test_gov_provider_timeout_then_success(self):
         seq = []
         seq.append(TimeoutError('timed out'))
-        payload = {'result': {'records': [{'isHoliday': 1, 'date': '2027-10-10'}]}}
+        payload = [
+            {'date': '20271010', 'week': '日', 'isHoliday': True, 'description': '國慶日'},
+        ]
 
         class DummyResp:
             def read(self):

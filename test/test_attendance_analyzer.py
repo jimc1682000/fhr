@@ -41,7 +41,9 @@ class TestExcelExporter(unittest.TestCase):
 class TestHolidayLoading(unittest.TestCase):
     def test_try_load_from_gov_api_handles_malformed_date(self) -> None:
         analyzer = AttendanceAnalyzer()
-        invalid_data = {'result': {'records': [{'isHoliday': 1, 'date': 'bad-date'}]}}
+        invalid_data = [
+            {'date': 'bad-date', 'week': '?', 'isHoliday': True, 'description': ''},
+        ]
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(invalid_data).encode('utf-8')
         with patch('urllib.request.urlopen') as mock_urlopen, \

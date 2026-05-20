@@ -170,7 +170,7 @@ class PortalSession:
 
     # ---------- context manager ----------
 
-    def __enter__(self) -> "PortalSession":
+    def __enter__(self) -> PortalSession:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

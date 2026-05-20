@@ -2,7 +2,6 @@
 
 We mock `subprocess.run` so the suite never shells out to a real CLI.
 """
-import json
 import subprocess
 import unittest
 from unittest import mock

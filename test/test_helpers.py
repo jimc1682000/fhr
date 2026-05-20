@@ -19,7 +19,7 @@ class DummyResp:
         with urllib.request.urlopen(...) as resp:
             resp.read() -> bytes
     """
-    def __init__(self, payload: dict):
+    def __init__(self, payload):
         self._payload = payload
 
     def read(self):
@@ -67,13 +67,13 @@ def urlopen_sequence(seq):
     """
     items = list(seq)
 
-    def _side_effect(url, timeout=10, context=None):
+    def _side_effect(*args, **kwargs):
         if not items:
             raise AssertionError("urlopen_sequence exhausted")
         v = items.pop(0)
         if isinstance(v, Exception):
             raise v
-        if isinstance(v, dict):
+        if isinstance(v, (dict, list)):
             return DummyResp(v)
         return v
 

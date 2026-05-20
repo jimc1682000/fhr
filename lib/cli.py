@@ -14,7 +14,11 @@ from __future__ import annotations
 import argparse
 import sys
 
-KNOWN_SUBCOMMANDS = {"analyze", "export", "import", "portal-fetch", "portal_fetch"}
+KNOWN_SUBCOMMANDS = {
+    "analyze", "export", "import",
+    "portal-fetch", "portal_fetch",
+    "portal-sync", "portal_sync",
+}
 
 
 def _looks_like_legacy_invocation(argv: list[str]) -> bool:
@@ -43,12 +47,14 @@ def build_parser() -> argparse.ArgumentParser:
         export as export_cmd,
         import_ as import_cmd,
         portal_fetch as portal_fetch_cmd,
+        portal_sync as portal_sync_cmd,
     )
 
     analyze_cmd.add_parser(sub)
     export_cmd.add_parser(sub)
     import_cmd.add_parser(sub)
     portal_fetch_cmd.add_parser(sub)
+    portal_sync_cmd.add_parser(sub)
     return parser
 
 
@@ -72,5 +78,8 @@ def run(argv: list | None = None) -> None:
     elif args.cmd in ("portal-fetch", "portal_fetch"):
         from lib.commands import portal_fetch as portal_fetch_cmd
         portal_fetch_cmd.run(args)
+    elif args.cmd in ("portal-sync", "portal_sync"):
+        from lib.commands import portal_sync as portal_sync_cmd
+        portal_sync_cmd.run(args)
     else:
         parser.error(f"unknown subcommand: {args.cmd}")

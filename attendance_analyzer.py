@@ -185,12 +185,13 @@ class AttendanceAnalyzer:
 
     def _try_load_from_gov_api(self, year: int) -> bool:
         # 向後相容：保留本模組內的 scheme 檢查（供單元測試 patch）
-        url = f'https://data.gov.tw/api/v1/rest/datastore_search?resource_id=W2&filters={{"date":"{year}"}}'
+        from lib.holidays import TaiwanGovOpenDataProvider
+
+        url = TaiwanGovOpenDataProvider.JSDELIVR_URL_TEMPLATE.format(year=year)
         parsed = urlparse(url)
         if parsed.scheme not in {"http", "https"}:
             logger.warning("不支援的 URL scheme: %s", parsed.scheme)
             return False
-        from lib.holidays import TaiwanGovOpenDataProvider
 
         out = TaiwanGovOpenDataProvider().load(year)
         if out:

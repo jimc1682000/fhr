@@ -23,15 +23,11 @@ class FakeParse:
 class TestHolidaysMore(unittest.TestCase):
 
     def test_invalid_date_record_is_skipped(self):
-        payload = {
-            'result': {
-                'records': [
-                    {'isHoliday': 1, 'date': 'bad-date'},
-                    {'isHoliday': 1, 'date': '2026-10-10'},
-                    {'isHoliday': 0, 'date': '2026-01-02'},
-                ]
-            }
-        }
+        payload = [
+            {'date': 'bad-date', 'week': '?', 'isHoliday': True, 'description': ''},
+            {'date': '20261010', 'week': '六', 'isHoliday': True, 'description': '國慶日'},
+            {'date': '20260102', 'week': '五', 'isHoliday': False, 'description': ''},
+        ]
         with temp_env(TEST_ENV_SETTINGS):
             p = TaiwanGovOpenDataProvider()
             with mock.patch('urllib.request.urlopen', return_value=DummyResp(payload)):

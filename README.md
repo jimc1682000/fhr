@@ -24,15 +24,49 @@
 
 ### 👤 個人用戶 (命令列工具)
 ```bash
-# 最常用：自動增量分析
+# 最常用：自動增量分析 (legacy 寫法仍能用)
 python attendance_analyzer.py "202508-王小明-出勤資料.txt"
 
+# 等同的新 subcommand 寫法
+python attendance_analyzer.py analyze "202508-王小明-出勤資料.txt"
+
 # 產生 CSV 格式
-python attendance_analyzer.py "202508-王小明-出勤資料.txt" csv
+python attendance_analyzer.py analyze "202508-王小明-出勤資料.txt" csv
 
 # 跨月資料處理
-python attendance_analyzer.py "202508-202509-王小明-出勤資料.txt"
+python attendance_analyzer.py analyze "202508-202509-王小明-出勤資料.txt"
 ```
+
+### 🌐 進階：Portal 自動化 (需 [agent-browser](https://github.com/vercel-labs/agent-browser))
+
+完整流程取代過去手動匯 CSV + 手動填單的人工工作。`portal-*` 子指令都是
+optional dep,沒裝 agent-browser 也不影響上面的 `analyze`。
+
+```bash
+# 抓出勤紀錄 (取代手動 CSV 匯出)
+python attendance_analyzer.py portal-fetch --user JimmyChen
+
+# 從 Portal 同步「已申請的加班/請假單」進本地 state cache (dedup)
+python attendance_analyzer.py portal-sync --user JimmyChen
+
+# 顯示假別餘額 (補休/特休/事假/有薪病假/半薪病假/異地辦公)
+python attendance_analyzer.py portal-balances
+
+# 把分析結果輸出成 attendance-analysis/v1 JSON
+python attendance_analyzer.py export --to=code-agent-hr \
+    "202508-王小明-出勤資料.txt" --out tmp/analysis.json \
+    --cutoff 2026/04/17 --today 2026/05/19
+
+# (可選) 收集 git commit 證據,搭配 .claude/skills/fhr-reason-abstract 抽象化 reason
+python attendance_analyzer.py reasons --input tmp/analysis.json \
+    --author "Jimmy Chen" --out tmp/reasons-evidence.json
+
+# 互動式批次送加班 + 請假單 (cascade 自動分配 + 早到日提示 + 實際打卡顯示)
+python attendance_analyzer.py portal-apply --user JimmyChen \
+    --input tmp/analysis.json --proxy 賴菁甫
+```
+
+詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。
 
 ### 🖥️ 系統管理員 (Web 服務 + Docker)
 ```bash

@@ -59,6 +59,28 @@ class BasicFixedProvider(HolidayProvider):
 
 
 class TaiwanGovOpenDataProvider(HolidayProvider):
+    """Taiwan holiday data, fetched from the community-maintained
+    ruyut/TaiwanCalendar repo via jsDelivr CDN.
+
+    Background: the original `data.gov.tw/api/v1/rest/datastore_search?resource_id=W2`
+    endpoint was decommissioned and now returns 404 (the unauthenticated path also
+    rejects the default Python urllib User-Agent with HTTP 403). The official
+    DGPA dataset 14718 still publishes CSVs but each year ships under a random
+    UUID filename, which makes URL-from-year derivation brittle. jsDelivr serves
+    the community-curated JSON with a stable URL pattern and global CDN coverage.
+
+    Schema (per year file):
+        [
+          {"date": "YYYYMMDD", "week": "一", "isHoliday": bool, "description": str},
+          ...
+        ]
+    """
+
+    JSDELIVR_URL_TEMPLATE = (
+        "https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/{year}.json"
+    )
+    USER_AGENT = "fhr-attendance-analyzer/1.0 (+https://github.com/jimc1682000/fhr)"
+
     def __init__(self):
         try:
             self.max_retries = int(os.getenv("HOLIDAY_API_MAX_RETRIES", "3"))
@@ -74,15 +96,13 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
             self.max_backoff = 8.0
 
     def load(self, year: int) -> set[datetime.date]:
-        url = (
-            "https://data.gov.tw/api/v1/rest/datastore_search?"
-            f"resource_id=W2&filters={{\"date\":\"{year}\"}}"
-        )
+        url = self.JSDELIVR_URL_TEMPLATE.format(year=year)
         parsed = urlparse(url)
         if parsed.scheme not in {"http", "https"}:
             logger.warning("不支援的 URL scheme: %s", parsed.scheme)
             return set()
         context = ssl.create_default_context()
+        request = urllib.request.Request(url, headers={"User-Agent": self.USER_AGENT})
 
         attempt = 0
         while attempt <= self.max_retries:
@@ -91,24 +111,28 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
                 logger.info(
                     "資訊: 嘗試載入 %d 年假日 (第 %d/%d 次)...", year, attempt, self.max_retries
                 )
-                with urllib.request.urlopen(url, timeout=10, context=context) as resp:  # nosec B310
-                    data = _json.loads(resp.read().decode('utf-8'))
+                with urllib.request.urlopen(request, timeout=10, context=context) as resp:  # nosec B310
+                    data = _json.loads(resp.read().decode("utf-8"))
+                    if not isinstance(data, list):
+                        logger.warning("API 回傳格式非預期（不是 list）")
+                        raise RuntimeError("unexpected payload shape")
                     out: set[datetime.date] = set()
-                    if 'result' in data and 'records' in data['result']:
-                        for record in data['result']['records']:
-                            if record.get('isHoliday', 0) == 1:
-                                date_str = record.get('date', '')
-                                if date_str:
-                                    try:
-                                        out.add(datetime.strptime(date_str, "%Y-%m-%d").date())
-                                    except ValueError as e:
-                                        logger.warning("跳過無效的日期格式 %r: %s", date_str, e)
-                        if out:
-                            return out
-                        logger.warning("API 回傳資料但沒有有效的假日記錄")
-                        raise RuntimeError("empty holiday records")
+                    for record in data:
+                        if not record.get("isHoliday"):
+                            continue
+                        date_str = record.get("date", "")
+                        if not date_str:
+                            continue
+                        try:
+                            out.add(datetime.strptime(date_str, "%Y%m%d").date())
+                        except ValueError as e:
+                            logger.warning("跳過無效的日期格式 %r: %s", date_str, e)
+                    if out:
+                        return out
+                    logger.warning("API 回傳資料但沒有有效的假日記錄")
+                    raise RuntimeError("empty holiday records")
             except HTTPError as e:
-                status = getattr(e, 'code', None)
+                status = getattr(e, "code", None)
                 if status in (429, 500, 502, 503, 504):
                     # err_desc = f"HTTP {status}"  # Variable assigned but never used
                     pass

@@ -16,7 +16,7 @@ class TestHolidayApiResilience(unittest.TestCase):
             an = AttendanceAnalyzer()
             seq = [
                 TimeoutError('timed out'),
-                {'result': {'records': [{'isHoliday': 1, 'date': '2027-10-10'}]}}
+                [{'date': '20271010', 'week': '日', 'isHoliday': True, 'description': '國慶日'}],
             ]
             with mock.patch('urllib.request.urlopen', side_effect=urlopen_sequence(seq)):
                 ok = an._try_load_from_gov_api(2027)
@@ -36,7 +36,7 @@ class TestHolidayApiResilience(unittest.TestCase):
             an = AttendanceAnalyzer()
             seq = [
                 _HTTPError(503),
-                {'result': {'records': [{'isHoliday': 1, 'date': '2026-01-01'}]}}
+                [{'date': '20260101', 'week': '四', 'isHoliday': True, 'description': '元旦'}],
             ]
             with mock.patch('urllib.request.urlopen', side_effect=urlopen_sequence(seq)):
                 ok = an._try_load_from_gov_api(2026)

@@ -77,6 +77,74 @@ class AttendanceStateManager:
         if forget_punch_usage:
             user_data["forget_punch_usage"].update(forget_punch_usage)
 
+    # ---------- applied_forms (Portal-mirrored dedup cache) ----------
+    #
+    # `applied_forms` is the Portal's truth, mirrored locally. Populated by
+    # `fhr portal-sync` (queries eWorkFlow Search) and consumed by
+    # `fhr portal-apply` to skip dates that already have a submitted form.
+    #
+    # Schema (per user):
+    #   "applied_forms": {
+    #     "overtime": [
+    #       {"date": "YYYY/MM/DD", "start_time": "HHMM", "end_time": "HHMM",
+    #        "hours": int, "location": "...", "reason": "...",
+    #        "status": "已核准|...", "synced_at": "ISO8601"}
+    #     ],
+    #     "leave": [
+    #       {"date", "start_time", "end_time", "hours", "leave_type",
+    #        "reason", "status", "synced_at"}
+    #     ],
+    #     "last_full_sync": "ISO8601"
+    #   }
+
+    @staticmethod
+    def _applied_form_key(entry: dict) -> tuple:
+        return (entry.get("date", ""),
+                entry.get("start_time", ""),
+                entry.get("end_time", ""))
+
+    def get_applied_forms(self, user_name: str, kind: str | None = None) -> dict | list:
+        user = self.state_data["users"].get(user_name, {})
+        applied = user.get("applied_forms", {})
+        if kind is None:
+            return applied
+        return applied.get(kind, [])
+
+    def replace_applied_forms(self, user_name: str, entries_by_kind: dict[str, list[dict]],
+                              synced_at: str) -> None:
+        """Replace the user's mirrored applied-form lists with fresh data.
+
+        Each entry is augmented with `synced_at` if it isn't already set."""
+        if user_name not in self.state_data["users"]:
+            self.state_data["users"][user_name] = {
+                "processed_date_ranges": [],
+                "forget_punch_usage": {},
+            }
+        user = self.state_data["users"][user_name]
+        applied = user.setdefault("applied_forms", {})
+        for kind, entries in entries_by_kind.items():
+            cleaned = []
+            for e in entries:
+                rec = dict(e)
+                rec.setdefault("synced_at", synced_at)
+                cleaned.append(rec)
+            applied[kind] = cleaned
+        applied["last_full_sync"] = synced_at
+
+    def is_form_already_applied(self, user_name: str, kind: str, candidate: dict) -> bool:
+        """True if the candidate (date/start/end) is already submitted."""
+        target = self._applied_form_key(candidate)
+        for existing in self.get_applied_forms(user_name, kind):
+            if self._applied_form_key(existing) == target:
+                return True
+        return False
+
+    def last_full_sync(self, user_name: str) -> str:
+        return self.get_applied_forms(user_name).get("last_full_sync", "") \
+            if isinstance(self.get_applied_forms(user_name), dict) else ""
+
+    # ---------- legacy ----------
+
     def detect_date_overlap(
         self, user_name: str, new_start_date: str, new_end_date: str
     ) -> list[tuple[str, str]]:

@@ -38,9 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Lazy import each handler — keeps top-level help fast and lets
     # individual commands skip importing heavy deps until selected.
-    from lib.commands import analyze as analyze_cmd
-    from lib.commands import export as export_cmd
-    from lib.commands import import_ as import_cmd
+    from lib.commands import analyze as analyze_cmd, export as export_cmd, import_ as import_cmd
 
     analyze_cmd.add_parser(sub)
     export_cmd.add_parser(sub)

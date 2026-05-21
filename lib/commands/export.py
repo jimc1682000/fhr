@@ -48,8 +48,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="排除此日期之後的條目（用來剔除未來的 WFH 自動建議）",
     )
     parser.add_argument(
-        "--full", "-f", action="store_true",
-        help="強制完整重新分析（同 `analyze --full`）",
+        "--incremental", action="store_true",
+        help=(
+            "啟用增量分析 (預設關閉)。export 預設走完整分析,因為下游 portal-apply"
+            " 走 applied_forms dedup,不該被 analyzer state cache 影響。"
+        ),
     )
     parser.add_argument("--debug", action="store_true", help="啟用 debug 模式")
     return parser
@@ -64,9 +67,13 @@ def run(args: argparse.Namespace) -> None:
 
     try:
         analyzer = AttendanceAnalyzer(debug=args.debug)
-        incremental = not args.full
+        # Default to full analysis so the export payload always represents
+        # what the input file says, regardless of attendance_state.json
+        # contents from earlier `analyze` runs. Dedup against already-
+        # submitted forms is portal-apply's job (state.applied_forms).
+        incremental = bool(args.incremental)
         if incremental:
-            logger.info("📂 正在解析考勤檔案... (增量分析模式)")
+            logger.info("📂 正在解析考勤檔案... (增量分析模式 — 顯式 --incremental)")
         else:
             logger.info("📂 正在解析考勤檔案... (完整分析模式)")
         analyzer.parse_attendance_file(args.filepath, incremental=incremental)

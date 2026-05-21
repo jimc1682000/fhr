@@ -107,15 +107,33 @@ class TestCascadeWFH(unittest.TestCase):
 
 
 class TestAlreadyApplied(unittest.TestCase):
-    def test_already_applied_pre_deducts_balance(self):
-        # Bukyu reads 8h, but 1h already applied → only 7h actually available
+    def test_already_applied_does_not_double_count_balance(self):
+        # Portal's 剩餘時數 already reflects approved forms, so feeding
+        # the same 補休 entry back via `already_applied` MUST NOT decrement
+        # `remaining` again. (Bukyu balance still reads 7h after the
+        # synced 1h applied form.)
         applied = [{"date": "2026/04/16", "start_time": "0930", "end_time": "1030",
                     "hours": 1, "leave_type": "補休假"}]
         entries = [_late("2026/05/06", 7)]
-        out = allocate(entries, _balances(bukyu=8), already_applied=applied)
-        # Should still fit (8 - 1 = 7); after this entry remaining is 0
+        out = allocate(entries, _balances(bukyu=7), already_applied=applied)
         self.assertEqual(out.decisions[0].leave_type, "補休假")
         self.assertEqual(out.remaining["補休假"], 0)
+
+    def test_already_applied_balance_passthrough_regression(self):
+        # Regression: Codex review P1. Cascade used to subtract applied
+        # 補休 hours from `remaining` even though the Portal balance
+        # already reflects them, double-counting and forcing fallback
+        # tiers. Verify a 1h applied form does NOT eat into the 7h
+        # remaining that came from the Portal.
+        applied = [{"date": "2026/04/16", "start_time": "0930", "end_time": "1030",
+                    "hours": 1, "leave_type": "補休假"}]
+        entries = [_late("2026/05/06", 1)]
+        out_with = allocate(entries, _balances(bukyu=7), already_applied=applied)
+        out_without = allocate(entries, _balances(bukyu=7))
+        self.assertEqual(out_with.remaining["補休假"],
+                         out_without.remaining["補休假"])
+        # Both pick 補休 — applied form shouldn't change cascade outcome
+        self.assertEqual(out_with.decisions[0].leave_type, "補休假")
 
     def test_already_applied_wfh_decreases_monthly_budget(self):
         # 04 月 already used 18h (04/10 + 04/17 WFH). Adding 04/24 leaves 27h

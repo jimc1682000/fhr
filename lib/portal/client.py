@@ -168,6 +168,18 @@ class PortalSession:
         except AgentBrowserError:
             pass
 
+    def screenshot(self, out_path: str, *, full: bool = False) -> bool:
+        """Save a PNG of the current page. Returns False if agent-browser
+        couldn't write the file (e.g. closed daemon). Caller handles failure."""
+        args = ["screenshot", out_path]
+        if full:
+            args.append("--full")
+        try:
+            self._run(args)
+            return True
+        except AgentBrowserError:
+            return False
+
     # ---------- context manager ----------
 
     def __enter__(self) -> PortalSession:

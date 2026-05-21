@@ -161,6 +161,38 @@ class TestBatchSubmit(unittest.TestCase):
         ot_cb.assert_called_once()
 
 
+class TestDryRunScreenshot(unittest.TestCase):
+    def test_overtime_dry_run_takes_screenshot(self):
+        import tempfile
+        from pathlib import Path
+        portal = mock.Mock()
+        portal.eval_json.return_value = {"success": True}
+        portal._run.return_value = ""
+        portal.screenshot.return_value = True
+        with tempfile.TemporaryDirectory() as d:
+            entry = {"date": "2026/04/20", "start_time": "1830",
+                     "end_time": "2030", "hours": 2, "location": "在辦公室"}
+            ok = submit_overtime(portal, "http://x", entry,
+                                 reason="x", dry_run=True,
+                                 dry_run_pause_secs=0,
+                                 screenshot_dir=Path(d), screenshot_seq=1)
+            self.assertTrue(ok)
+            portal.screenshot.assert_called_once()
+            saved_path = portal.screenshot.call_args[0][0]
+            self.assertTrue(saved_path.endswith(
+                "001-overtime-20260420-1830-2030.png"))
+
+    def test_no_screenshot_when_dir_is_none(self):
+        portal = mock.Mock()
+        portal.eval_json.return_value = {"success": True}
+        portal._run.return_value = ""
+        entry = {"date": "2026/04/20", "start_time": "1830",
+                 "end_time": "2030", "hours": 2, "location": "在辦公室"}
+        submit_overtime(portal, "http://x", entry,
+                        reason="x", dry_run=True, dry_run_pause_secs=0)
+        portal.screenshot.assert_not_called()
+
+
 class TestDryRun(unittest.TestCase):
     def test_overtime_skips_submit_click(self):
         portal = mock.Mock()

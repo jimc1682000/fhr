@@ -69,6 +69,14 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         "--dry-run-pause-secs", type=int, default=5,
         help="dry-run 時每筆表單填完後停留秒數 (預設 5)",
     )
+    parser.add_argument(
+        "--screenshot-dir", dest="screenshot_dir",
+        help=(
+            "把 dry-run 期間每張表單填好後的截圖存到此目錄。"
+            "預設 dry-run 時自動寫到 tmp/dry-run-screenshots/<timestamp>/。"
+            "傳空字串 (--screenshot-dir '') 可顯式停用。"
+        ),
+    )
     parser.add_argument("--overtime-only", action="store_true", help="只送加班單")
     parser.add_argument("--leave-only", action="store_true", help="只送請假單")
     parser.add_argument("--base-url", help="EHR base URL (預設讀 env EHR_URL)")
@@ -231,6 +239,11 @@ def _load_completed(path: Path) -> set[str]:
     out: set[str] = set()
     for form_type in ("overtime", "leave"):
         for r in results.get(form_type, []):
+            # Dry-run records show `submitted: true` for plan-bookkeeping
+            # only — Portal-side nothing happened, so they MUST NOT count
+            # as completed for future runs.
+            if r.get("dry_run"):
+                continue
             if r.get("submitted") and r.get("entry"):
                 out.add(_entry_key(r["entry"], form_type))
     return out
@@ -659,6 +672,7 @@ def run(args: argparse.Namespace) -> None:
                 on_leave_done=_persist_lv,
                 dry_run=args.dry_run,
                 dry_run_pause_secs=args.dry_run_pause_secs,
+                screenshot_dir=_resolve_screenshot_dir(args),
             )
         prefix = "🧪 DRY RUN 結果" if args.dry_run else "📊 本次申請結果"
         logger.info("\n%s: 加班 %d/%d, 請假 %d/%d",
@@ -675,6 +689,26 @@ def run(args: argparse.Namespace) -> None:
     except LoginTimeout as e:
         logger.error("❌ %s", e)
         sys.exit(4)
+
+
+def _resolve_screenshot_dir(args) -> Path | None:
+    """Return the directory for dry-run screenshots, or None to disable.
+
+    Rules:
+      - Non-dry-run runs: no screenshots (returns None).
+      - User passed `--screenshot-dir ''`: explicit opt-out → None.
+      - User passed `--screenshot-dir PATH`: honor it.
+      - Default dry-run: tmp/dry-run-screenshots/<UTC timestamp>/.
+    """
+    if not args.dry_run:
+        return None
+    if args.screenshot_dir is not None:
+        # Explicit empty string disables screenshots
+        if args.screenshot_dir == "":
+            return None
+        return Path(args.screenshot_dir)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return Path("tmp") / "dry-run-screenshots" / stamp
 
 
 def _wrap_submit_iter(plans: list[dict], completed: set[str],

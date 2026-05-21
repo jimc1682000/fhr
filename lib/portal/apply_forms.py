@@ -14,11 +14,39 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from pathlib import Path
 
 from lib.portal.balances import FORM_QUEUES_URL_PATH
 from lib.portal.client import PortalSession, js_escape
 
 logger = logging.getLogger(__name__)
+
+
+def _snap_filename(form_type: str, entry: dict, seq: int) -> str:
+    """`<seq:03d>-<form_type>-<date>-<start>-<end>.png` — sortable + readable."""
+    date_safe = entry.get("date", "").replace("/", "")
+    st = entry.get("start_time", "")
+    et = entry.get("end_time", "")
+    return f"{seq:03d}-{form_type}-{date_safe}-{st}-{et}.png"
+
+
+def _take_dry_run_screenshot(
+    portal: PortalSession, screenshot_dir: Path | None,
+    form_type: str, entry: dict, seq: int,
+) -> Path | None:
+    if screenshot_dir is None:
+        return None
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    path = screenshot_dir / _snap_filename(form_type, entry, seq)
+    # Viewport-only (no --full): the Portal renders forms inside small
+    # iframes; --full extends the canvas to the entire document height
+    # (often 5000+ px of whitespace) while the actual form sits in the
+    # top-left corner. Viewport capture matches what the human sees.
+    if portal.screenshot(str(path)):
+        logger.info("    📸 screenshot: %s", path)
+        return path
+    logger.warning("    ⚠️  screenshot 失敗")
+    return None
 
 
 def _open_form(portal: PortalSession, base_url: str, form_name_zh: str) -> None:
@@ -120,6 +148,8 @@ def submit_overtime(
     *,
     dry_run: bool = False,
     dry_run_pause_secs: int = 5,
+    screenshot_dir: Path | None = None,
+    screenshot_seq: int = 0,
 ) -> bool:
     """Open 加班單 and submit one entry. Returns True on confirmed success.
 
@@ -176,6 +206,8 @@ def submit_overtime(
     portal.wait(1000)
     _trigger_hour_calc(portal)
     if dry_run:
+        _take_dry_run_screenshot(portal, screenshot_dir, "overtime",
+                                 entry, screenshot_seq)
         logger.info("    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
                     dry_run_pause_secs)
         portal.wait(dry_run_pause_secs * 1000)
@@ -196,6 +228,8 @@ def submit_leave(
     *,
     dry_run: bool = False,
     dry_run_pause_secs: int = 5,
+    screenshot_dir: Path | None = None,
+    screenshot_seq: int = 0,
 ) -> bool:
     """Open 請假單 and submit one entry. Returns True on confirmed success.
 
@@ -291,6 +325,8 @@ def submit_leave(
     """)
     portal.wait(1000)
     if dry_run:
+        _take_dry_run_screenshot(portal, screenshot_dir, "leave",
+                                 entry, screenshot_seq)
         logger.info("    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
                     dry_run_pause_secs)
         portal.wait(dry_run_pause_secs * 1000)
@@ -311,6 +347,7 @@ def batch_submit(
     on_leave_done=None,
     dry_run: bool = False,
     dry_run_pause_secs: int = 5,
+    screenshot_dir: Path | None = None,
 ) -> tuple[int, int, int, int]:
     """Submit every plan entry. Callbacks fire after each submission so the
     caller can persist progress (`fhr portal-apply` writes a result file).
@@ -326,8 +363,11 @@ def batch_submit(
         if plan.get("action") != "submit":
             continue
         ot_total += 1
-        ok = submit_overtime(portal, base_url, plan["entry"], plan["reason"],
-                             dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs)
+        ok = submit_overtime(
+            portal, base_url, plan["entry"], plan["reason"],
+            dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs,
+            screenshot_dir=screenshot_dir, screenshot_seq=ot_total,
+        )
         if ok:
             ot_ok += 1
         if on_overtime_done:
@@ -343,6 +383,8 @@ def batch_submit(
             plan["leave_type"], plan["reason"],
             plan.get("proxy"),
             dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs,
+            screenshot_dir=screenshot_dir,
+            screenshot_seq=ot_total + lv_total,
         )
         if ok:
             lv_ok += 1

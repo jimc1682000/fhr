@@ -24,15 +24,27 @@ KNOWN_SUBCOMMANDS = {
 }
 
 
-def _looks_like_legacy_invocation(argv: list[str]) -> bool:
-    """True when the first arg isn't a subcommand and isn't a flag.
+_TOP_LEVEL_HELP_FLAGS = {"-h", "--help"}
 
-    Heuristic: historical `python attendance_analyzer.py
-    202508-員工-出勤資料.txt [csv]` callers passed a file path as the
-    first positional. Anything starting with `-` is a flag and should
-    fall through to argparse so `--help` etc. work at the top level.
+
+def _looks_like_legacy_invocation(argv: list[str]) -> bool:
+    """True when no token in argv names a known subcommand.
+
+    Historical callers passed flags + a file path in any order:
+        python attendance_analyzer.py 202508-員工-出勤資料.txt
+        python attendance_analyzer.py 202508-員工-出勤資料.txt csv
+        python attendance_analyzer.py --full sample.txt
+        python attendance_analyzer.py --debug --reset-state sample.txt csv
+    The only way to identify a "new" invocation is the presence of a
+    subcommand keyword somewhere on the line; we let `-h`/`--help`
+    fall through to the top-level parser so users can see all
+    subcommands.
     """
-    return bool(argv) and argv[0] not in KNOWN_SUBCOMMANDS and not argv[0].startswith("-")
+    if not argv:
+        return False
+    if any(a in _TOP_LEVEL_HELP_FLAGS for a in argv):
+        return False
+    return not any(a in KNOWN_SUBCOMMANDS for a in argv)
 
 
 def build_parser() -> argparse.ArgumentParser:

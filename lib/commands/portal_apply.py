@@ -57,6 +57,18 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     parser.add_argument("--proxy", help="非 WFH 請假的職務代理人")
     parser.add_argument("--auto", action="store_true",
                         help="自動模式,完全用 cascade 結果送單 (不互動)")
+    parser.add_argument(
+        "--dry-run", action="store_true", dest="dry_run",
+        help=(
+            "演習模式:開表單 + 填日期/時間/假別/原因/代理人/位置,"
+            "但跳過『確定送出』按鈕 + 不寫 applied_forms cache。"
+            "適合 E2E 驗證流程。"
+        ),
+    )
+    parser.add_argument(
+        "--dry-run-pause-secs", type=int, default=5,
+        help="dry-run 時每筆表單填完後停留秒數 (預設 5)",
+    )
     parser.add_argument("--overtime-only", action="store_true", help="只送加班單")
     parser.add_argument("--leave-only", action="store_true", help="只送請假單")
     parser.add_argument("--base-url", help="EHR base URL (預設讀 env EHR_URL)")
@@ -587,8 +599,9 @@ def run(args: argparse.Namespace) -> None:
         return
 
     if not args.auto:
+        prompt_suffix = " (DRY RUN — 不會實際送出)" if args.dry_run else ""
         confirm = (input(
-            f"\n確認送出 {len(submit_ot)+len(submit_lv)} 筆? "
+            f"\n確認送出 {len(submit_ot)+len(submit_lv)} 筆{prompt_suffix}? "
             "(y/n) [y]: ").strip().lower() or "y")
         if confirm != "y":
             logger.info("⏹ 已取消")
@@ -600,9 +613,11 @@ def run(args: argparse.Namespace) -> None:
     def _persist_ot(plan_entry, ok):
         results["overtime"].append({"entry": plan_entry["entry"],
                                     "submitted": ok,
+                                    "dry_run": args.dry_run,
                                     "reason": plan_entry["reason"]})
         _save_results(result_path, results)
-        if ok:
+        # Don't poison applied_forms cache during a dry run.
+        if ok and not args.dry_run:
             sm.replace_applied_forms(
                 args.user,
                 {"overtime": sm.get_applied_forms(args.user, "overtime") + [{
@@ -616,10 +631,11 @@ def run(args: argparse.Namespace) -> None:
     def _persist_lv(plan_entry, ok):
         results["leave"].append({"entry": plan_entry["entry"],
                                  "submitted": ok,
+                                 "dry_run": args.dry_run,
                                  "leave_type": plan_entry["leave_type"],
                                  "reason": plan_entry["reason"]})
         _save_results(result_path, results)
-        if ok:
+        if ok and not args.dry_run:
             sm.replace_applied_forms(
                 args.user,
                 {"overtime": sm.get_applied_forms(args.user, "overtime"),
@@ -641,9 +657,17 @@ def run(args: argparse.Namespace) -> None:
                 _wrap_submit_iter(submit_lv, completed, "leave"),
                 on_overtime_done=_persist_ot,
                 on_leave_done=_persist_lv,
+                dry_run=args.dry_run,
+                dry_run_pause_secs=args.dry_run_pause_secs,
             )
-        logger.info("\n📊 本次申請結果: 加班 %d/%d 成功, 請假 %d/%d 成功",
-                    ot_ok, ot_total, lv_ok, lv_total)
+        prefix = "🧪 DRY RUN 結果" if args.dry_run else "📊 本次申請結果"
+        logger.info("\n%s: 加班 %d/%d, 請假 %d/%d",
+                    prefix, ot_ok, ot_total, lv_ok, lv_total)
+        if args.dry_run:
+            logger.info(
+                "ℹ️ DRY RUN 已跳過『確定送出』+ 未寫入 applied_forms cache "
+                "(Portal 上不會出現任何單據)"
+            )
         logger.info("✅ 結果寫入 %s", result_path)
     except AgentBrowserMissing as e:
         logger.error("❌ %s", e)

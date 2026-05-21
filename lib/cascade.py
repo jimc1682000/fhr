@@ -111,6 +111,11 @@ def allocate(
         candidate_types.update(c)
     for name in candidate_types:
         remaining[name] = _remaining_for(name, balances)
+    # The Portal's "剩餘時數" already reflects approved 補休 / 特休 / 病假
+    # forms — deducting `already_applied` from `remaining` would double-count
+    # them and falsely cascade past tiers that still have room. Only the
+    # monthly-capped categories (異地辦公 ...) aren't represented in the
+    # items panel as a remaining-hours number; we track those locally.
     for applied in already_applied or []:
         lt = applied.get("leave_type")
         if not lt:
@@ -119,10 +124,6 @@ def allocate(
         if lt in MONTHLY_CAPS_HOURS:
             mk = _month_key(applied["date"])
             monthly_used[(lt, mk)] = monthly_used.get((lt, mk), 0) + int(hrs)
-        else:
-            cur = remaining.get(lt)
-            if isinstance(cur, int):
-                remaining[lt] = max(0, cur - int(hrs))
 
     decisions: list[AllocationDecision] = []
     for entry in sorted(entries, key=lambda e: e["date"]):

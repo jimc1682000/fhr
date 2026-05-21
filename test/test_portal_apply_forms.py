@@ -161,5 +161,64 @@ class TestBatchSubmit(unittest.TestCase):
         ot_cb.assert_called_once()
 
 
+class TestDryRun(unittest.TestCase):
+    def test_overtime_skips_submit_click(self):
+        portal = mock.Mock()
+        portal.eval_json.return_value = {"success": True}
+        # Sentinel snapshot — wouldn't match the verify heuristic, but
+        # dry_run never asks for verification so the result stays True.
+        portal._run.return_value = ""
+        entry = {"date": "2026/04/20", "start_time": "1830",
+                 "end_time": "2030", "hours": 2, "location": "在辦公室"}
+        ok = submit_overtime(portal, "http://x", entry,
+                             reason="x", dry_run=True, dry_run_pause_secs=0)
+        self.assertTrue(ok)
+        # No 確定送出 JS — none of the eval calls should contain that string
+        joined = "\n".join(str(c[0]) for c in portal.eval_json.call_args_list)
+        self.assertNotIn("確定送出", joined)
+        # And no post-submit snapshot read for verification
+        snap_calls = [c for c in portal._run.call_args_list
+                      if c[0] and c[0][0] and c[0][0][0] == "snapshot"]
+        self.assertEqual(snap_calls, [])
+
+    def test_leave_skips_submit_click(self):
+        portal = mock.Mock()
+        portal.eval_json.side_effect = [
+            {"success": True},                          # open form
+            {"matched": 1, "matches": [{"index": 30, "text": "補休假"}]},
+            {"ok": True},                                # fill datetime
+            None,                                        # trigger hour calc
+            {"ok": True},                                # reason fill
+        ]
+        portal._run.return_value = ""
+        entry = {"date": "2026/04/20", "start_time": "0930",
+                 "end_time": "1130", "hours": 2}
+        ok = submit_leave(portal, "http://x", entry,
+                          leave_type_name="補休假", reason="x",
+                          proxy_employee=None,
+                          dry_run=True, dry_run_pause_secs=0)
+        self.assertTrue(ok)
+        joined = "\n".join(str(c[0]) for c in portal.eval_json.call_args_list)
+        self.assertNotIn("確定送出", joined)
+
+    def test_batch_submit_propagates_dry_run(self):
+        portal = mock.Mock()
+        portal.eval_json.return_value = {"success": True}
+        portal._run.return_value = ""
+        overtime_plan = [{
+            "action": "submit",
+            "entry": {"date": "2026/04/20", "start_time": "1830",
+                      "end_time": "2030", "hours": 2, "location": "在辦公室"},
+            "reason": "x",
+        }]
+        ot_ok, ot_total, _, _ = batch_submit(
+            portal, "http://x", overtime_plan, [],
+            dry_run=True, dry_run_pause_secs=0,
+        )
+        self.assertEqual((ot_ok, ot_total), (1, 1))
+        joined = "\n".join(str(c[0]) for c in portal.eval_json.call_args_list)
+        self.assertNotIn("確定送出", joined)
+
+
 if __name__ == "__main__":
     unittest.main()

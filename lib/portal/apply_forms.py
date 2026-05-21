@@ -117,12 +117,23 @@ def submit_overtime(
     base_url: str,
     entry: dict,
     reason: str,
+    *,
+    dry_run: bool = False,
+    dry_run_pause_secs: int = 5,
 ) -> bool:
-    """Open 加班單 and submit one entry. Returns True on confirmed success."""
+    """Open 加班單 and submit one entry. Returns True on confirmed success.
+
+    When `dry_run=True`, fill every field but skip the final 確定送出 click
+    and the post-submit verification. The form is left on screen for the
+    configured pause so the user can eyeball the values. Returns True so the
+    caller treats the entry as "completed for this run", but nothing is
+    written to Portal and no `applied_forms` cache mutation should happen.
+    """
     date = entry["date"]
     start = entry["start_time"]
     end = entry["end_time"]
-    logger.info("📝 加班單: %s %s:%s-%s:%s (%dh)",
+    logger.info("📝 加班單%s: %s %s:%s-%s:%s (%dh)",
+                " [DRY RUN]" if dry_run else "",
                 date, start[:2], start[2:], end[:2], end[2:], entry.get("hours", 0))
 
     _open_form(portal, base_url, "加班單")
@@ -164,6 +175,11 @@ def submit_overtime(
     """)
     portal.wait(1000)
     _trigger_hour_calc(portal)
+    if dry_run:
+        logger.info("    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
+                    dry_run_pause_secs)
+        portal.wait(dry_run_pause_secs * 1000)
+        return True
     _click_submit(portal)
     ok = _verify_submission(portal, "加班單")
     logger.info("    %s", "✅ 提交成功" if ok else "⚠️ 提交結果不確定，請手動確認")
@@ -177,15 +193,23 @@ def submit_leave(
     leave_type_name: str,
     reason: str,
     proxy_employee: str | None = None,
+    *,
+    dry_run: bool = False,
+    dry_run_pause_secs: int = 5,
 ) -> bool:
     """Open 請假單 and submit one entry. Returns True on confirmed success.
 
     WFH-type leaves (異地辦公 / WFH) skip the proxy field per company policy.
+
+    `dry_run=True` behaves the same way as for `submit_overtime`: fills the
+    form fully and leaves it on screen for `dry_run_pause_secs`, without
+    clicking 確定送出. Returns True so the run treats the entry as done.
     """
     date = entry["date"]
     start = entry["start_time"]
     end = entry["end_time"]
-    logger.info("📝 請假單: %s %s:%s-%s:%s (%dh) [%s]",
+    logger.info("📝 請假單%s: %s %s:%s-%s:%s (%dh) [%s]",
+                " [DRY RUN]" if dry_run else "",
                 date, start[:2], start[2:], end[:2], end[2:],
                 entry.get("hours", 0), leave_type_name)
 
@@ -266,6 +290,11 @@ def submit_leave(
     }})()
     """)
     portal.wait(1000)
+    if dry_run:
+        logger.info("    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
+                    dry_run_pause_secs)
+        portal.wait(dry_run_pause_secs * 1000)
+        return True
     _click_submit(portal)
     ok = _verify_submission(portal, "請假單")
     logger.info("    %s", "✅ 提交成功" if ok else "⚠️ 提交結果不確定，請手動確認")
@@ -280,9 +309,15 @@ def batch_submit(
     *,
     on_overtime_done=None,
     on_leave_done=None,
+    dry_run: bool = False,
+    dry_run_pause_secs: int = 5,
 ) -> tuple[int, int, int, int]:
     """Submit every plan entry. Callbacks fire after each submission so the
     caller can persist progress (`fhr portal-apply` writes a result file).
+
+    `dry_run=True` propagates to every submit_*() call: forms are opened and
+    filled but never actually submitted. Callers should NOT update their
+    state cache from these "successes".
 
     Returns (ot_ok, ot_total, lv_ok, lv_total).
     """
@@ -291,7 +326,8 @@ def batch_submit(
         if plan.get("action") != "submit":
             continue
         ot_total += 1
-        ok = submit_overtime(portal, base_url, plan["entry"], plan["reason"])
+        ok = submit_overtime(portal, base_url, plan["entry"], plan["reason"],
+                             dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs)
         if ok:
             ot_ok += 1
         if on_overtime_done:
@@ -306,6 +342,7 @@ def batch_submit(
             portal, base_url, plan["entry"],
             plan["leave_type"], plan["reason"],
             plan.get("proxy"),
+            dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs,
         )
         if ok:
             lv_ok += 1

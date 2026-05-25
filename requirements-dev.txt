@@ -3,6 +3,7 @@ ruff>=0.5
 pre-commit>=3.5
 commitizen>=4.0
 openpyxl>=3.1
+Pillow>=10.0  # v2.1 Tier 4 screenshot baseline diff
 fastapi>=0.111
 uvicorn>=0.30
 python-multipart>=0.0.9

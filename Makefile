@@ -12,7 +12,7 @@ coverage:
 
 .PHONY: coverage-check
 coverage-check: coverage
-	$(PY) tools/check_coverage_threshold.py --min 90
+	$(PY) tools/check_coverage_threshold.py
 
 .PHONY: lint
 lint:

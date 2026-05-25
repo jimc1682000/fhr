@@ -180,3 +180,10 @@ Thumbs.db
 !sample-attendance-data_analysis.csv
 !sample-attendance-data_analysis.xlsx
 !test/
+
+# v2.1 testing transients
+tests/fixtures/portal_replay_v1/state/
+
+# v2.1 testing transients
+tests/fixtures/portal_replay_v1/state/
+tmp/

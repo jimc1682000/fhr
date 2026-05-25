@@ -430,3 +430,225 @@ fhr import --from=portal-json <snapshot.json> --out=tmp/202604-User-出勤資料
 - 主管功能 (簽核 / 部屬出勤) — code_agent_hr 有,fhr port 進來可後續
 - TUI / 桌面 GUI 整合 portal subcommand
 - 自動 sync cron / daemon
+
+---
+
+# v2.1: 測試強化 + E2E 自動化
+
+## Context
+
+v2 (Phase 0-F + dry-run/screenshot patches) 已上線,303 tests,但 explorer audit 發現 coverage 有死角:
+
+1. **CLI command handlers 0% unit-tested**: `lib/commands/portal_apply.py` (726 LOC, 22 函數) 只有 1 個 subprocess E2E test (`test_export_state_independence.py`)。21 個 private helpers (`_load_completed` / `_is_early_arrival` / `_format_entry` / `_resolve_screenshot_dir` / plan I/O 等) 全沒覆蓋。
+2. **Coverage 98% 是假象**: `tools/check_coverage_threshold.py --min 90` 只看 `lib.*` + `attendance_analyzer*`,glob 排除掉 `lib/commands/*` + `lib/portal/*`。新增 1,538 LOC 的 commands/ + 700 LOC 的 portal/ 完全沒進 metric。
+3. **Pre-commit hook 沒跑 unittest**: 只 lint + black + mypy。drift 要等 CI 才知道。
+4. **沒有 fake agent-browser**: Portal 流程除了 lib/portal/* 的 mock-Mock-based unit test,沒辦法跑真實 subprocess + DOM 互動的整合測試。CI 不能驗 `fhr portal-apply --dry-run` 完整 pipeline。
+5. **沒 Portal UI drift 偵測**: dry-run 截圖目前是 ad-hoc。Portal 改版會默默壞掉, regression 等到 user 撞到才知道。
+
+目標: 把 coverage metric 變誠實 + commands handler 拿到 unit 保護 + 整條 portal pipeline 拿到離線 E2E + Portal UI drift 早期 alarm。
+
+## 涵蓋範圍 (user 選 Tier 1-4 全包)
+
+### Tier 1 — CLI handler 純函數 unit test
+
+優先攻 `lib/commands/portal_apply.py` 的 21 個 helpers,所有純函數 + 純 I/O,不需 agent-browser:
+
+| Target | 測什麼 | 預估 tests |
+|--------|-------|----------|
+| `_load_completed` | dry_run filter (本次 session 修的 bug) + submitted 過濾 + 不存在檔案 | 4 |
+| `_load_plan` / `_save_plan` | 來回 round-trip + 既有 entry override + bad JSON | 3 |
+| `_load_attendance_map` | 9-col txt 解析 + 缺欄位 + 不存在檔案 | 3 |
+| `_auto_detect_attendance` | glob 找最新 .txt | 2 |
+| `_is_early_arrival` | 在 / 不在 latest_checkin 前 + 邊界 + 無打卡 | 4 |
+| `_fmt_time` / `_format_entry` | early-arrival hint 顯示 + 有/無 attendance 資料 | 3 |
+| `_resolve_screenshot_dir` | dry-run 預設路徑 / 空字串 / 顯式路徑 / non-dry-run None | 4 |
+| `_plan_path` / `_result_path` / `_entry_key` | filename 變換 + key 結構 | 3 |
+| `_wrap_submit_iter` | completed 跳過邏輯 | 2 |
+| `_resolve_base_url` | env / arg / strip suffix | 3 |
+
+同等 pattern 給 `portal_fetch.py` (`_default_range` / `_default_out` / `_parse_date` / `_resolve_base_url`)、`portal_sync.py` / `portal_balances.py` / `export.py` / `import_.py` / `reasons.py` 命令層的 `_resolve_base_url` 與 arg parser。
+
+預計新增 ~50 tests,純 stdlib mock。
+
+### Tier 2 — Coverage 範圍 + pre-commit unittest gate
+
+#### 2a. 把 `lib/commands/*` + `lib/portal/*` 納入 coverage
+
+修 `tools/run_coverage.py` + `tools/check_coverage_threshold.py`:
+- 既有 glob 排除 `lib/commands/*`、`lib/portal/*` — 拿掉
+- 新增 per-package threshold (避免一次到位太痛):
+  ```
+  --min 85 (overall)
+  --per-package lib.commands=70 lib.portal=80
+  ```
+- 把目前數字當基準寫進 `tools/coverage_baseline.json` (locked-in floor),CI 比對「coverage 不能比 baseline 低」,新增功能只能更高
+- README badge 仍 overall %
+
+#### 2b. Pre-commit 加 unittest hook
+
+`.pre-commit-config.yaml` 加 local hook:
+```yaml
+  - repo: local
+    hooks:
+      - id: unittest
+        name: unittest discover
+        entry: python3 -m unittest discover -s test -b
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+```
+
+`-b` (buffer) 把噪音壓掉。`pre-commit-hooks` 的 `SKIP_TESTS=1` 不要動 — 保留 escape hatch 給急 commit。
+
+預計 commit time 從 ~1s → 3-5s。
+
+### Tier 3 — Fake agent-browser shim + 錄製 fixtures
+
+#### 3a. 寫 `tools/fake_agent_browser.py`
+
+一個 Python script 模擬 `agent-browser` CLI 介面。讀環境變數 `FHR_FAKE_AB_FIXTURE_DIR` 指向錄製 JSON,根據傳入子命令 + 參數,從 fixture pool 回對應 stdout。子命令對應:
+
+```
+open <url>          → 'fake-fixture:open:<url>.txt' 內容
+get url             → 上次 open 的 url
+get title           → 'fake-fixture:get-title:<hash>.txt'
+eval <js>           → 'fake-fixture:eval:<sha1(js)[:10]>.json'
+screenshot <path>   → cp 'fake-fixture:screenshot/<name>.png' → <path>
+snapshot [-i]       → 'fake-fixture:snapshot:<seq>.txt'
+click @e1           → 純 noop,記到 'fake-fixture:trace.log'
+select @e1 'val'    → noop + trace
+wait <ms>           → sleep 0 (test 加速)
+dialog accept       → noop
+close               → reset session state
+```
+
+每個 fixture 用 sha1(js) 作 key,session-scoped。Session 名 stash 在 env `FHR_FAKE_AB_SESSION`。
+
+#### 3b. 錄製腳本 `tools/record_portal_fixtures.py`
+
+跑一次 `fhr portal-fetch` + `portal-sync` + `portal-balances` + `portal-apply --dry-run`,讓 `PortalSession._run()` 內建 hook 把每一次 (args, stdout) 寫進 `tests/fixtures/portal_replay_v1/`。User 跑一次,fixtures checked in。Portal 改版時 user 重跑該腳本更新。
+
+需求: `PortalSession` 加 `_FHR_RECORD_FIXTURES` env 開關,subprocess 結果 dump 到指定路徑。Recorder 邏輯不影響 production code path。
+
+#### 3c. E2E 測試 `test/e2e_portal_replay.py`
+
+```python
+def test_dry_run_e2e_with_recorded_fixtures():
+    env = {**os.environ,
+           "PATH": f"{REPO}/tools:{os.environ['PATH']}",  # use fake_agent_browser
+           "AGENT_BROWSER_BIN": "fake_agent_browser",
+           "FHR_FAKE_AB_FIXTURE_DIR": "tests/fixtures/portal_replay_v1"}
+    result = subprocess.run([sys.executable, "attendance_analyzer.py",
+                             "portal-apply", "--user", "Tester",
+                             "--input", "tests/fixtures/analysis-v1.json",
+                             "--auto", "--dry-run", "--dry-run-pause-secs", "0",
+                             "--no-sync"], env=env, ...)
+    # assert exit 0, stdout 包含 "DRY RUN 結果: 加班 1/1"
+    # assert tmp/dry-run-screenshots/<>/001-overtime-*.png 存在 + 非 0 byte
+    # assert tmp/apply_result*.json 包含 dry_run: true
+```
+
+預計加 ~5 E2E tests。CI 可跑,本機可跑。
+
+### Tier 4 — Screenshot baseline diff
+
+#### 4a. Baseline 結構
+
+`tests/fixtures/screenshot_baselines/<form_type>/<entry_signature>.png`
+
+Entry signature = `<date>-<start>-<end>-<leave_type-or-overtime>` (例 `20260420-1830-2030-overtime.png`)。
+
+#### 4b. Diff 邏輯 `tools/diff_screenshots.py`
+
+```python
+def diff(new_png, baseline_png, *, max_pixel_diff_ratio=0.05):
+    # 用 PIL ImageChops.difference → 算非零像素比例
+    # 超過 threshold → return False, 帶 diff 位置 metadata
+    ...
+```
+
+依賴: Pillow (已是 fhr 既有 transitive dep via openpyxl)。
+
+#### 4c. 整合到 Tier 3 E2E test
+
+```python
+def test_dry_run_screenshots_match_baseline():
+    # tier 3 跑完 → screenshot 存在 tmp/dry-run-screenshots/<ts>/
+    # 對每張 → compare with baseline
+    # 任一張 diff > threshold → fail + 寫 diff image 到 tmp/diff-screenshots/
+```
+
+更新 baseline workflow: `task screenshots:update` 把最新 dry-run 截圖複製成新 baseline,git commit 標 `chore(baselines)`。
+
+### Implementation phases (建議實作順序)
+
+| Phase | Tier | 範圍 | 預估 |
+|-------|------|------|------|
+| T1 | Tier 1 | 50+ unit tests on lib/commands handlers | small |
+| T2 | Tier 2 | Coverage glob 擴充 + per-package threshold + pre-commit unittest hook + baseline lock | medium |
+| T3 | Tier 3 | fake_agent_browser.py + recorder + E2E test + 1-2 fixtures (overtime + leave) | medium-large |
+| T4 | Tier 4 | screenshot diff helper + baseline fixtures + integrate to T3 test | small (依賴 T3) |
+
+每 phase 獨立 PR, branched off `docs/fhr-v2-plan` (or main if v2 已 merge 進去)。建議順序 T1 → T2 → T3 → T4,但 T2/T3 可並行。
+
+## Files To Modify / Create
+
+### Create
+
+- `test/test_portal_apply_helpers.py` — Tier 1 主力 (`_load_completed` / `_is_early_arrival` / `_format_entry` / `_resolve_screenshot_dir` / plan/result I/O)
+- `test/test_portal_fetch_helpers.py` — Tier 1 (`_default_range` / `_default_out` / `_parse_date` / `_resolve_base_url`)
+- `test/test_portal_sync_helpers.py` — Tier 1
+- `test/test_portal_balances_helpers.py` — Tier 1
+- `test/test_export_helpers.py`, `test/test_import_helpers.py`, `test/test_reasons_cmd_helpers.py` — Tier 1
+- `tools/fake_agent_browser.py` — Tier 3
+- `tools/record_portal_fixtures.py` — Tier 3
+- `tools/diff_screenshots.py` — Tier 4
+- `tools/coverage_baseline.json` — Tier 2
+- `tests/fixtures/portal_replay_v1/` — Tier 3 fixtures dir
+- `tests/fixtures/screenshot_baselines/` — Tier 4 baselines
+- `test/e2e_portal_replay.py` — Tier 3 + Tier 4 整合 E2E
+- `docs/testing.md` 新增 / 擴充 — 「怎麼跑/更新 fixtures」「怎麼更新 baseline」
+
+### Modify
+
+- `tools/run_coverage.py` — 拿掉 lib/commands lib/portal 的 exclude
+- `tools/check_coverage_threshold.py` — `--per-package` flag + 讀 `coverage_baseline.json`
+- `.pre-commit-config.yaml` — 加 local unittest hook
+- `.github/workflows/ci.yml` — coverage 改成跑 per-package check;新增 e2e_portal_replay job
+- `lib/portal/client.py` — 加 `FHR_RECORD_FIXTURES` env hook (dump subprocess args+stdout)
+- `Makefile` / `Taskfile.yml` — 新增 `task test:e2e`, `task fixtures:record`, `task screenshots:update`
+- `README.md` — testing 章節補 E2E 用法
+
+### Reuse (no change)
+
+- 既有 lib/* 邏輯
+- 既有 unit test 全部繼續 work
+
+## Verification
+
+1. **Tier 1**: `python3 -m unittest discover -s test` → 303 → ~360 tests 全綠;`_load_completed` 帶 dry_run filter 的 test 命中本 session 修的 bug;`_is_early_arrival` 4 個邊界皆對。
+2. **Tier 2**:
+   - `python3 tools/check_coverage_threshold.py --per-package lib.commands=70 lib.portal=80 --min 85` → exit 0
+   - 故意刪一個 portal_apply 的 helper test → coverage drop → CI fail
+   - `git commit` 跑 ~3-5s (含 unittest)
+3. **Tier 3**: `FHR_FAKE_AB_FIXTURE_DIR=tests/fixtures/portal_replay_v1 ./run_e2e.sh` → exit 0 + log 含「DRY RUN 結果: 加班 1/1, 請假 1/1」+ 產生 screenshot 檔
+4. **Tier 4**:
+   - Baseline 一致 → pass
+   - 手動改 baseline 1 像素 → fail + 寫 diff image
+   - `task screenshots:update` 後 git status 顯示新 PNG
+5. **CI**: `.github/workflows/ci.yml` 完整跑完 (lint + unittest + coverage gate + e2e_replay + screenshot diff)
+
+## Risks
+
+- **fake_agent_browser fixture brittleness**: Portal 改版 → fixture 過時 → user 必須重 record。Mitigation: 寫好「重 record」工具 + doc。Tier 4 baseline diff 會早期 alarm。
+- **Pre-commit 變慢**: 3-5s 對部分使用者不爽 → 提供 `SKIP_TESTS=1` escape hatch (現已存在)。
+- **Per-package coverage threshold 設太緊**: 新增的 commands handlers 一開始 coverage 不會 100%,Tier 2 應該設成「不能比 baseline 低」(從目前數字鎖定 floor),不是強逼 90%。
+- **Screenshot diff false positives**: Chromium 渲染微差 / 字型 → noise。Threshold 5% pixel diff + 用 hash 比較大區塊而非 pixel-exact。
+- **Fixture 個資**: 錄製的 fixture 含 user id / 員工姓名,要 scrub。Recorder 加 redact step。
+
+## Out Of Scope (本 v2.1 不做)
+
+- Playwright/Selenium 直接驅動 (放棄 agent-browser) — 太大改動
+- Real Portal scheduled E2E (GH Actions 定期跑真 Portal) — 需 secret 機密,風險高
+- 視覺 regression 工具如 Percy/Chromatic — 商業服務,過度
+- 端對端整合到 reasons / weekend_ot subcommand 的 E2E (本 v2.1 只覆蓋 portal-apply,reasons/weekend_ot 已有純 unit test 覆蓋 git harvester / Slack 由 skill 接手不需 E2E)

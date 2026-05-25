@@ -43,3 +43,14 @@ repos:
         stages: [pre-commit]
         verbose: true
         always_run: false
+
+      - id: unittest
+        name: unittest discover (full suite)
+        # Catches refactor drift before CI. Set SKIP_TESTS=1 to bypass
+        # for an emergency commit; CI will still enforce.
+        entry: bash -c 'if [ "${SKIP_TESTS:-}" = "1" ]; then echo "SKIP_TESTS=1, skipping"; exit 0; fi; rm -f attendance_state.json; python3 -m unittest discover -s test -b'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+        verbose: true

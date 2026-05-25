@@ -1,0 +1,12 @@
+{
+  "_comment": "Per-package coverage floor. Generated 2026-05-25 from `python3 tools/run_coverage.py` after Tier 1 of the v2.1 testing plan. CI fails if any package drops more than `tolerance_pct` below its floor; raising the floor is encouraged via PR. lib.commands is the lowest by design — large `run()` orchestration paths talk to agent-browser subprocess and are exercised via integration tests (Tier 3).",
+  "tolerance_pct": 1.0,
+  "overall_min": 80.0,
+  "packages": {
+    "attendance_analyzer": 95.0,
+    "lib.commands":         48.0,
+    "lib.core":             92.0,
+    "lib.io":               92.0,
+    "lib.portal":           92.0
+  }
+}

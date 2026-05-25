@@ -1,0 +1,22 @@
+{
+  "schema_version": "attendance-analysis/v1",
+  "cutoff_date": null,
+  "overtime": [
+    {
+      "date": "2026/04/20",
+      "start_time": "1830",
+      "end_time": "2030",
+      "hours": 2,
+      "location": "在辦公室",
+      "reason": "工作需要"
+    }
+  ],
+  "leave": [],
+  "skipped": [],
+  "summary": {
+    "overtime_count": 1,
+    "overtime_hours": 2,
+    "leave_count": 0,
+    "leave_hours": 0
+  }
+}

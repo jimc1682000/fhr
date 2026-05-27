@@ -11,7 +11,6 @@ from lib.portal.balances import (
     parse_items_panel,
 )
 
-
 # Real layout observed in the session (left side cropped — for the tests we
 # only need the column we want to read).
 ITEMS_ROWS = [

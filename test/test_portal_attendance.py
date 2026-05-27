@@ -14,7 +14,6 @@ from lib.portal.attendance import (
     fetch_to_txt,
 )
 
-
 SAMPLE_SNAPSHOT = """\
 - cell "一般假勤 特休假勤 異常刷卡" [ref=e1]
 - cell " 出勤刷卡期間 2026 年 5 月 到 2026 年 5 月  資料類型 異常刷卡資料  異常狀態 請選擇" [ref=e2]

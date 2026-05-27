@@ -24,7 +24,7 @@ class AttendanceStateManager:
     def _load_state(self) -> dict:
         if os.path.exists(self.state_file):
             try:
-                with open(self.state_file, encoding='utf-8') as f:
+                with open(self.state_file, encoding="utf-8") as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("無法讀取狀態檔案 %s: %s", self.state_file, e)
@@ -36,7 +36,7 @@ class AttendanceStateManager:
             logger.debug("🛡️  Debug/唯讀模式：略過狀態寫入 %s", self.state_file)
             return
         try:
-            with open(self.state_file, 'w', encoding='utf-8') as f:
+            with open(self.state_file, "w", encoding="utf-8") as f:
                 json.dump(self.state_data, f, ensure_ascii=False, indent=2)
         except OSError as e:
             logger.warning("無法儲存狀態檔案 %s: %s", self.state_file, e)
@@ -57,12 +57,13 @@ class AttendanceStateManager:
         ranges = self.state_data["users"][user_name].get("processed_date_ranges", [])
         return max((r.get("last_analysis_time", "") for r in ranges), default="")
 
-    def update_user_state(self, user_name: str, new_range: dict[str, str],
-                          forget_punch_usage: dict[str, int] = None) -> None:
+    def update_user_state(
+        self, user_name: str, new_range: dict[str, str], forget_punch_usage: dict[str, int] = None
+    ) -> None:
         if user_name not in self.state_data["users"]:
             self.state_data["users"][user_name] = {
                 "processed_date_ranges": [],
-                "forget_punch_usage": {}
+                "forget_punch_usage": {},
             }
         user_data = self.state_data["users"][user_name]
         existing_ranges = user_data["processed_date_ranges"]
@@ -99,9 +100,7 @@ class AttendanceStateManager:
 
     @staticmethod
     def _applied_form_key(entry: dict) -> tuple:
-        return (entry.get("date", ""),
-                entry.get("start_time", ""),
-                entry.get("end_time", ""))
+        return (entry.get("date", ""), entry.get("start_time", ""), entry.get("end_time", ""))
 
     def get_applied_forms(self, user_name: str, kind: str | None = None) -> dict | list:
         user = self.state_data["users"].get(user_name, {})
@@ -110,8 +109,9 @@ class AttendanceStateManager:
             return applied
         return applied.get(kind, [])
 
-    def replace_applied_forms(self, user_name: str, entries_by_kind: dict[str, list[dict]],
-                              synced_at: str) -> None:
+    def replace_applied_forms(
+        self, user_name: str, entries_by_kind: dict[str, list[dict]], synced_at: str
+    ) -> None:
         """Replace the user's mirrored applied-form lists with fresh data.
 
         Each entry is augmented with `synced_at` if it isn't already set."""
@@ -131,6 +131,25 @@ class AttendanceStateManager:
             applied[kind] = cleaned
         applied["last_full_sync"] = synced_at
 
+    def record_applied_form(self, user_name: str, kind: str, entry: dict, recorded_at: str) -> None:
+        """Record a locally submitted form without changing last_full_sync."""
+        if user_name not in self.state_data["users"]:
+            self.state_data["users"][user_name] = {
+                "processed_date_ranges": [],
+                "forget_punch_usage": {},
+            }
+        user = self.state_data["users"][user_name]
+        applied = user.setdefault("applied_forms", {})
+        entries = applied.setdefault(kind, [])
+        rec = dict(entry)
+        rec.setdefault("synced_at", recorded_at)
+        target = self._applied_form_key(rec)
+        for idx, existing in enumerate(entries):
+            if self._applied_form_key(existing) == target:
+                entries[idx] = {**existing, **rec}
+                return
+        entries.append(rec)
+
     def is_form_already_applied(self, user_name: str, kind: str, candidate: dict) -> bool:
         """True if the candidate (date/start/end) is already submitted."""
         target = self._applied_form_key(candidate)
@@ -140,8 +159,11 @@ class AttendanceStateManager:
         return False
 
     def last_full_sync(self, user_name: str) -> str:
-        return self.get_applied_forms(user_name).get("last_full_sync", "") \
-            if isinstance(self.get_applied_forms(user_name), dict) else ""
+        return (
+            self.get_applied_forms(user_name).get("last_full_sync", "")
+            if isinstance(self.get_applied_forms(user_name), dict)
+            else ""
+        )
 
     # ---------- legacy ----------
 
@@ -158,14 +180,15 @@ class AttendanceStateManager:
             if new_start <= existing_end and new_end >= existing_start:
                 overlap_start = max(new_start, existing_start)
                 overlap_end = min(new_end, existing_end)
-                overlaps.append((
-                    overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d")
-                ))
+                overlaps.append(
+                    (overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d"))
+                )
         return overlaps
 
 
-def filter_unprocessed_dates(processed_ranges: list[dict[str, str]],
-                             complete_days: Iterable[datetime]) -> list[datetime]:
+def filter_unprocessed_dates(
+    processed_ranges: list[dict[str, str]], complete_days: Iterable[datetime]
+) -> list[datetime]:
     """Return dates in complete_days not covered by any processed range.
 
     processed_ranges: List of dicts with 'start_date'/'end_date' in YYYY-MM-DD.
@@ -195,6 +218,7 @@ def filter_unprocessed_dates(processed_ranges: list[dict[str, str]],
 
     # Binary search membership over merged ranges
     import bisect
+
     starts = [s for s, _ in merged]
     for day_dt in complete_days:
         day = day_dt.date()

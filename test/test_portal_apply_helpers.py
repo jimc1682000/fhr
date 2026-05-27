@@ -4,6 +4,7 @@ Tier 1 of the v2.1 testing plan. These functions are pure (or pure I/O
 on temp files) — no agent-browser dependency. They were previously
 untested despite being 600+ LOC of business logic.
 """
+
 import argparse
 import json
 import os
@@ -27,6 +28,7 @@ from lib.commands.portal_apply import (
     _result_path,
     _save_plan,
     _save_results,
+    _should_fetch_balances,
     _wrap_submit_iter,
 )
 
@@ -43,11 +45,11 @@ def _ns(**kw):
 
 # -------- _entry_key / _plan_path / _result_path / _fmt_time --------
 
+
 class TestEntryKey(unittest.TestCase):
     def test_format(self):
         e = {"date": "2026/04/20", "start_time": "1830", "end_time": "2030"}
-        self.assertEqual(_entry_key(e, "overtime"),
-                         "overtime|2026/04/20|1830|2030")
+        self.assertEqual(_entry_key(e, "overtime"), "overtime|2026/04/20|1830|2030")
 
     def test_different_form_type_different_key(self):
         e = {"date": "2026/04/20", "start_time": "0930", "end_time": "1130"}
@@ -77,6 +79,7 @@ class TestFmtTime(unittest.TestCase):
 
 # -------- _is_early_arrival --------
 
+
 class TestIsEarlyArrival(unittest.TestCase):
     def _att(self, in_time: str | None) -> dict:
         rec = {}
@@ -87,68 +90,89 @@ class TestIsEarlyArrival(unittest.TestCase):
     def test_early_arrival_returns_delta_minutes(self):
         # actual 09:05, schedule_start 09:30, latest 10:00 → early=25min before schedule
         is_early, delta = _is_early_arrival(
-            "2026/04/22", "09:30", "10:00", self._att("09:05"),
+            "2026/04/22",
+            "09:30",
+            "10:00",
+            self._att("09:05"),
         )
         self.assertTrue(is_early)
         self.assertEqual(delta, 25)
 
     def test_on_time_not_early(self):
         is_early, delta = _is_early_arrival(
-            "2026/04/22", "09:30", "10:00", self._att("10:00"),
+            "2026/04/22",
+            "09:30",
+            "10:00",
+            self._att("10:00"),
         )
         self.assertFalse(is_early)
         self.assertEqual(delta, 0)
 
     def test_late_not_early(self):
         is_early, delta = _is_early_arrival(
-            "2026/04/22", "09:30", "10:00", self._att("11:26"),
+            "2026/04/22",
+            "09:30",
+            "10:00",
+            self._att("11:26"),
         )
         self.assertFalse(is_early)
 
     def test_missing_punch(self):
         is_early, delta = _is_early_arrival(
-            "2026/04/22", "09:30", "10:00", self._att(None),
+            "2026/04/22",
+            "09:30",
+            "10:00",
+            self._att(None),
         )
         self.assertFalse(is_early)
 
     def test_empty_punch_marker(self):
         is_early, _ = _is_early_arrival(
-            "2026/04/22", "09:30", "10:00", self._att("—"),
+            "2026/04/22",
+            "09:30",
+            "10:00",
+            self._att("—"),
         )
         self.assertFalse(is_early)
 
 
 # -------- _format_entry --------
 
+
 class TestFormatEntry(unittest.TestCase):
     ENTRY = {"date": "2026/04/22", "start_time": "1805", "end_time": "2005", "hours": 2}
 
     def test_includes_actual_punches(self):
         att = {"2026/04/22": {"上班": "09:05", "下班": "21:03"}}
-        out = _format_entry(self.ENTRY, att, schedule_start="09:30",
-                            latest_checkin="10:00")
+        out = _format_entry(self.ENTRY, att, schedule_start="09:30", latest_checkin="10:00")
         self.assertIn("實際 上班 09:05", out)
         self.assertIn("下班 21:03", out)
 
     def test_includes_early_arrival_hint(self):
         att = {"2026/04/22": {"上班": "09:05", "下班": "21:03"}}
-        out = _format_entry(self.ENTRY, att, schedule_start="09:30",
-                            latest_checkin="10:00", expected_checkout="18:05")
+        out = _format_entry(
+            self.ENTRY,
+            att,
+            schedule_start="09:30",
+            latest_checkin="10:00",
+            expected_checkout="18:05",
+        )
         self.assertIn("💡 早到 → 預期下班 18:05", out)
 
     def test_no_attendance_data(self):
-        out = _format_entry(self.ENTRY, {}, schedule_start="09:30",
-                            latest_checkin="10:00")
+        out = _format_entry(self.ENTRY, {}, schedule_start="09:30", latest_checkin="10:00")
         self.assertIn("2026/04/22", out)
         self.assertNotIn("實際", out)
 
 
 # -------- _load_plan / _save_plan --------
 
+
 class TestPlanFileRoundTrip(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                               delete=False, encoding="utf-8")
+        self.tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
         self.tmp.close()
         self.path = Path(self.tmp.name)
 
@@ -168,10 +192,14 @@ class TestPlanFileRoundTrip(unittest.TestCase):
     def test_round_trip_keys_by_entry_key(self):
         entry = {"date": "2026/04/20", "start_time": "1830", "end_time": "2030"}
         plan = {
-            "overtime": [{
-                "entry": entry, "action": "submit", "key": _entry_key(entry, "overtime"),
-                "reason": "x",
-            }],
+            "overtime": [
+                {
+                    "entry": entry,
+                    "action": "submit",
+                    "key": _entry_key(entry, "overtime"),
+                    "reason": "x",
+                }
+            ],
             "leave": [],
         }
         _save_plan(self.path, plan)
@@ -184,10 +212,12 @@ class TestPlanFileRoundTrip(unittest.TestCase):
 
 # -------- _load_completed --------
 
+
 class TestLoadCompleted(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                               delete=False, encoding="utf-8")
+        self.tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
         self.tmp.close()
         self.path = Path(self.tmp.name)
 
@@ -210,10 +240,12 @@ class TestLoadCompleted(unittest.TestCase):
     def test_collects_submitted_entries(self):
         e1 = {"date": "2026/04/20", "start_time": "1830", "end_time": "2030"}
         e2 = {"date": "2026/04/24", "start_time": "0930", "end_time": "1830"}
-        self._write({
-            "overtime": [{"entry": e1, "submitted": True}],
-            "leave": [{"entry": e2, "submitted": True}],
-        })
+        self._write(
+            {
+                "overtime": [{"entry": e1, "submitted": True}],
+                "leave": [{"entry": e2, "submitted": True}],
+            }
+        )
         out = _load_completed(self.path)
         self.assertIn(_entry_key(e1, "overtime"), out)
         self.assertIn(_entry_key(e2, "leave"), out)
@@ -222,27 +254,33 @@ class TestLoadCompleted(unittest.TestCase):
         # Regression: previously dry_run=true entries were treated as
         # completed (since submitted:true). Now they must NOT count.
         e1 = {"date": "2026/04/20", "start_time": "1830", "end_time": "2030"}
-        self._write({
-            "overtime": [{"entry": e1, "submitted": True, "dry_run": True}],
-            "leave": [],
-        })
+        self._write(
+            {
+                "overtime": [{"entry": e1, "submitted": True, "dry_run": True}],
+                "leave": [],
+            }
+        )
         self.assertEqual(_load_completed(self.path), set())
 
     def test_skipped_entries_excluded(self):
         e1 = {"date": "2026/04/20", "start_time": "1830", "end_time": "2030"}
-        self._write({
-            "overtime": [{"entry": e1, "submitted": False, "skipped": True}],
-            "leave": [],
-        })
+        self._write(
+            {
+                "overtime": [{"entry": e1, "submitted": False, "skipped": True}],
+                "leave": [],
+            }
+        )
         self.assertEqual(_load_completed(self.path), set())
 
 
 # -------- _save_results --------
 
+
 class TestSaveResults(unittest.TestCase):
     def test_writes_pretty_utf8(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                         delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
             path = Path(f.name)
         try:
             _save_results(path, {"overtime": [{"x": "中文"}], "leave": []})
@@ -253,15 +291,38 @@ class TestSaveResults(unittest.TestCase):
             path.unlink()
 
 
+# -------- _should_fetch_balances --------
+
+
+class TestShouldFetchBalances(unittest.TestCase):
+    def test_fetches_for_leave_even_when_no_sync(self):
+        leave = [{"date": "2026/04/24", "start_time": "0930", "end_time": "1830"}]
+        self.assertTrue(_should_fetch_balances(leave, no_sync=True))
+
+    def test_skips_when_no_leave_entries(self):
+        self.assertFalse(_should_fetch_balances([], no_sync=False))
+        self.assertFalse(_should_fetch_balances([], no_sync=True))
+
+
 # -------- _load_analysis --------
+
 
 class TestLoadAnalysis(unittest.TestCase):
     def test_validates_schema_version(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                         delete=False, encoding="utf-8") as f:
-            json.dump({"schema_version": "attendance-analysis/v1",
-                       "overtime": [], "leave": [], "summary": {},
-                       "cutoff_date": None, "skipped": []}, f)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            json.dump(
+                {
+                    "schema_version": "attendance-analysis/v1",
+                    "overtime": [],
+                    "leave": [],
+                    "summary": {},
+                    "cutoff_date": None,
+                    "skipped": [],
+                },
+                f,
+            )
             path = f.name
         try:
             payload = _load_analysis(path)
@@ -270,12 +331,14 @@ class TestLoadAnalysis(unittest.TestCase):
             os.remove(path)
 
     def test_wrong_schema_raises(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                         delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
             json.dump({"schema_version": "other/v9"}, f)
             path = f.name
         try:
             from lib.schema import SchemaVersionError
+
             with self.assertRaises(SchemaVersionError):
                 _load_analysis(path)
         finally:
@@ -284,11 +347,24 @@ class TestLoadAnalysis(unittest.TestCase):
 
 # -------- _load_attendance_map --------
 
+
 class TestLoadAttendanceMap(unittest.TestCase):
-    HEADER = "\t".join([
-        "應刷卡時段", "當日卡鐘資料", "刷卡別", "卡鐘編號", "資料來源",
-        "異常狀態", "處理狀態", "異常處理作業", "備註",
-    ]) + "\n"
+    HEADER = (
+        "\t".join(
+            [
+                "應刷卡時段",
+                "當日卡鐘資料",
+                "刷卡別",
+                "卡鐘編號",
+                "資料來源",
+                "異常狀態",
+                "處理狀態",
+                "異常處理作業",
+                "備註",
+            ]
+        )
+        + "\n"
+    )
 
     def _write(self, body: str) -> str:
         fd, path = tempfile.mkstemp(suffix=".txt")
@@ -327,6 +403,7 @@ class TestLoadAttendanceMap(unittest.TestCase):
 
 # -------- _auto_detect_attendance --------
 
+
 class TestAutoDetectAttendance(unittest.TestCase):
     def test_finds_出勤資料_next_to_analysis(self):
         with tempfile.TemporaryDirectory() as d:
@@ -341,6 +418,7 @@ class TestAutoDetectAttendance(unittest.TestCase):
 
 
 # -------- _resolve_base_url --------
+
 
 class TestResolveBaseUrl(unittest.TestCase):
     def setUp(self):
@@ -374,13 +452,13 @@ class TestResolveBaseUrl(unittest.TestCase):
 
 # -------- _resolve_screenshot_dir --------
 
+
 class TestResolveScreenshotDir(unittest.TestCase):
     def test_non_dry_run_returns_none(self):
         self.assertIsNone(_resolve_screenshot_dir(_ns(dry_run=False)))
 
     def test_explicit_empty_string_opts_out(self):
-        self.assertIsNone(_resolve_screenshot_dir(
-            _ns(dry_run=True, screenshot_dir="")))
+        self.assertIsNone(_resolve_screenshot_dir(_ns(dry_run=True, screenshot_dir="")))
 
     def test_explicit_path(self):
         out = _resolve_screenshot_dir(_ns(dry_run=True, screenshot_dir="my/dir"))
@@ -397,6 +475,7 @@ class TestResolveScreenshotDir(unittest.TestCase):
 
 
 # -------- _wrap_submit_iter --------
+
 
 class TestWrapSubmitIter(unittest.TestCase):
     def test_skips_completed(self):

@@ -5,9 +5,9 @@ from collections.abc import Iterable
 
 
 def _header_row(incremental_mode: bool) -> list[str]:
-    headers = ['日期', '類型', '時長(分鐘)', '說明', '時段', '計算式']
+    headers = ["日期", "類型", "時長(分鐘)", "說明", "時段", "計算式"]
     if incremental_mode:
-        headers.append('狀態')
+        headers.append("狀態")
     return headers
 
 
@@ -28,7 +28,7 @@ def _status_row(last_date: str, complete_days: int, last_analysis_time: str) -> 
 
 def _issue_row(issue, incremental_mode: bool) -> list[str]:
     row = [
-        issue.date.strftime('%Y/%m/%d'),
+        issue.date.strftime("%Y/%m/%d"),
         issue.type.value,
         issue.duration_minutes,
         issue.description,
@@ -36,7 +36,7 @@ def _issue_row(issue, incremental_mode: bool) -> list[str]:
         issue.calculation,
     ]
     if incremental_mode:
-        row.append("[NEW] 本次新發現" if getattr(issue, 'is_new', False) else "已存在")
+        row.append("[NEW] 本次新發現" if getattr(issue, "is_new", False) else "已存在")
     return row
 
 
@@ -75,23 +75,31 @@ def _normalize_row(row: list[str], width: int) -> list[str]:
     if len(row) > width:
         return row[:width]
     if len(row) < width:
-        return row + [''] * (width - len(row))
+        return row + [""] * (width - len(row))
     return row
 
 
 def _row_key(row: list[str]) -> tuple:
-    if len(row) > 1 and row[1] == '狀態資訊':
-        return ('STATUS', row[0])
+    if len(row) > 1 and row[1] == "狀態資訊":
+        return ("STATUS", row[0])
     # Use only date and type as key to allow updating same-day same-type issues
     limit = min(2, len(row))
     return tuple(row[:limit])
+
+
+def _is_status_key(key: tuple) -> bool:
+    return bool(key) and key[0] == "STATUS"
+
+
+def _is_wfh_row(row: list[str]) -> bool:
+    return len(row) > 1 and row[1] in {"WFH", "WFH假"}
 
 
 def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[list[str]]:
     """Merge existing CSV rows with new rows, deduplicating by key.
 
     New rows take precedence over existing ones with the same key.
-    Status rows should only appear when there are NO other data rows in the final result.
+    Status rows are kept when the final result has no actionable non-WFH rows.
     """
     header = new_rows[0]
     width = len(header)
@@ -112,10 +120,10 @@ def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[li
         normalized = _normalize_row(row, width)
         merged[_row_key(normalized)] = normalized
 
-    # Check if merged result has any non-status data rows
-    has_any_issues = any(
-        key and key[0] != 'STATUS'
-        for key in merged
+    # WFH suggestions are calendar-derived, so they should not suppress
+    # the "all dates processed" status row during incremental CSV merge.
+    has_actionable_issues = any(
+        not _is_status_key(key) and not _is_wfh_row(row) for key, row in merged.items()
     )
 
     result: list[list[str]] = [header]
@@ -123,17 +131,17 @@ def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[li
     # Extract status row if present
     status_key = None
     for key in list(merged):
-        if key and key[0] == 'STATUS':
+        if key and key[0] == "STATUS":
             status_key = key
             break
 
     # Only include status row if there are NO other data rows
     if status_key is not None:
-        if has_any_issues:
-            # Remove status row when other issues exist
+        if has_actionable_issues:
+            # Remove status row when actionable issues exist
             merged.pop(status_key)
         else:
-            # Place status row immediately after header when it's the only data
+            # Place status row immediately after header for status-only/WFH-only output
             result.append(merged.pop(status_key))
 
     # Add remaining rows
@@ -161,14 +169,14 @@ def save_csv(
         # Read existing CSV data for merging
         existing_rows: list[list[str]] = []
         try:
-            with open(filepath, encoding='utf-8-sig') as f:
-                reader = csv.reader(f, delimiter=';')
+            with open(filepath, encoding="utf-8-sig") as f:
+                reader = csv.reader(f, delimiter=";")
                 existing_rows = list(reader)
         except (FileNotFoundError, OSError):
             # If file doesn't exist or can't be read, proceed with new rows only
             existing_rows = []
         rows = _merge_rows(existing_rows, rows)
 
-    with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
-        writer = csv.writer(f, delimiter=';')
+    with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f, delimiter=";")
         writer.writerows(rows)

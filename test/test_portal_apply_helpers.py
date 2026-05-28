@@ -11,6 +11,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lib.commands.portal_apply import (
     _auto_detect_attendance,
@@ -30,6 +31,7 @@ from lib.commands.portal_apply import (
     _save_results,
     _should_fetch_balances,
     _wrap_submit_iter,
+    run,
 )
 
 
@@ -302,6 +304,144 @@ class TestShouldFetchBalances(unittest.TestCase):
     def test_skips_when_no_leave_entries(self):
         self.assertFalse(_should_fetch_balances([], no_sync=False))
         self.assertFalse(_should_fetch_balances([], no_sync=True))
+
+
+# -------- run orchestration --------
+
+
+class _FakePortalSession:
+    def __init__(self, session):
+        self.session = session
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeStateManager:
+    instances = []
+
+    def __init__(self, *args, **kwargs):
+        self.applied = {"overtime": [], "leave": []}
+        self.recorded = []
+        self.saved = 0
+        self.instances.append(self)
+
+    def get_applied_forms(self, user, kind=None):
+        if kind is None:
+            return self.applied
+        return self.applied.get(kind, [])
+
+    def record_applied_form(self, user, kind, entry, recorded_at):
+        self.recorded.append((user, kind, entry, recorded_at))
+        self.applied.setdefault(kind, []).append(entry)
+
+    def save_state(self):
+        self.saved += 1
+
+
+class TestRunAutoMode(unittest.TestCase):
+    def setUp(self):
+        _FakeStateManager.instances = []
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.analysis_path = Path(self.tmp.name) / "hr_personal_analysis_20260519.json"
+        self.analysis_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "attendance-analysis/v1",
+                    "overtime": [
+                        {
+                            "date": "2026/04/20",
+                            "start_time": "1830",
+                            "end_time": "2030",
+                            "hours": 2,
+                            "reason": "deploy",
+                        }
+                    ],
+                    "leave": [
+                        {
+                            "date": "2026/04/24",
+                            "start_time": "0930",
+                            "end_time": "1830",
+                            "hours": 9,
+                            "type_hint": "WFH",
+                            "reason": "WFH",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _args(self):
+        return _ns(
+            user="JimmyChen",
+            input=str(self.analysis_path),
+            attendance=None,
+            proxy="Proxy User",
+            auto=True,
+            dry_run=False,
+            dry_run_pause_secs=0,
+            screenshot_dir=None,
+            overtime_only=False,
+            leave_only=False,
+            base_url="https://ehr.example/ehrPortal",
+            session="test-session",
+            no_sync=True,
+            sync_max_age_hours=4,
+            debug=False,
+        )
+
+    def test_auto_mode_fetches_balances_and_records_local_submits(self):
+        def fake_batch_submit(
+            portal,
+            base_url,
+            overtime_iter,
+            leave_iter,
+            *,
+            on_overtime_done,
+            on_leave_done,
+            **kwargs,
+        ):
+            overtime = list(overtime_iter)
+            leave = list(leave_iter)
+            for item in overtime:
+                on_overtime_done(item, True)
+            for item in leave:
+                on_leave_done(item, True)
+            return len(overtime), len(overtime), len(leave), len(leave)
+
+        balances = {
+            "items": {
+                "異地辦公(8hr一週)": {"remaining": None},
+                "補休假": {"remaining": 8},
+                "事假(含家庭照顧假)": {"remaining": None},
+            },
+            "annual_leave": {"remaining_hours": 80},
+        }
+
+        with (
+            mock.patch("lib.env.load"),
+            mock.patch("lib.state.AttendanceStateManager", _FakeStateManager),
+            mock.patch("lib.portal.client.PortalSession", _FakePortalSession),
+            mock.patch("lib.portal.client.ensure_login") as ensure_login,
+            mock.patch(
+                "lib.portal.balances.fetch_balances", return_value=balances
+            ) as fetch_balances,
+            mock.patch("lib.portal.apply_forms.batch_submit", side_effect=fake_batch_submit),
+        ):
+            run(self._args())
+
+        ensure_login.assert_called()
+        fetch_balances.assert_called_once()
+        state = _FakeStateManager.instances[-1]
+        recorded_kinds = [item[1] for item in state.recorded]
+        self.assertEqual(recorded_kinds, ["overtime", "leave"])
+        self.assertNotIn("last_full_sync", state.applied)
+        self.assertEqual(state.saved, 2)
 
 
 # -------- _load_analysis --------

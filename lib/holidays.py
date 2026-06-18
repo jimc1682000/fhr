@@ -25,18 +25,36 @@ class Hardcoded2025Provider(HolidayProvider):
             # 元旦連假
             "2025/01/01",
             # 農曆春節
-            "2025/01/25", "2025/01/26", "2025/01/27", "2025/01/28", "2025/01/29",
-            "2025/01/30", "2025/01/31", "2025/02/01", "2025/02/02",
+            "2025/01/25",
+            "2025/01/26",
+            "2025/01/27",
+            "2025/01/28",
+            "2025/01/29",
+            "2025/01/30",
+            "2025/01/31",
+            "2025/02/01",
+            "2025/02/02",
             # 和平紀念日
-            "2025/02/28", "2025/03/01", "2025/03/02",
+            "2025/02/28",
+            "2025/03/01",
+            "2025/03/02",
             # 兒童節/清明節
-            "2025/04/03", "2025/04/04", "2025/04/05", "2025/04/06",
+            "2025/04/03",
+            "2025/04/04",
+            "2025/04/05",
+            "2025/04/06",
             # 端午節
-            "2025/05/30", "2025/05/31", "2025/06/01",
+            "2025/05/30",
+            "2025/05/31",
+            "2025/06/01",
             # 中秋節
-            "2025/10/04", "2025/10/05", "2025/10/06",
+            "2025/10/04",
+            "2025/10/05",
+            "2025/10/06",
             # 國慶日
-            "2025/10/10", "2025/10/11", "2025/10/12",
+            "2025/10/10",
+            "2025/10/11",
+            "2025/10/12",
         ]
         out: set[datetime.date] = set()
         for s in dates:
@@ -109,9 +127,14 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
             attempt += 1
             try:
                 logger.info(
-                    "資訊: 嘗試載入 %d 年假日 (第 %d/%d 次)...", year, attempt, self.max_retries
+                    "資訊: 嘗試載入 %d 年假日 (第 %d/%d 次)...",
+                    year,
+                    attempt,
+                    self.max_retries,
                 )
-                with urllib.request.urlopen(request, timeout=10, context=context) as resp:  # nosec B310
+                with urllib.request.urlopen(
+                    request, timeout=10, context=context
+                ) as resp:  # nosec B310
                     data = _json.loads(resp.read().decode("utf-8"))
                     if not isinstance(data, list):
                         logger.warning("API 回傳格式非預期（不是 list）")
@@ -137,7 +160,9 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
                     # err_desc = f"HTTP {status}"  # Variable assigned but never used
                     pass
                 else:
-                    logger.warning("無法從API載入 %d 年假日資料: HTTP %s — 不重試。", year, status)
+                    logger.warning(
+                        "無法從API載入 %d 年假日資料: HTTP %s — 不重試。", year, status
+                    )
                     return set()
             except (URLError, TimeoutError, _json.JSONDecodeError, ValueError):
                 # err_desc = f"連線/解析錯誤: {e}"  # Variable assigned but never used
@@ -149,7 +174,8 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
             if attempt > self.max_retries:
                 logger.error(
                     "錯誤: 嘗試 %d 次後仍無法載入 %d 年假日資料。回退到基本假日。",
-                    self.max_retries, year
+                    self.max_retries,
+                    year,
                 )
                 break
 
@@ -181,4 +207,3 @@ class HolidayService:
         for y in years:
             out |= self.load_year(y)
         return out
-

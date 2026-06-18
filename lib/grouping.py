@@ -2,6 +2,7 @@
 
 These helpers avoid importing analyzer types; they return simple dicts.
 """
+
 from collections import defaultdict
 
 
@@ -20,4 +21,3 @@ def group_daily(records: list) -> dict:
         else:
             daily[key]["checkout"] = rec
     return daily
-

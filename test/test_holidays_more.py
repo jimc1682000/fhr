@@ -9,9 +9,9 @@ from test.test_helpers import DummyResp, temp_env
 
 # Environment settings for testing to avoid long lines
 TEST_ENV_SETTINGS = {
-    'HOLIDAY_API_MAX_RETRIES': '1',
-    'HOLIDAY_API_BACKOFF_BASE': '0',
-    'HOLIDAY_API_MAX_BACKOFF': '0'
+    "HOLIDAY_API_MAX_RETRIES": "1",
+    "HOLIDAY_API_BACKOFF_BASE": "0",
+    "HOLIDAY_API_MAX_BACKOFF": "0",
 }
 
 
@@ -21,33 +21,37 @@ class FakeParse:
 
 
 class TestHolidaysMore(unittest.TestCase):
-
     def test_invalid_date_record_is_skipped(self):
         payload = [
-            {'date': 'bad-date', 'week': '?', 'isHoliday': True, 'description': ''},
-            {'date': '20261010', 'week': '六', 'isHoliday': True, 'description': '國慶日'},
-            {'date': '20260102', 'week': '五', 'isHoliday': False, 'description': ''},
+            {"date": "bad-date", "week": "?", "isHoliday": True, "description": ""},
+            {
+                "date": "20261010",
+                "week": "六",
+                "isHoliday": True,
+                "description": "國慶日",
+            },
+            {"date": "20260102", "week": "五", "isHoliday": False, "description": ""},
         ]
         with temp_env(TEST_ENV_SETTINGS):
             p = TaiwanGovOpenDataProvider()
-            with mock.patch('urllib.request.urlopen', return_value=DummyResp(payload)):
-                with self.assertLogs('lib.holidays', level='WARNING') as cm:
+            with mock.patch("urllib.request.urlopen", return_value=DummyResp(payload)):
+                with self.assertLogs("lib.holidays", level="WARNING") as cm:
                     out = p.load(2026)
-        self.assertIn(datetime.strptime('2026/10/10','%Y/%m/%d').date(), out)
+        self.assertIn(datetime.strptime("2026/10/10", "%Y/%m/%d").date(), out)
         logs = "\n".join(cm.output)
-        self.assertIn('跳過無效的日期格式', logs)
+        self.assertIn("跳過無效的日期格式", logs)
 
     def test_unsupported_scheme_returns_empty(self):
         with temp_env(TEST_ENV_SETTINGS):
             p = TaiwanGovOpenDataProvider()
-            with mock.patch('lib.holidays.urlparse', return_value=FakeParse('file')):
-                with self.assertLogs('lib.holidays', level='WARNING') as cm:
+            with mock.patch("lib.holidays.urlparse", return_value=FakeParse("file")):
+                with self.assertLogs("lib.holidays", level="WARNING") as cm:
                     out = p.load(2026)
         self.assertEqual(out, set())
-        self.assertIn('不支援的 URL scheme', "\n".join(cm.output))
+        self.assertIn("不支援的 URL scheme", "\n".join(cm.output))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: Holidays/API
 Purpose: Invalid record filtering and scheme rejection paths."""

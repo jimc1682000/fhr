@@ -49,7 +49,11 @@ class AttendanceStateManager:
     def get_forget_punch_usage(self, user_name: str, year_month: str) -> int:
         if user_name not in self.state_data["users"]:
             return 0
-        return self.state_data["users"][user_name].get("forget_punch_usage", {}).get(year_month, 0)
+        return (
+            self.state_data["users"][user_name]
+            .get("forget_punch_usage", {})
+            .get(year_month, 0)
+        )
 
     def get_last_analysis_time(self, user_name: str) -> str:
         if user_name not in self.state_data.get("users", {}):
@@ -58,7 +62,10 @@ class AttendanceStateManager:
         return max((r.get("last_analysis_time", "") for r in ranges), default="")
 
     def update_user_state(
-        self, user_name: str, new_range: dict[str, str], forget_punch_usage: dict[str, int] = None
+        self,
+        user_name: str,
+        new_range: dict[str, str],
+        forget_punch_usage: dict[str, int] = None,
     ) -> None:
         if user_name not in self.state_data["users"]:
             self.state_data["users"][user_name] = {
@@ -100,7 +107,11 @@ class AttendanceStateManager:
 
     @staticmethod
     def _applied_form_key(entry: dict) -> tuple:
-        return (entry.get("date", ""), entry.get("start_time", ""), entry.get("end_time", ""))
+        return (
+            entry.get("date", ""),
+            entry.get("start_time", ""),
+            entry.get("end_time", ""),
+        )
 
     def get_applied_forms(self, user_name: str, kind: str | None = None) -> dict | list:
         user = self.state_data["users"].get(user_name, {})
@@ -131,7 +142,9 @@ class AttendanceStateManager:
             applied[kind] = cleaned
         applied["last_full_sync"] = synced_at
 
-    def record_applied_form(self, user_name: str, kind: str, entry: dict, recorded_at: str) -> None:
+    def record_applied_form(
+        self, user_name: str, kind: str, entry: dict, recorded_at: str
+    ) -> None:
         """Record a locally submitted form without changing last_full_sync."""
         if user_name not in self.state_data["users"]:
             self.state_data["users"][user_name] = {
@@ -150,7 +163,9 @@ class AttendanceStateManager:
                 return
         entries.append(rec)
 
-    def is_form_already_applied(self, user_name: str, kind: str, candidate: dict) -> bool:
+    def is_form_already_applied(
+        self, user_name: str, kind: str, candidate: dict
+    ) -> bool:
         """True if the candidate (date/start/end) is already submitted."""
         target = self._applied_form_key(candidate)
         for existing in self.get_applied_forms(user_name, kind):
@@ -175,13 +190,18 @@ class AttendanceStateManager:
         new_start = datetime.strptime(new_start_date, "%Y-%m-%d").date()
         new_end = datetime.strptime(new_end_date, "%Y-%m-%d").date()
         for range_info in existing_ranges:
-            existing_start = datetime.strptime(range_info["start_date"], "%Y-%m-%d").date()
+            existing_start = datetime.strptime(
+                range_info["start_date"], "%Y-%m-%d"
+            ).date()
             existing_end = datetime.strptime(range_info["end_date"], "%Y-%m-%d").date()
             if new_start <= existing_end and new_end >= existing_start:
                 overlap_start = max(new_start, existing_start)
                 overlap_end = min(new_end, existing_end)
                 overlaps.append(
-                    (overlap_start.strftime("%Y-%m-%d"), overlap_end.strftime("%Y-%m-%d"))
+                    (
+                        overlap_start.strftime("%Y-%m-%d"),
+                        overlap_end.strftime("%Y-%m-%d"),
+                    )
                 )
         return overlaps
 

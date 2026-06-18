@@ -10,7 +10,7 @@ _TIMESTAMP_RE = re.compile(r"\d{8}_\d{6}$")
 
 
 def _match_timestamped_filename(stem: str, ext: str, candidate: str) -> bool:
-    if not candidate.startswith(stem + '_'):
+    if not candidate.startswith(stem + "_"):
         return False
     if ext and not candidate.endswith(ext):
         return False
@@ -36,11 +36,11 @@ def list_backups(filepath: str) -> list[str]:
     """
     # Normalize and validate path to prevent directory traversal
     filepath = os.path.normpath(filepath)
-    if '..' in filepath.split(os.sep):
+    if ".." in filepath.split(os.sep):
         raise ValueError(f"Invalid filepath with directory traversal: {filepath}")
 
     directory, filename = os.path.split(filepath)
-    directory = directory or '.'
+    directory = directory or "."
 
     # Validate directory exists and is accessible
     if not os.path.isdir(directory):
@@ -52,13 +52,15 @@ def list_backups(filepath: str) -> list[str]:
     try:
         for candidate in os.listdir(directory):
             # Only consider files in the same directory (no subdirectories)
-            if os.sep in candidate or candidate in ('.', '..'):
+            if os.sep in candidate or candidate in (".", ".."):
                 continue
 
             if _match_timestamped_filename(stem, ext, candidate):
                 backup_path = os.path.join(directory, candidate)
                 # Double-check the resolved path is within the expected directory
-                if os.path.dirname(os.path.abspath(backup_path)) == os.path.abspath(directory):
+                if os.path.dirname(os.path.abspath(backup_path)) == os.path.abspath(
+                    directory
+                ):
                     backups.append(backup_path)
     except FileNotFoundError:
         return []

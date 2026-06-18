@@ -1,4 +1,5 @@
 """Unit tests for `lib/commands/portal_fetch.py` helpers (Tier 1)."""
+
 import argparse
 import os
 import unittest
@@ -76,8 +77,9 @@ class TestResolveBaseUrl(unittest.TestCase):
 
     def test_arg_overrides_env(self):
         os.environ["EHR_URL"] = "http://from-env"
-        self.assertEqual(_resolve_base_url(self._ns(base_url="http://from-arg")),
-                         "http://from-arg")
+        self.assertEqual(
+            _resolve_base_url(self._ns(base_url="http://from-arg")), "http://from-arg"
+        )
 
     def test_env_used(self):
         os.environ["EHR_URL"] = "http://x.example/ehrPortal"

@@ -19,7 +19,9 @@ class DummyState:
 
     def update_user_state(self, user, range_info, forget_punch_usage):
         self.updated = True
-        self.state_data.setdefault('users', {}).setdefault(user, {})['last'] = range_info
+        self.state_data.setdefault("users", {}).setdefault(user, {})[
+            "last"
+        ] = range_info
 
     def save_state(self):
         self.saved = True
@@ -30,15 +32,17 @@ class DummyState:
 
 class TestStateUpdateFlow(unittest.TestCase):
     def _write_minimal_file(self, path):
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write('應刷卡時段\t當日卡鐘資料\t刷卡別\t卡鐘編號\t資料來源\t異常狀態\t處理狀態\t異常處理作業\t備註\n')
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(
+                "應刷卡時段\t當日卡鐘資料\t刷卡別\t卡鐘編號\t資料來源\t異常狀態\t處理狀態\t異常處理作業\t備註\n"
+            )
             # 2025/07/01 checkin and checkout to form a complete day
-            f.write('2025/07/01 09:10\t2025/07/01 09:10\t上班\t123\t門禁\t\t\t\t\n')
-            f.write('2025/07/01 18:20\t2025/07/01 18:20\t下班\t123\t門禁\t\t\t\t\n')
+            f.write("2025/07/01 09:10\t2025/07/01 09:10\t上班\t123\t門禁\t\t\t\t\n")
+            f.write("2025/07/01 18:20\t2025/07/01 18:20\t下班\t123\t門禁\t\t\t\t\n")
 
     def test_update_processing_state_is_called(self):
         with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, '202507-阿明-出勤資料.txt')
+            path = os.path.join(tmp, "202507-阿明-出勤資料.txt")
             self._write_minimal_file(path)
 
             an = AttendanceAnalyzer()
@@ -55,7 +59,7 @@ class TestStateUpdateFlow(unittest.TestCase):
             self.assertTrue(dummy.saved)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: State
 Purpose: Ensure update/save is invoked after analysis in incremental mode."""

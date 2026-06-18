@@ -10,6 +10,7 @@ then had nothing to act on.
 The fix: export defaults to full analysis. Users who want incremental
 behavior pass `--incremental` explicitly.
 """
+
 import json
 import os
 import shutil
@@ -45,13 +46,14 @@ class TestExportStateIndependence(unittest.TestCase):
         repo = Path(__file__).resolve().parents[1]
         result = subprocess.run(
             [sys.executable, "attendance_analyzer.py", *args],
-            cwd=repo, env=self.env,
-            capture_output=True, text=True, check=False,
+            cwd=repo,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if result.returncode != 0:
-            self.fail(
-                f"command failed: {' '.join(args)}\nstderr: {result.stderr}"
-            )
+            self.fail(f"command failed: {' '.join(args)}\nstderr: {result.stderr}")
         return result.stdout
 
     def test_export_emits_entries_even_after_analyze_marked_dates(self):
@@ -60,13 +62,17 @@ class TestExportStateIndependence(unittest.TestCase):
 
         # 2. Now export — should still emit the 04/20 OT + leave entries
         self._run(
-            "export", "--to=code-agent-hr", str(self.attendance),
-            "--out", str(self.out),
+            "export",
+            "--to=code-agent-hr",
+            str(self.attendance),
+            "--out",
+            str(self.out),
         )
         payload = json.loads(self.out.read_text(encoding="utf-8"))
         self.assertEqual(payload["schema_version"], "attendance-analysis/v1")
-        self.assertGreaterEqual(len(payload["overtime"]), 1,
-                                "export must emit OT despite state cache")
+        self.assertGreaterEqual(
+            len(payload["overtime"]), 1, "export must emit OT despite state cache"
+        )
         # 04/20 11:26 上班 is a clear 遲到 → leave with type_hint=late
         self.assertTrue(any(e.get("type_hint") == "late" for e in payload["leave"]))
 

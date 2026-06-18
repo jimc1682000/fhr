@@ -13,6 +13,7 @@ on the Portal — see `docs/personal-query.md`).
 Reused from `code_agent_hr/scripts/personal/fetch_data.py` with light
 cleanup (no behavior change in the JS).
 """
+
 from __future__ import annotations
 
 import logging
@@ -82,8 +83,13 @@ _PAGINATE_AND_EXTRACT_JS = """
 """
 
 
-def _set_query_form(portal: PortalSession, start_year: int, start_month: int,
-                    end_year: int, end_month: int) -> None:
+def _set_query_form(
+    portal: PortalSession,
+    start_year: int,
+    start_month: int,
+    end_year: int,
+    end_month: int,
+) -> None:
     """Populate the date range + data-type dropdowns + click the search button.
 
     We fetch fresh refs each call because snapshot refs go stale on navigation.
@@ -97,7 +103,7 @@ def _set_query_form(portal: PortalSession, start_year: int, start_month: int,
 
     # 起始 / 結束年份
     portal._run(["fill", refs["start_year"], str(start_year)])  # noqa: SLF001
-    portal._run(["fill", refs["end_year"], str(end_year)])      # noqa: SLF001
+    portal._run(["fill", refs["end_year"], str(end_year)])  # noqa: SLF001
     portal.select_ref(refs["start_month"], str(start_month))
     portal.select_ref(refs["end_month"], str(end_month))
     portal.select_ref(refs["data_type"], "全部刷卡資料")
@@ -169,8 +175,13 @@ def fetch_snapshot(
 ) -> dict[str, Any]:
     """Drive the Portal and return a `portal-attendance-snapshot/v1` payload."""
     url = f"{base_url}{ATTENDANCE_URL_PATH}"
-    logger.info("📡 正在查詢出勤紀錄 (%d/%02d ~ %d/%02d)...",
-                start_year, start_month, end_year, end_month)
+    logger.info(
+        "📡 正在查詢出勤紀錄 (%d/%02d ~ %d/%02d)...",
+        start_year,
+        start_month,
+        end_year,
+        end_month,
+    )
     portal.open(url)
     portal.wait(1500)
     _set_query_form(portal, start_year, start_month, end_year, end_month)
@@ -207,9 +218,12 @@ def fetch_to_txt(
     Returns the record count so callers can log it.
     """
     snapshot = fetch_snapshot(
-        portal, base_url,
-        start_year=start_year, start_month=start_month,
-        end_year=end_year, end_month=end_month,
+        portal,
+        base_url,
+        start_year=start_year,
+        start_month=start_month,
+        end_year=end_year,
+        end_month=end_month,
     )
     write_txt(out_txt, snapshot["records"])
     return len(snapshot["records"])

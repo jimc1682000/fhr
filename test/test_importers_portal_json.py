@@ -1,4 +1,5 @@
 """Tests for `lib/importers/portal_json.py`."""
+
 import json
 import os
 import tempfile
@@ -126,8 +127,9 @@ class TestImportFromDict(unittest.TestCase):
 
     def test_rejects_wrong_major(self):
         with self.assertRaises(SchemaVersionError):
-            import_from_dict({"schema_version": f"{SCHEMA_VERSION.split('/')[0]}/v9",
-                              "records": []})
+            import_from_dict(
+                {"schema_version": f"{SCHEMA_VERSION.split('/')[0]}/v9", "records": []}
+            )
 
 
 class TestConvertFile(unittest.TestCase):
@@ -159,7 +161,9 @@ class TestSnapshotFromLegacyJson(unittest.TestCase):
 
     def test_legacy_dict_with_records(self):
         # The actual session's agent-browser eval produced this shape.
-        path = self._write({"totalPages": 4, "recordCount": 62, "records": SAMPLE_RECORDS})
+        path = self._write(
+            {"totalPages": 4, "recordCount": 62, "records": SAMPLE_RECORDS}
+        )
         try:
             promoted = snapshot_from_legacy_json(path)
             self.assertEqual(promoted["schema_version"], SCHEMA_VERSION)

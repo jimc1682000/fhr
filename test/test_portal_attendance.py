@@ -3,6 +3,7 @@
 We mock the PortalSession + subprocess primitives — no real
 agent-browser invocation.
 """
+
 import os
 import tempfile
 import unittest
@@ -56,16 +57,34 @@ class TestFetchSnapshot(unittest.TestCase):
             "totalPages": 2,
             "recordCount": 3,
             "records": [
-                {"scheduledTime": "2026/05/01 09:30", "actualTime": "",
-                 "type": "上班", "status": "曠職"},
-                {"scheduledTime": "2026/05/02 09:30", "actualTime": "2026/05/02 09:32",
-                 "type": "上班", "status": ""},
-                {"scheduledTime": "2026/05/02 18:30", "actualTime": "2026/05/02 19:10",
-                 "type": "下班", "status": ""},
+                {
+                    "scheduledTime": "2026/05/01 09:30",
+                    "actualTime": "",
+                    "type": "上班",
+                    "status": "曠職",
+                },
+                {
+                    "scheduledTime": "2026/05/02 09:30",
+                    "actualTime": "2026/05/02 09:32",
+                    "type": "上班",
+                    "status": "",
+                },
+                {
+                    "scheduledTime": "2026/05/02 18:30",
+                    "actualTime": "2026/05/02 19:10",
+                    "type": "下班",
+                    "status": "",
+                },
             ],
         }
-        out = fetch_snapshot(portal, "http://x",
-                             start_year=2026, start_month=4, end_year=2026, end_month=5)
+        out = fetch_snapshot(
+            portal,
+            "http://x",
+            start_year=2026,
+            start_month=4,
+            end_year=2026,
+            end_month=5,
+        )
         self.assertEqual(out["schema_version"], "portal-attendance-snapshot/v1")
         self.assertEqual(out["totalPages"], 2)
         self.assertEqual(out["recordCount"], 3)
@@ -78,16 +97,28 @@ class TestFetchSnapshot(unittest.TestCase):
         self._wire_form_refs(portal)
         portal.eval_json.return_value = {"error": "mainFrame not found"}
         with self.assertRaises(RuntimeError):
-            fetch_snapshot(portal, "http://x",
-                           start_year=2026, start_month=5, end_year=2026, end_month=5)
+            fetch_snapshot(
+                portal,
+                "http://x",
+                start_year=2026,
+                start_month=5,
+                end_year=2026,
+                end_month=5,
+            )
 
     def test_unexpected_shape_raises(self):
         portal = self._portal()
         self._wire_form_refs(portal)
         portal.eval_json.return_value = "not a dict"
         with self.assertRaises(RuntimeError):
-            fetch_snapshot(portal, "http://x",
-                           start_year=2026, start_month=5, end_year=2026, end_month=5)
+            fetch_snapshot(
+                portal,
+                "http://x",
+                start_year=2026,
+                start_month=5,
+                end_year=2026,
+                end_month=5,
+            )
 
 
 class TestFetchToTxt(unittest.TestCase):
@@ -98,15 +129,26 @@ class TestFetchToTxt(unittest.TestCase):
             "totalPages": 1,
             "recordCount": 1,
             "records": [
-                {"scheduledTime": "2026/05/02 09:30", "actualTime": "2026/05/02 09:32",
-                 "type": "上班", "status": ""},
+                {
+                    "scheduledTime": "2026/05/02 09:30",
+                    "actualTime": "2026/05/02 09:32",
+                    "type": "上班",
+                    "status": "",
+                },
             ],
         }
         fd, path = tempfile.mkstemp(suffix=".txt")
         os.close(fd)
         try:
-            n = fetch_to_txt(portal, "http://x", path,
-                             start_year=2026, start_month=5, end_year=2026, end_month=5)
+            n = fetch_to_txt(
+                portal,
+                "http://x",
+                path,
+                start_year=2026,
+                start_month=5,
+                end_year=2026,
+                end_month=5,
+            )
             self.assertEqual(n, 1)
             content = open(path, encoding="utf-8").read()
             # header + 1 data row + trailing \n = 2 newlines

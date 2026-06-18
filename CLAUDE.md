@@ -108,6 +108,13 @@ pre-commit autoupdate
 
 **詳細設置說明**: 參見 [`docs/pre-commit-setup.md`](docs/pre-commit-setup.md)
 
+### 打包與發佈（Packaging）
+- `pyproject.toml` 定義 `[project]`,console script `fhr = lib.cli:run`；`[project].version` 為版本單一真相(commitizen `version_provider = pep621`)。
+- wheel `only-include = ["attendance_analyzer.py", "lib", "server"]`。**注意**:`attendance_analyzer.py` 是核心模組(`lib.*`/`server.*` 反向 import `Issue`/`IssueType`/`AttendanceAnalyzer`/`logger`),不可漏。
+- 安裝:`uvx --from . fhr ...` / `pipx install .`(CLI);`pip install .[service]`(含 Web 相依)。
+- 容器:單一 image 由 `docker-entrypoint.sh` 分流——預設 `CMD=["web"]` 啟 uvicorn,`analyze`/其他子命令走 `fhr` CLI。CI(`.github/workflows/release-image.yml`)在 push `v*` tag 時 buildx 多架構(amd64+arm64)推 `ghcr.io/jimc1682000/fhr`。
+- **邊界**:`portal-*`(agent-browser headed 瀏覽器 + 內網)**不進 image**,走原生安裝。詳見 [`docs/packaging.md`](docs/packaging.md)。
+
 ### Web Service（FastAPI）
 - App 入口：`server/main.py`
 - 本地啟動：`uvicorn server.main:app --reload`

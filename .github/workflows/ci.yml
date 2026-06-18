@@ -18,10 +18,9 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
           pip install openpyxl
-      - name: Lint (ruff) and format check (black)
+      - name: Lint and format check (ruff)
         run: |
-          if command -v ruff >/dev/null 2>&1; then ruff --version && ruff check .; else echo 'ruff missing'; fi
-          if command -v black >/dev/null 2>&1; then black --version && black --check .; else echo 'black missing'; fi
+          if command -v ruff >/dev/null 2>&1; then ruff --version && ruff check . && ruff format --check .; else echo 'ruff missing'; fi
       - name: Run tests with coverage (stdlib trace)
         run: |
           make coverage

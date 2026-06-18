@@ -17,15 +17,17 @@ ignore = [
   # Allow long lines in tests/docs if needed; keep to E501 elsewhere
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# 測試常有不可拆的固定字串（如 9 欄出勤 header）— 允許長行
+"test/*" = ["E501"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["attendance_analyzer", "lib", "server", "tools", "test"]
 combine-as-imports = true
 
-[tool.black]
-line-length = 100
-target-version = ['py311']
-include = '\\.pyi?$'
-exclude = '/(coverage_report|build|dist|fhr.egg-info|.venv|venv)/'
+[tool.ruff.format]
+# 取代 black：行長度沿用 [tool.ruff] 的 line-length = 100
+quote-style = "double"
 
 [tool.commitizen]
 name = "cz_conventional_commits"

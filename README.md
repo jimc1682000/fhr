@@ -8,13 +8,15 @@
 
 ## 功能特色
 
-- 🕒 自動計算遲到時數
+- 🕒 自動計算遲到時數（遲到門檻 10:00；遲到請假時數自動扣除午休）
 - ⏰ 自動計算加班時數（符合1小時以上規定）
 - 🏠 **自動識別週五WFH假建議（無論是否有打卡，除國定假日外）**
+- 📝 自動識別平日整日缺勤 → 整日請假建議
 - 📊 生成詳細分析報告
 - 📈 匯出Excel/CSV格式統計資料
-- 🔄 智慧忘刷卡建議（每月2次額度）
 - 🗓️ 支援跨年份出勤分析（自動載入國定假日）
+
+> 註：忘刷卡為每年 4 次的手動額度，分析流程不會自動拿來抵遲到（所有遲到一律列為請假建議）。
 - **🚀 NEW: 增量分析功能 - 避免重複處理已分析資料**
 - **📁 NEW: 支援跨月檔案格式 (`202508-202509-姓名-出勤資料.txt`)**
 - **💾 NEW: 智慧狀態管理 - 自動記住處理進度**
@@ -196,7 +198,7 @@ docker compose up --build -d
 
 ## Lint
 
-- 推薦：安裝 Ruff/Black 並執行 `make lint`（若無 Ruff，會使用內建的輕量 fallback 檢查：語法）。
+- 推薦：安裝 Ruff 並執行 `make lint`（lint + `ruff format` 格式化；若無 Ruff，會使用內建的輕量 fallback 檢查：語法）。
 
 ```bash
 # 使用 ruff（如已安裝）
@@ -207,11 +209,11 @@ python3 tools/lint.py
 
 # 開發者可選：安裝開發工具與 Git Hook
 pip install -r requirements-dev.txt
-make install-hooks  # 安裝 pre-commit hook（black + ruff + tests）
+make install-hooks  # 安裝 pre-commit hook（ruff lint + ruff format + tests）
 ```
 
 CI（GitHub Actions）
-- 對 PR 自動執行：Ruff（lint）、Black（格式檢查）、單元測試 + 覆蓋率 100% 門檻。
+- 對 PR 自動執行：Ruff（`ruff check` lint + `ruff format --check` 格式）、單元測試 + 覆蓋率門檻。
 
 備註：
 - UI 預設為「完整」模式與「Excel」輸出，且選項順序預設優先顯示。

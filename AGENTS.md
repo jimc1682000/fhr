@@ -14,8 +14,8 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 - `todos/` — 改進項目管理（立即可執行任務 + 需要開發支援的功能）。
 - `Dockerfile`、`docker-compose.yml` — 服務容器化與佈署。
 - `requirements-service.txt` — 後端服務相依。
-- `requirements-dev.txt` — 開發工具（black/ruff/pre-commit）。
-- `pyproject.toml` — black/ruff 設定。
+- `requirements-dev.txt` — 開發工具（ruff/pre-commit）。
+- `pyproject.toml` — ruff（lint + format）設定。
 - `.pre-commit-config.yaml` — pre-commit 框架配置。
 
 ## Build, Test, and Development Commands
@@ -52,7 +52,7 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 ## CI
 - GitHub Actions `ci.yml` 在 PR 上會執行：
   - 依 `requirements-dev.txt` 安裝開發相依
-  - Ruff 檢查（lint）與 Black `--check`（格式）
+  - Ruff 檢查（`ruff check`）與 Ruff 格式檢查（`ruff format --check`）
   - 單元測試 + 以 stdlib trace 產生覆蓋率報告
   - 強制覆蓋率達 ≥90%
 

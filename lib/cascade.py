@@ -14,6 +14,7 @@ Monthly-capped tiers (e.g. 異地辦公(8hr一週) → 40h/月) get a per-month
 budget. Already-applied forms (from `state.applied_forms`) are also
 deducted up-front so re-runs of `portal-apply` don't double-spend.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ from datetime import datetime
 TYPE_HINT_TO_CASCADE = {
     "late": "leave_cascade_late",
     "early_leave": "leave_cascade_late",
+    "full_day": "leave_cascade_late",
     "sick": "leave_cascade_sick",
     "WFH": "leave_cascade_wfh",
 }
@@ -46,9 +48,10 @@ MONTHLY_CAPS_HOURS: dict[str, int] = {
 @dataclass
 class AllocationDecision:
     """One assignment made by the cascade allocator."""
+
     entry: dict
-    leave_type: str | None       # None when nothing in the cascade could absorb
-    reason: str                  # human-readable explanation
+    leave_type: str | None  # None when nothing in the cascade could absorb
+    reason: str  # human-readable explanation
     insufficient: bool = False
 
 
@@ -156,14 +159,17 @@ def allocate(
                 reason = f"{cand} 剩 {rem}h，扣本筆 {hours}h → 餘 {remaining[cand]}h"
                 break
             reason = f"{cand} 剩 {rem}h 不足 {hours}h"
-        decisions.append(AllocationDecision(
-            entry=entry,
-            leave_type=picked,
-            reason=reason,
-            insufficient=(picked is None),
-        ))
-    return AllocationResult(decisions=decisions, remaining=remaining,
-                            monthly_used=monthly_used)
+        decisions.append(
+            AllocationDecision(
+                entry=entry,
+                leave_type=picked,
+                reason=reason,
+                insufficient=(picked is None),
+            )
+        )
+    return AllocationResult(
+        decisions=decisions, remaining=remaining, monthly_used=monthly_used
+    )
 
 
 def summarize(result: AllocationResult) -> str:

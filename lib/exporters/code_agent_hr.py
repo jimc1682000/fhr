@@ -8,12 +8,15 @@ Time math:
   - overtime: hours = floor(duration_minutes / 60), >= 1
   - late / early_leave: hours = ceil(duration_minutes / 60), >= 1
   - WFH: full-day 0930-1830 / 9h (synthesised)
-  - end_time = start_time + hours * 1h  (NOT actual punch time)
+  - full_day (平日整日請假): 0930-1830 / 8h (午休不計)
+  - end_time = start_time + hours * 1h  (NOT actual punch time;
+    WFH / full_day use schedule_start~schedule_end directly)
 
 Filters:
   - drop entries on or before `cutoff_date` (last applied form)
   - drop entries strictly after `today`
 """
+
 from __future__ import annotations
 
 import json
@@ -35,10 +38,10 @@ _TIME_RANGE_RE = re.compile(r"^\s*(\d{2}):(\d{2})\s*~\s*(\d{2}):(\d{2})\s*$")
 class ExportOptions:
     """Filter / shape knobs for the exporter."""
 
-    cutoff_date: date | None = None       # drop entries with date <= cutoff
-    today: date | None = None             # drop entries with date > today
-    schedule_start_hhmm: str = "0930"     # WFH default start
-    schedule_end_hhmm: str = "1830"       # WFH default end
+    cutoff_date: date | None = None  # drop entries with date <= cutoff
+    today: date | None = None  # drop entries with date > today
+    schedule_start_hhmm: str = "0930"  # WFH default start
+    schedule_end_hhmm: str = "1830"  # WFH default end
     overtime_reason: str = "工作需要"
     leave_reason: str = "personal matter"
     wfh_reason: str = "WFH"
@@ -53,7 +56,9 @@ def _parse_time_range(time_range: str) -> tuple[str, str] | None:
     m = _TIME_RANGE_RE.match(time_range or "")
     if not m:
         return None
-    return _to_hhmm(int(m.group(1)), int(m.group(2))), _to_hhmm(int(m.group(3)), int(m.group(4)))
+    return _to_hhmm(int(m.group(1)), int(m.group(2))), _to_hhmm(
+        int(m.group(3)), int(m.group(4))
+    )
 
 
 def _end_from_start_and_hours(start_hhmm: str, hours: int) -> str:
@@ -96,10 +101,14 @@ def issues_to_analysis(
         d_str = _date_str(d)
 
         if opts.cutoff_date and d <= opts.cutoff_date:
-            skipped.append({"date": d_str, "type": _zh_type(issue.type), "reason": "<= cutoff"})
+            skipped.append(
+                {"date": d_str, "type": _zh_type(issue.type), "reason": "<= cutoff"}
+            )
             continue
         if opts.today and d > opts.today:
-            skipped.append({"date": d_str, "type": _zh_type(issue.type), "reason": "future"})
+            skipped.append(
+                {"date": d_str, "type": _zh_type(issue.type), "reason": "future"}
+            )
             continue
 
         if issue.type == IssueType.OVERTIME:
@@ -111,13 +120,17 @@ def issues_to_analysis(
             if entry:
                 leave.append(entry)
         elif issue.type == IssueType.EARLY_LEAVE:
-            entry = _make_leave_from_late(issue, opts, d_str, skipped, type_hint="early_leave")
+            entry = _make_leave_from_late(
+                issue, opts, d_str, skipped, type_hint="early_leave"
+            )
             if entry:
                 leave.append(entry)
         elif issue.type == IssueType.WFH:
             leave.append(_make_wfh(opts, d_str))
-        # FORGET_PUNCH / WEEKDAY_LEAVE etc. are not actionable through this
-        # schema today — silently ignored. Future schema bumps can add them.
+        elif issue.type == IssueType.WEEKDAY_LEAVE:
+            leave.append(_make_full_day_leave(issue, opts, d_str))
+        # FORGET_PUNCH etc. are not actionable through this schema today —
+        # silently ignored. Future schema bumps can add them.
 
     payload = {
         "cutoff_date": _date_str(opts.cutoff_date) if opts.cutoff_date else None,
@@ -140,7 +153,9 @@ def _zh_type(issue_type) -> str:
     return getattr(issue_type, "value", str(issue_type))
 
 
-def _make_overtime(issue, opts: ExportOptions, d_str: str, skipped: list) -> dict | None:
+def _make_overtime(
+    issue, opts: ExportOptions, d_str: str, skipped: list
+) -> dict | None:
     rng = _parse_time_range(issue.time_range)
     if not rng:
         skipped.append({"date": d_str, "type": "加班", "reason": "no time"})
@@ -160,8 +175,9 @@ def _make_overtime(issue, opts: ExportOptions, d_str: str, skipped: list) -> dic
     }
 
 
-def _make_leave_from_late(issue, opts: ExportOptions, d_str: str, skipped: list,
-                          *, type_hint: str) -> dict | None:
+def _make_leave_from_late(
+    issue, opts: ExportOptions, d_str: str, skipped: list, *, type_hint: str
+) -> dict | None:
     rng = _parse_time_range(issue.time_range)
     if not rng:
         zh = "遲到" if type_hint == "late" else "早退"
@@ -175,6 +191,24 @@ def _make_leave_from_late(issue, opts: ExportOptions, d_str: str, skipped: list,
         "end_time": _end_from_start_and_hours(start, hours),
         "hours": hours,
         "type_hint": type_hint,
+        "reason": opts.leave_reason,
+    }
+
+
+def _make_full_day_leave(issue, opts: ExportOptions, d_str: str) -> dict:
+    """整天請假（平日整日缺勤）：09:30~18:30，時數取 duration（午休不計）。
+
+    type_hint=full_day → cascade 走事假池（補休→特休→事假）；
+    實際假別由 portal-apply 逐筆覆寫。"""
+    start = opts.schedule_start_hhmm
+    end = opts.schedule_end_hhmm
+    hours = max(1, int(issue.duration_minutes) // 60)
+    return {
+        "date": d_str,
+        "start_time": start,
+        "end_time": end,
+        "hours": hours,
+        "type_hint": "full_day",
         "reason": opts.leave_reason,
     }
 
@@ -195,7 +229,9 @@ def _make_wfh(opts: ExportOptions, d_str: str) -> dict:
     }
 
 
-def write(path: str | Path, issues: Iterable, options: ExportOptions | None = None) -> dict:
+def write(
+    path: str | Path, issues: Iterable, options: ExportOptions | None = None
+) -> dict:
     """Convenience: render + persist as pretty JSON. Returns the dict."""
     payload = issues_to_analysis(issues, options)
     Path(path).write_text(

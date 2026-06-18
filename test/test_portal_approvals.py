@@ -1,4 +1,5 @@
 """Tests for `lib/portal/approvals.py`."""
+
 import unittest
 from unittest import mock
 
@@ -89,7 +90,10 @@ class TestFetchFormEntries(unittest.TestCase):
             "totalPages": 1,
             "rows": [
                 {"id": "tbWorkSheetDataList_1", "wsdinfotext": SAMPLE_WSD_OT},
-                {"id": "tbWorkSheetDataList_2", "wsdinfotext": ""},  # malformed → skipped
+                {
+                    "id": "tbWorkSheetDataList_2",
+                    "wsdinfotext": "",
+                },  # malformed → skipped
             ],
         }
         entries = fetch_form_entries(portal, "http://x", "加班單")
@@ -97,10 +101,47 @@ class TestFetchFormEntries(unittest.TestCase):
         self.assertEqual(entries[0]["date"], "2026/04/20")
         self.assertEqual(entries[0]["row_id"], "tbWorkSheetDataList_1")
 
+    def test_paginates_one_eval_per_page(self):
+        # 3 頁 → 逐頁讀，各自一次 eval（不再單一超長 eval）
+        portal = mock.Mock()
+        portal._run.return_value = FILTER_SNAPSHOT
+        pages = [
+            {
+                "totalPages": 3,
+                "page": 0,
+                "rows": [{"id": "r0", "wsdinfotext": SAMPLE_WSD_OT}],
+            },
+            {
+                "totalPages": 3,
+                "page": 1,
+                "rows": [{"id": "r1", "wsdinfotext": SAMPLE_WSD_OT}],
+            },
+            {
+                "totalPages": 3,
+                "page": 2,
+                "rows": [
+                    {"id": "r2", "wsdinfotext": SAMPLE_WSD_OT},
+                    {"id": "r1", "wsdinfotext": SAMPLE_WSD_OT},
+                ],
+            },  # 重複 id 去重
+        ]
+        portal.eval_json.side_effect = pages
+        entries = fetch_form_entries(portal, "http://x", "加班單")
+        self.assertEqual(portal.eval_json.call_count, 3)
+        self.assertEqual(len(entries), 3)  # r0,r1,r2（重複的 r1 去重）
+
     def test_eval_error_raises(self):
         portal = mock.Mock()
         portal._run.return_value = FILTER_SNAPSHOT
         portal.eval_json.return_value = {"error": "boom"}
+        with self.assertRaises(RuntimeError):
+            fetch_form_entries(portal, "http://x", "加班單")
+
+    def test_malformed_eval_raises(self):
+        # 回傳 dict 但缺 rows 且非 error → 格式異常
+        portal = mock.Mock()
+        portal._run.return_value = FILTER_SNAPSHOT
+        portal.eval_json.return_value = {"totalPages": 1}
         with self.assertRaises(RuntimeError):
             fetch_form_entries(portal, "http://x", "加班單")
 

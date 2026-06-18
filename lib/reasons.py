@@ -14,6 +14,7 @@ mechanism we explicitly DON'T want. Instead, the agent skill
 queries Slack via its own MCP tools and merges the two
 sources at write time.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,12 +30,16 @@ DEFAULT_GIT_REPO_ROOTS: tuple[str, ...] = ("~/git", "~/workdir", "~/github")
 DEFAULT_AUTHORS: tuple[str, ...] = ()  # caller must supply
 
 
-def discover_repos(roots: Iterable[str]) -> list[Path]:
+def discover_repos(roots: Iterable[str], *, exclude: Iterable[str] = ()) -> list[Path]:
     """Return every immediate subdir of `roots` that looks like a git repo.
 
     We look two levels deep (`<root>/*/.git` and `<root>/*/*/.git`) — that
     matches how the user organizes work (`~/git/<repo>`, `~/github/<owner>/<repo>`).
+
+    `exclude` is a set of repo *directory names* (basename, case-insensitive)
+    to skip — used to keep personal side-projects out of work reason evidence.
     """
+    excluded = {e.lower() for e in exclude}
     out: list[Path] = []
     seen: set[str] = set()
     for r in roots:
@@ -43,6 +48,8 @@ def discover_repos(roots: Iterable[str]) -> list[Path]:
             continue
         for candidate in (*root.glob("*/.git"), *root.glob("*/*/.git")):
             repo = candidate.parent.resolve()
+            if repo.name.lower() in excluded:
+                continue
             key = str(repo)
             if key in seen:
                 continue
@@ -55,7 +62,10 @@ def _git(repo: Path, *args: str) -> str:
     try:
         result = subprocess.run(
             ["git", "-C", str(repo), *args],
-            capture_output=True, text=True, timeout=10, check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return ""
@@ -88,8 +98,10 @@ def commits_on(
         return []
     raw = _git(
         repo,
-        "log", *author_flags,
-        f"--since={since}", f"--until={until}",
+        "log",
+        *author_flags,
+        f"--since={since}",
+        f"--until={until}",
         "--pretty=format:%H%x00%aI%x00%s",
     )
     out: list[dict] = []
@@ -98,7 +110,9 @@ def commits_on(
         if len(parts) != 3:
             continue
         sha, iso, subject = parts
-        out.append({"repo": repo.name, "sha": sha[:10], "time": iso, "subject": subject})
+        out.append(
+            {"repo": repo.name, "sha": sha[:10], "time": iso, "subject": subject}
+        )
     return out
 
 
@@ -108,14 +122,17 @@ def harvest_dates(
     *,
     roots: Iterable[str] = DEFAULT_GIT_REPO_ROOTS,
     after_time: str = "00:00",
+    exclude_repos: Iterable[str] = (),
 ) -> dict[str, list[dict]]:
     """For each date, scan every repo and collect commits.
 
     `after_time` is "HH:MM" — used to filter commits earlier than the user's
     schedule_end when only evening overtime evidence is wanted. Default 00:00
     (no time filter) so callers explicitly opt in.
+
+    `exclude_repos` skips repos by directory name (e.g. personal side-projects).
     """
-    repos = discover_repos(list(roots))
+    repos = discover_repos(list(roots), exclude=exclude_repos)
     out: dict[str, list[dict]] = {}
     for d in dates:
         rows: list[dict] = []
@@ -132,6 +149,7 @@ def evidence_for_analysis(
     *,
     roots: Iterable[str] = DEFAULT_GIT_REPO_ROOTS,
     schedule_end: str = "18:30",
+    exclude_repos: Iterable[str] = (),
 ) -> dict[str, dict]:
     """Build a per-date evidence dict from an attendance-analysis/v1 payload.
 
@@ -146,7 +164,7 @@ def evidence_for_analysis(
 
     # Two harvests: one window for overtime (≥ schedule_end), one for leave
     # (whole day). We avoid double-scanning by gathering everything once.
-    raw = harvest_dates(parsed_dates, authors, roots=roots)
+    raw = harvest_dates(parsed_dates, authors, roots=roots, exclude_repos=exclude_repos)
 
     sh, sm = (int(x) for x in schedule_end.split(":"))
     threshold_minutes = sh * 60 + sm
@@ -159,12 +177,10 @@ def evidence_for_analysis(
     ):
         commits = raw.get(d_str, [])
         overtime_commits = [
-            c for c in commits
-            if _commit_minutes_local(c) >= threshold_minutes
+            c for c in commits if _commit_minutes_local(c) >= threshold_minutes
         ]
         leave_commits = [
-            c for c in commits
-            if _commit_minutes_local(c) < threshold_minutes
+            c for c in commits if _commit_minutes_local(c) < threshold_minutes
         ]
         entry = {"date": slash_str}
         if slash_str in overtime_dates:

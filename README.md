@@ -23,6 +23,16 @@
 ## 🚀 快速開始 - 選擇適合的使用方式
 
 ### 👤 個人用戶 (命令列工具)
+
+安裝成 `fhr` 命令(建議,跨平台、免 clone)：
+
+```bash
+uvx --from . fhr analyze "202508-王小明-出勤資料.txt"   # 一次性執行
+pipx install .                                          # 或常駐安裝 → 之後直接 fhr ...
+```
+
+直接從原始碼樹跑也行(免安裝)：
+
 ```bash
 # 最常用：自動增量分析 (legacy 寫法仍能用)
 python attendance_analyzer.py "202508-王小明-出勤資料.txt"
@@ -152,6 +162,7 @@ make coverage                                     # 檢查測試覆蓋率
 - [環境設定](docs/environment.md) - 假日 API 與環境變數
 
 **部署與維護**:
+- [打包與發佈](docs/packaging.md) - pip/uvx/pipx 安裝、GHCR 多架構 image、Portal 原生邊界
 - [Web 服務](docs/service.md) - FastAPI 後端與前端部署
 - [系統需求](docs/requirements.md) - 相依套件與硬體需求
 - [專案結構](docs/project-structure.md) - 檔案組織與模組說明
@@ -177,22 +188,29 @@ uvicorn server.main:app --reload
 
 ### Docker 部署
 
+CI 在 push `v*` tag 時建多架構(amd64 + arm64)image 推上 GHCR。同一個 image 既是 Web 服務、也能跑 CLI（由 entrypoint 分流，預設啟 Web）：
+
 ```bash
-# 建置映像
-docker build -t fhr:latest .
+# 直接用已發佈的 image（免 build；首次發佈後需把 GHCR 套件設為 public，見 docs/packaging.md）
+docker pull ghcr.io/jimc1682000/fhr:latest
 
-# 執行（將容器內 build/ 掛載到本機以保留輸出與上傳）
-docker run --rm -p 8000:8000 -v "$PWD/build:/app/build" fhr:latest
-
+# Web 服務（預設，無參數）
+docker run --rm -p 8000:8000 -v "$PWD/build:/app/build" ghcr.io/jimc1682000/fhr:latest
 # 瀏覽器開啟 http://localhost:8000/
+
+# CLI：把待分析檔目錄掛進 /data
+docker run --rm -v "$PWD:/data" -w /data \
+  ghcr.io/jimc1682000/fhr:latest analyze "202508-王小明-出勤資料.txt"
 ```
 
-或使用 Docker Compose：
+或自行 build / 用 Docker Compose：
 
 ```bash
-docker compose up --build -d
-# 停止：docker compose down
+docker build -t fhr:latest .
+docker compose up --build -d   # 停止：docker compose down
 ```
+
+> ⚠️ `portal-*`(瀏覽器自動化)**不在 image 內**——它需要 headed 瀏覽器與內網,請走原生安裝(`uvx`/`pipx`)。完整打包邊界見 [`docs/packaging.md`](docs/packaging.md)。
 
 ## Lint
 

@@ -16,6 +16,12 @@ RUN pip install --no-cache-dir -r requirements-service.txt
 # Copy app code
 COPY . .
 
+# Install the package itself so `fhr` is on PATH and lib/server are importable.
+# Deps are already satisfied by requirements-service.txt above, so skip them to
+# keep this layer fast and cache-friendly.
+RUN pip install --no-cache-dir --no-deps . \
+ && chmod +x docker-entrypoint.sh
+
 # Create non-root user and take ownership
 RUN useradd -m -u 10001 appuser \
  && mkdir -p /app/build/uploads /app/build/api-outputs \
@@ -31,4 +37,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD ["python", "-c", "import urllib.request,sys;\n\ntry:\n    r=urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)\n    sys.exit(0 if r.getcode()==200 else 1)\nexcept Exception:\n    sys.exit(1)"]
 
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Single image, two roles: ENTRYPOINT dispatches; default CMD keeps the web
+# service as the no-args behavior (so existing `docker compose up` is unchanged).
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["web"]

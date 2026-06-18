@@ -2,8 +2,11 @@ version: '3.8'
 
 services:
   fhr:
+    # Default: build locally for development.
+    # To run the published multi-arch image instead, comment out `build` and
+    # run `docker compose pull` (image is built & pushed by CI on `v*` tags).
     build: .
-    image: fhr:latest
+    image: ghcr.io/jimc1682000/fhr:latest
     container_name: fhr
     ports:
       - "8000:8000"

@@ -9,17 +9,24 @@ works without changes.
 Subcommand handlers live in `lib/commands/`. Each module exposes
 `add_parser(subparsers)` and `run(args)`.
 """
+
 from __future__ import annotations
 
 import argparse
 import sys
 
 KNOWN_SUBCOMMANDS = {
-    "analyze", "export", "import",
-    "portal-fetch", "portal_fetch",
-    "portal-sync", "portal_sync",
-    "portal-balances", "portal_balances",
-    "portal-apply", "portal_apply",
+    "analyze",
+    "export",
+    "import",
+    "portal-fetch",
+    "portal_fetch",
+    "portal-sync",
+    "portal_sync",
+    "portal-balances",
+    "portal_balances",
+    "portal-apply",
+    "portal_apply",
     "reasons",
 }
 
@@ -89,27 +96,35 @@ def run(argv: list | None = None) -> None:
 
     if args.cmd == "analyze":
         from lib.commands import analyze as analyze_cmd
+
         analyze_cmd.run(args)
     elif args.cmd == "export":
         from lib.commands import export as export_cmd
+
         export_cmd.run(args)
     elif args.cmd == "import":
         from lib.commands import import_ as import_cmd
+
         import_cmd.run(args)
     elif args.cmd in ("portal-fetch", "portal_fetch"):
         from lib.commands import portal_fetch as portal_fetch_cmd
+
         portal_fetch_cmd.run(args)
     elif args.cmd in ("portal-sync", "portal_sync"):
         from lib.commands import portal_sync as portal_sync_cmd
+
         portal_sync_cmd.run(args)
     elif args.cmd in ("portal-balances", "portal_balances"):
         from lib.commands import portal_balances as portal_balances_cmd
+
         portal_balances_cmd.run(args)
     elif args.cmd in ("portal-apply", "portal_apply"):
         from lib.commands import portal_apply as portal_apply_cmd
+
         portal_apply_cmd.run(args)
     elif args.cmd == "reasons":
         from lib.commands import reasons as reasons_cmd
+
         reasons_cmd.run(args)
     else:
         parser.error(f"unknown subcommand: {args.cmd}")

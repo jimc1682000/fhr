@@ -3,6 +3,7 @@
 Extracted from the pre-subcommand `lib/cli.py:run()` with the argparse
 configuration split into `add_parser()` so the top-level CLI can register
 it as a subparser. Run-time behavior is byte-for-byte identical."""
+
 from __future__ import annotations
 
 import argparse
@@ -44,23 +45,34 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="輸出格式 (預設: excel)",
     )
     parser.add_argument(
-        "--incremental", "-i", action="store_true", default=True,
+        "--incremental",
+        "-i",
+        action="store_true",
+        default=True,
         help="啟用增量分析模式 (預設開啟)",
     )
     parser.add_argument("--full", "-f", action="store_true", help="強制完整重新分析")
-    parser.add_argument("--reset-state", "-r", action="store_true", help="清除指定使用者的狀態記錄")
-    parser.add_argument("--debug", action="store_true",
-                        help="啟用 debug 模式（詳細日誌、不寫入狀態檔）")
     parser.add_argument(
-        "--export-policy", choices=["merge", "archive"], default="merge",
+        "--reset-state", "-r", action="store_true", help="清除指定使用者的狀態記錄"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="啟用 debug 模式（詳細日誌、不寫入狀態檔）"
+    )
+    parser.add_argument(
+        "--export-policy",
+        choices=["merge", "archive"],
+        default="merge",
         help="匯出策略：merge 直接覆寫主檔案，archive 保留 timestamp 備份。",
     )
     parser.add_argument(
-        "--cleanup-exports", action="store_true",
+        "--cleanup-exports",
+        action="store_true",
         help="清除 timestamp 備份；搭配 --debug 時同時刪除本次產出的匯出檔案。",
     )
     parser.add_argument(
-        "--unprocessed-only", "-u", action="store_true",
+        "--unprocessed-only",
+        "-u",
+        action="store_true",
         help="只分析處理狀態為空（未處理）的記錄，跳過已處理的記錄。",
     )
     return parser
@@ -102,7 +114,9 @@ def run(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     try:
-        analyzer = AttendanceAnalyzer(debug=args.debug, unprocessed_only=args.unprocessed_only)
+        analyzer = AttendanceAnalyzer(
+            debug=args.debug, unprocessed_only=args.unprocessed_only
+        )
 
         if incremental_mode:
             logger.info("📂 正在解析考勤檔案... (增量分析模式)")
@@ -148,7 +162,9 @@ def run(args: argparse.Namespace) -> None:
 
         if format_type.lower() == "excel":
             csv_filepath = filepath.replace(".txt", "_analysis.csv")
-            backup_path = analyzer.export_report(csv_filepath, "csv", export_policy=export_policy)
+            backup_path = analyzer.export_report(
+                csv_filepath, "csv", export_policy=export_policy
+            )
             exported_files.append(csv_filepath)
             if backup_path:
                 backup_files.append(backup_path)
@@ -189,7 +205,9 @@ def run(args: argparse.Namespace) -> None:
                 else:
                     removed_paths: set[str] = set()
                     for path in exported_files:
-                        removed = cleanup_exports_helper(path, include_canonical=args.debug)
+                        removed = cleanup_exports_helper(
+                            path, include_canonical=args.debug
+                        )
                         removed_paths.update(os.path.abspath(p) for p in removed)
                     for backup in backup_files:
                         if os.path.exists(backup):

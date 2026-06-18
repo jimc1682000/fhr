@@ -8,6 +8,7 @@ Schemas live under `docs/schema/` and follow `<name>/v<major>` naming
 (e.g. `attendance-analysis/v1`). Adding fields is a minor change and
 does not require a bump; renaming or removing fields is a major bump.
 """
+
 from __future__ import annotations
 
 import json
@@ -15,7 +16,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-_VERSION_RE = re.compile(r"^(?P<name>[a-z][a-z0-9-]*)/v(?P<major>\d+)(?:\.(?P<minor>\d+))?$")
+_VERSION_RE = re.compile(
+    r"^(?P<name>[a-z][a-z0-9-]*)/v(?P<major>\d+)(?:\.(?P<minor>\d+))?$"
+)
 
 
 class SchemaVersionError(ValueError):
@@ -55,9 +58,7 @@ def require_schema_version(payload: Any, expected: str) -> None:
         )
     actual = payload.get("schema_version")
     if not actual:
-        raise SchemaVersionError(
-            f"payload 缺少 schema_version 欄位；預期 {expected!r}"
-        )
+        raise SchemaVersionError(f"payload 缺少 schema_version 欄位；預期 {expected!r}")
     exp_name, exp_major, _ = parse_version(expected)
     act_name, act_major, _ = parse_version(str(actual))
     if act_name != exp_name:

@@ -11,7 +11,9 @@ def _header_row(incremental_mode: bool) -> list[str]:
     return headers
 
 
-def _status_row(last_date: str, complete_days: int, last_analysis_time: str) -> list[str]:
+def _status_row(
+    last_date: str, complete_days: int, last_analysis_time: str
+) -> list[str]:
     return [
         last_date,
         "狀態資訊",
@@ -50,7 +52,9 @@ def write_status_row(
     writer.writerow(_status_row(last_date, complete_days, last_analysis_time))
 
 
-def write_issue_rows(writer: csv.writer, issues: Iterable, incremental_mode: bool) -> None:
+def write_issue_rows(
+    writer: csv.writer, issues: Iterable, incremental_mode: bool
+) -> None:
     for issue in issues:
         writer.writerow(_issue_row(issue, incremental_mode))
 
@@ -97,7 +101,9 @@ def _is_wfh_row(row: list[str]) -> bool:
     return len(row) > 1 and row[1] in {"WFH", "WFH假"}
 
 
-def _merge_rows(existing: list[list[str]], new_rows: list[list[str]]) -> list[list[str]]:
+def _merge_rows(
+    existing: list[list[str]], new_rows: list[list[str]]
+) -> list[list[str]]:
     """Merge existing CSV rows with new rows, deduplicating by key.
 
     New rows take precedence over existing ones with the same key.

@@ -11,31 +11,47 @@ class TestHolidayApiRetry(unittest.TestCase):
         with temp_env(
             HOLIDAY_API_MAX_RETRIES="3",
             HOLIDAY_API_BACKOFF_BASE="0",
-            HOLIDAY_API_MAX_BACKOFF="0"
+            HOLIDAY_API_MAX_BACKOFF="0",
         ):
             analyzer = AttendanceAnalyzer()
             seq = [
                 Exception("temporary failure"),
                 Exception("temporary failure"),
                 [
-                    {"date": "20260101", "week": "四", "isHoliday": True, "description": "元旦"},
-                    {"date": "20260102", "week": "五", "isHoliday": False, "description": ""},
+                    {
+                        "date": "20260101",
+                        "week": "四",
+                        "isHoliday": True,
+                        "description": "元旦",
+                    },
+                    {
+                        "date": "20260102",
+                        "week": "五",
+                        "isHoliday": False,
+                        "description": "",
+                    },
                 ],
             ]
-            with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
+            with mock.patch(
+                "urllib.request.urlopen", side_effect=urlopen_sequence(seq)
+            ):
                 ok = analyzer._try_load_from_gov_api(2026)
 
         self.assertTrue(ok)
-        self.assertIn(datetime.strptime("2026/01/01", "%Y/%m/%d").date(), analyzer.holidays)
+        self.assertIn(
+            datetime.strptime("2026/01/01", "%Y/%m/%d").date(), analyzer.holidays
+        )
 
     def test_retry_exhaustion_then_fallback(self):
         with temp_env(
             HOLIDAY_API_MAX_RETRIES="2",
             HOLIDAY_API_BACKOFF_BASE="0",
-            HOLIDAY_API_MAX_BACKOFF="0"
+            HOLIDAY_API_MAX_BACKOFF="0",
         ):
             analyzer = AttendanceAnalyzer()
-            with mock.patch("urllib.request.urlopen", side_effect=Exception("network down")):
+            with mock.patch(
+                "urllib.request.urlopen", side_effect=Exception("network down")
+            ):
                 ok = analyzer._try_load_from_gov_api(2027)
 
         self.assertFalse(ok)
@@ -44,15 +60,26 @@ class TestHolidayApiRetry(unittest.TestCase):
         with temp_env(
             HOLIDAY_API_MAX_RETRIES="2",
             HOLIDAY_API_BACKOFF_BASE="0",
-            HOLIDAY_API_MAX_BACKOFF="0"
+            HOLIDAY_API_MAX_BACKOFF="0",
         ):
             analyzer = AttendanceAnalyzer()
             seq = [
                 TimeoutError("timed out"),
-                [{"date": "20271010", "week": "日", "isHoliday": True, "description": "國慶日"}],
+                [
+                    {
+                        "date": "20271010",
+                        "week": "日",
+                        "isHoliday": True,
+                        "description": "國慶日",
+                    }
+                ],
             ]
-            with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
+            with mock.patch(
+                "urllib.request.urlopen", side_effect=urlopen_sequence(seq)
+            ):
                 ok = analyzer._try_load_from_gov_api(2027)
         self.assertTrue(ok)
+
+
 """Category: Holidays/API
 Purpose: Analyzer facade retry path via _try_load_from_gov_api."""

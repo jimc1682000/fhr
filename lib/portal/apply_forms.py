@@ -9,6 +9,7 @@ Each `submit_*` returns True / False — the Portal doesn't expose a clean
 post-submit confirmation other than the form becoming `disabled` + a
 form ID showing up in the snapshot, so we use the same heuristic from
 the original implementation."""
+
 from __future__ import annotations
 
 import logging
@@ -30,8 +31,11 @@ def _snap_filename(form_type: str, entry: dict, seq: int) -> str:
 
 
 def _take_dry_run_screenshot(
-    portal: PortalSession, screenshot_dir: Path | None,
-    form_type: str, entry: dict, seq: int,
+    portal: PortalSession,
+    screenshot_dir: Path | None,
+    form_type: str,
+    entry: dict,
+    seq: int,
 ) -> Path | None:
     if screenshot_dir is None:
         return None
@@ -53,7 +57,8 @@ def _open_form(portal: PortalSession, base_url: str, form_name_zh: str) -> None:
     portal.open(f"{base_url}{FORM_QUEUES_URL_PATH}")
     portal.wait(3000)
     escaped = js_escape(form_name_zh)
-    result = portal.eval_json(f"""
+    result = portal.eval_json(
+        f"""
     (function() {{
         const cells = document.querySelectorAll('td');
         for (const c of cells) {{
@@ -64,16 +69,20 @@ def _open_form(portal: PortalSession, base_url: str, form_name_zh: str) -> None:
         }}
         return {{error: '{escaped} not found'}};
     }})()
-    """)
+    """
+    )
     if not isinstance(result, dict) or not result.get("success"):
         raise RuntimeError(f"無法開啟表單 {form_name_zh}: {result!r}")
     portal.wait(3000)
 
 
-def _fill_datetime(portal: PortalSession, date: str, start_time: str, end_time: str) -> None:
+def _fill_datetime(
+    portal: PortalSession, date: str, start_time: str, end_time: str
+) -> None:
     """Populate StartDate / StartTime / EndDate / EndTime fields via eval."""
     escaped_date = js_escape(date)
-    portal.eval_json(f"""
+    portal.eval_json(
+        f"""
     (function() {{
         const sd = document.querySelector('input[name*="StartDate"]');
         const st = document.querySelector('input[name*="StartTime"]');
@@ -88,26 +97,30 @@ def _fill_datetime(portal: PortalSession, date: str, start_time: str, end_time: 
         }}
         return {{ok: true}};
     }})()
-    """)
+    """
+    )
     portal.wait(1000)
 
 
 def _trigger_hour_calc(portal: PortalSession) -> None:
     """Fire change+blur on every *Time input so the Portal recomputes 合計時數."""
-    portal.eval_json("""
+    portal.eval_json(
+        """
     document.querySelectorAll('input').forEach(i => {
         if (i.name && i.name.includes('Time')) {
             i.dispatchEvent(new Event('change', {bubbles: true}));
             i.dispatchEvent(new Event('blur', {bubbles: true}));
         }
     });
-    """)
+    """
+    )
     portal.wait(2000)
 
 
 def _click_submit(portal: PortalSession) -> None:
     """Recursively walk every iframe to find and click the 確定送出 button."""
-    portal.eval_json("""
+    portal.eval_json(
+        """
     (function() {
         function findAndClick(doc) {
             const btns = Array.from(doc.querySelectorAll(
@@ -123,7 +136,8 @@ def _click_submit(portal: PortalSession) -> None:
         }
         return findAndClick(document);
     })()
-    """)
+    """
+    )
     portal.wait(2000)
     portal.dialog_accept()
     portal.wait(1000)
@@ -161,15 +175,23 @@ def submit_overtime(
     date = entry["date"]
     start = entry["start_time"]
     end = entry["end_time"]
-    logger.info("📝 加班單%s: %s %s:%s-%s:%s (%dh)",
-                " [DRY RUN]" if dry_run else "",
-                date, start[:2], start[2:], end[:2], end[2:], entry.get("hours", 0))
+    logger.info(
+        "📝 加班單%s: %s %s:%s-%s:%s (%dh)",
+        " [DRY RUN]" if dry_run else "",
+        date,
+        start[:2],
+        start[2:],
+        end[:2],
+        end[2:],
+        entry.get("hours", 0),
+    )
 
     _open_form(portal, base_url, "加班單")
     _fill_datetime(portal, date, start, end)
 
     location = js_escape(entry.get("location", "在辦公室"))
-    portal.eval_json(f"""
+    portal.eval_json(
+        f"""
     (function() {{
         const selects = document.querySelectorAll('select');
         for (const sel of selects) {{
@@ -187,11 +209,13 @@ def submit_overtime(
         }}
         return true;
     }})()
-    """)
+    """
+    )
     portal.wait(1000)
 
     escaped_reason = js_escape(reason)
-    portal.eval_json(f"""
+    portal.eval_json(
+        f"""
     (function() {{
         const tb = document.getElementById('OVERTIME_REASON_TextBox1');
         if (tb) {{
@@ -201,14 +225,18 @@ def submit_overtime(
         }}
         return true;
     }})()
-    """)
+    """
+    )
     portal.wait(1000)
     _trigger_hour_calc(portal)
     if dry_run:
-        _take_dry_run_screenshot(portal, screenshot_dir, "overtime",
-                                 entry, screenshot_seq)
-        logger.info("    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
-                    dry_run_pause_secs)
+        _take_dry_run_screenshot(
+            portal, screenshot_dir, "overtime", entry, screenshot_seq
+        )
+        logger.info(
+            "    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
+            dry_run_pause_secs,
+        )
         portal.wait(dry_run_pause_secs * 1000)
         return True
     _click_submit(portal)
@@ -241,17 +269,25 @@ def submit_leave(
     date = entry["date"]
     start = entry["start_time"]
     end = entry["end_time"]
-    logger.info("📝 請假單%s: %s %s:%s-%s:%s (%dh) [%s]",
-                " [DRY RUN]" if dry_run else "",
-                date, start[:2], start[2:], end[:2], end[2:],
-                entry.get("hours", 0), leave_type_name)
+    logger.info(
+        "📝 請假單%s: %s %s:%s-%s:%s (%dh) [%s]",
+        " [DRY RUN]" if dry_run else "",
+        date,
+        start[:2],
+        start[2:],
+        end[:2],
+        end[2:],
+        entry.get("hours", 0),
+        leave_type_name,
+    )
 
     _open_form(portal, base_url, "請假單")
 
     is_wfh = "異地辦公" in leave_type_name
     if not is_wfh and proxy_employee:
         escaped_proxy = js_escape(proxy_employee)
-        portal.eval_json(f"""
+        portal.eval_json(
+            f"""
         (function() {{
             const sel = document.getElementById('AGENT_ID_ddlDelegate');
             if (sel) {{
@@ -265,11 +301,13 @@ def submit_leave(
             }}
             return true;
         }})()
-        """)
+        """
+        )
         portal.wait(1000)
 
     escaped_leave = js_escape(leave_type_name)
-    match = portal.eval_json(f"""
+    match = portal.eval_json(
+        f"""
     (function() {{
         const sel = document.getElementById('LEAVE_CLASS_DropDownList1');
         if (!sel) return {{error: 'select not found', matched: 0}};
@@ -287,7 +325,8 @@ def submit_leave(
         }}
         return {{matched: matches.length, matches: matches}};
     }})()
-    """)
+    """
+    )
     if isinstance(match, dict):
         matched = match.get("matched", 0)
         if matched == 0:
@@ -295,7 +334,9 @@ def submit_leave(
             return False
         if matched > 1:
             options = [m.get("text") for m in match.get("matches", [])]
-            logger.error("    ❌ 假別 %s 匹配多個 %s，跳過此單", leave_type_name, options)
+            logger.error(
+                "    ❌ 假別 %s 匹配多個 %s，跳過此單", leave_type_name, options
+            )
             return False
     portal.wait(3000)
 
@@ -303,7 +344,8 @@ def submit_leave(
     _trigger_hour_calc(portal)
 
     escaped_reason = js_escape(reason)
-    portal.eval_json(f"""
+    portal.eval_json(
+        f"""
     (function() {{
         let field = document.querySelector('textarea[id*="REASON"], input[id*="REASON"]');
         if (!field) {{
@@ -321,13 +363,15 @@ def submit_leave(
         }}
         return true;
     }})()
-    """)
+    """
+    )
     portal.wait(1000)
     if dry_run:
-        _take_dry_run_screenshot(portal, screenshot_dir, "leave",
-                                 entry, screenshot_seq)
-        logger.info("    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
-                    dry_run_pause_secs)
+        _take_dry_run_screenshot(portal, screenshot_dir, "leave", entry, screenshot_seq)
+        logger.info(
+            "    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
+            dry_run_pause_secs,
+        )
         portal.wait(dry_run_pause_secs * 1000)
         return True
     _click_submit(portal)
@@ -363,9 +407,14 @@ def batch_submit(
             continue
         ot_total += 1
         ok = submit_overtime(
-            portal, base_url, plan["entry"], plan["reason"],
-            dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs,
-            screenshot_dir=screenshot_dir, screenshot_seq=ot_total,
+            portal,
+            base_url,
+            plan["entry"],
+            plan["reason"],
+            dry_run=dry_run,
+            dry_run_pause_secs=dry_run_pause_secs,
+            screenshot_dir=screenshot_dir,
+            screenshot_seq=ot_total,
         )
         if ok:
             ot_ok += 1
@@ -378,10 +427,14 @@ def batch_submit(
             continue
         lv_total += 1
         ok = submit_leave(
-            portal, base_url, plan["entry"],
-            plan["leave_type"], plan["reason"],
+            portal,
+            base_url,
+            plan["entry"],
+            plan["leave_type"],
+            plan["reason"],
             plan.get("proxy"),
-            dry_run=dry_run, dry_run_pause_secs=dry_run_pause_secs,
+            dry_run=dry_run,
+            dry_run_pause_secs=dry_run_pause_secs,
             screenshot_dir=screenshot_dir,
             screenshot_seq=ot_total + lv_total,
         )

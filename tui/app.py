@@ -138,18 +138,28 @@ class AnalysisForm(Static):
             yield Label("分析設定", classes="section-label")
 
             # Show available .txt files in current directory
-            txt_files = sorted([f for f in glob.glob("*.txt") if not f.startswith("requirements")])
+            txt_files = sorted(
+                [f for f in glob.glob("*.txt") if not f.startswith("requirements")]
+            )
             if txt_files:
-                yield Label(f"📂 快速選擇檔案 ({len(txt_files)} 個)：", classes="section-label")
+                yield Label(
+                    f"📂 快速選擇檔案 ({len(txt_files)} 個)：", classes="section-label"
+                )
                 for fname in txt_files[:5]:  # Show first 5
-                    file_btn = Button(f"📄 {fname}", classes="file-button", id=f"file-{fname}")
+                    file_btn = Button(
+                        f"📄 {fname}", classes="file-button", id=f"file-{fname}"
+                    )
                     file_btn.variant = "default"
                     yield file_btn
                 if len(txt_files) > 5:
-                    yield Label(f"  ... 還有 {len(txt_files) - 5} 個檔案", classes="file-hint")
+                    yield Label(
+                        f"  ... 還有 {len(txt_files) - 5} 個檔案", classes="file-hint"
+                    )
 
             yield Label("或手動輸入路徑：", classes="section-label")
-            self.source_input = Input(placeholder="輸入考勤TXT檔案路徑", id="source-path")
+            self.source_input = Input(
+                placeholder="輸入考勤TXT檔案路徑", id="source-path"
+            )
             yield self.source_input
 
             self.output_input = Input(
@@ -189,7 +199,9 @@ class AnalysisForm(Static):
             yield self.mode_select
 
             yield Label("清除使用者既有狀態後再分析", classes="section-label")
-            self.reset_switch = Switch(value=False, id="reset-state", name="reset-state")
+            self.reset_switch = Switch(
+                value=False, id="reset-state", name="reset-state"
+            )
             yield self.reset_switch
 
             yield Label("Debug 模式（僅讀取、保留詳細日誌）", classes="section-label")
@@ -197,11 +209,15 @@ class AnalysisForm(Static):
             yield self.debug_switch
 
             yield Label("記住此檔案（下次快速選擇）", classes="section-label")
-            self.add_recent_switch = Switch(value=True, id="add-recent", name="add-recent")
+            self.add_recent_switch = Switch(
+                value=True, id="add-recent", name="add-recent"
+            )
             yield self.add_recent_switch
 
             yield Label("若為 Excel 同時輸出 CSV 副本", classes="section-label")
-            self.extra_csv_switch = Switch(value=False, id="extra-csv", name="extra-csv")
+            self.extra_csv_switch = Switch(
+                value=False, id="extra-csv", name="extra-csv"
+            )
             yield self.extra_csv_switch
 
             yield Label("預覽筆數上限", classes="section-label")
@@ -213,7 +229,9 @@ class AnalysisForm(Static):
             yield self.preview_input
 
             with Container(id="form-buttons"):
-                self.run_button = Button("開始分析", id="run-analysis", variant="success")
+                self.run_button = Button(
+                    "開始分析", id="run-analysis", variant="success"
+                )
                 self.cancel_button = Button(
                     "取消執行",
                     id="cancel-run",
@@ -304,7 +322,9 @@ class AnalysisForm(Static):
     def _on_input_submitted(self, _: Input.Submitted) -> None:
         """Handle Enter key in any input field"""
         if self.busy:
-            self.show_status("⚠️ 目前已有分析在進行中，請按 Ctrl+C 取消或等待完成。", "warning")
+            self.show_status(
+                "⚠️ 目前已有分析在進行中，請按 Ctrl+C 取消或等待完成。", "warning"
+            )
         elif not self._has_source_path:
             self.show_status("⚠️ 請先輸入考勤檔案路徑。", "warning")
         else:
@@ -507,7 +527,9 @@ class AttendanceAnalyzerApp(App[None]):
                     self._translate(_WAITING_MESSAGE), id="progress-stage"
                 )
                 yield self.progress_stage
-                self.progress_log = Log(highlight=True, auto_scroll=True, id="progress-log")
+                self.progress_log = Log(
+                    highlight=True, auto_scroll=True, id="progress-log"
+                )
                 yield self.progress_log
 
                 yield Label("異常預覽", id="preview-header")
@@ -542,7 +564,9 @@ class AttendanceAnalyzerApp(App[None]):
         self._pending = pending
         self._start_analysis(pending)
 
-    def on_analysis_form_cancel_requested(self, _: AnalysisForm.CancelRequested) -> None:
+    def on_analysis_form_cancel_requested(
+        self, _: AnalysisForm.CancelRequested
+    ) -> None:
         self.action_cancel_analysis()
 
     def action_submit_form(self) -> None:
@@ -685,9 +709,7 @@ class AttendanceAnalyzerApp(App[None]):
         for exported in result.outputs:
             prefix = "📝" if exported.actual_format == "csv" else "📄"
             fallback = " (CSV 回退)" if exported.fallback_applied else ""
-            self.progress_log.write_line(
-                f"{prefix} {exported.actual_path}{fallback}"
-            )
+            self.progress_log.write_line(f"{prefix} {exported.actual_path}{fallback}")
 
         self.summary_panel.update_result(result)
         self._render_preview(result)

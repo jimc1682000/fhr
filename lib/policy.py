@@ -43,14 +43,18 @@ def calculate_late_minutes(workday: Any, rules: Rules) -> tuple[int, str, str]:
         return 0, "", ""
 
     date_str = workday.date.strftime("%Y/%m/%d")
-    latest_checkin = datetime.strptime(f"{date_str} {rules.latest_checkin}", "%Y/%m/%d %H:%M")
+    latest_checkin = datetime.strptime(
+        f"{date_str} {rules.latest_checkin}", "%Y/%m/%d %H:%M"
+    )
     actual_checkin = ch.actual_time
 
     if actual_checkin <= latest_checkin:
         return 0, "", ""
 
     # 遲到分鐘數 = 實際到班 - 班表起始時間
-    schedule_start = datetime.strptime(f"{date_str} {rules.schedule_start}", "%Y/%m/%d %H:%M")
+    schedule_start = datetime.strptime(
+        f"{date_str} {rules.schedule_start}", "%Y/%m/%d %H:%M"
+    )
     delta = actual_checkin - schedule_start
     late_minutes = int(delta.total_seconds() // 60)
 
@@ -66,26 +70,49 @@ def calculate_late_minutes(workday: Any, rules: Rules) -> tuple[int, str, str]:
 
 def calculate_leave_suggestion(
     workday: Any, rules: Rules, late_minutes: int
-) -> tuple[str, str, int]:
+) -> tuple[str, str, int, int]:
     """計算遲到請假建議（湊整到小時）
 
+    遲到請假區間 = 班表起始 ~ 實際到班；若橫跨午休（12:30~13:30），
+    午休非工時須扣除，再無條件進位到整點。
+
     Returns:
-        (leave_start_time, leave_end_time, leave_hours)
+        (leave_start_time, leave_end_time, leave_hours, effective_minutes)
+        leave_end_time 為「班表起始 + leave_hours」的整點請假塊；
+        effective_minutes 為扣午休後實際缺工分鐘（供下游算時數）。
     """
     if late_minutes <= 0:
-        return "", "", 0
+        return "", "", 0, 0
 
     ch = workday.checkin_record
     actual_checkin = ch.actual_time
     date_str = workday.date.strftime("%Y/%m/%d")
-    schedule_start = datetime.strptime(f"{date_str} {rules.schedule_start}", "%Y/%m/%d %H:%M")
+    schedule_start = datetime.strptime(
+        f"{date_str} {rules.schedule_start}", "%Y/%m/%d %H:%M"
+    )
+    lunch_start = datetime.strptime(f"{date_str} {rules.lunch_start}", "%Y/%m/%d %H:%M")
+    lunch_end = datetime.strptime(f"{date_str} {rules.lunch_end}", "%Y/%m/%d %H:%M")
 
-    leave_hours = math.ceil(late_minutes / 60)
+    # 扣除遲到區間 [班表起始, 實際到班] 與午休 [lunch_start, lunch_end] 的重疊
+    overlap_start = max(schedule_start, lunch_start)
+    overlap_end = min(actual_checkin, lunch_end)
+    lunch_overlap = max(0, int((overlap_end - overlap_start).total_seconds() // 60))
+    effective_minutes = max(0, late_minutes - lunch_overlap)
 
-    return (schedule_start.strftime("%H:%M"), actual_checkin.strftime("%H:%M"), leave_hours)
+    leave_hours = math.ceil(effective_minutes / 60)
+    leave_end = schedule_start + timedelta(minutes=leave_hours * 60)
+
+    return (
+        schedule_start.strftime("%H:%M"),
+        leave_end.strftime("%H:%M"),
+        leave_hours,
+        effective_minutes,
+    )
 
 
-def calculate_expected_checkout(workday: Any, rules: Rules, work_start_time: datetime) -> datetime:
+def calculate_expected_checkout(
+    workday: Any, rules: Rules, work_start_time: datetime
+) -> datetime:
     """計算預期下班時間
 
     遲到（>10:00）：預期下班 = 班表結束時間
@@ -100,7 +127,9 @@ def calculate_expected_checkout(workday: Any, rules: Rules, work_start_time: dat
         預期下班時間
     """
     date_str = workday.date.strftime("%Y/%m/%d")
-    latest_checkin = datetime.strptime(f"{date_str} {rules.latest_checkin}", "%Y/%m/%d %H:%M")
+    latest_checkin = datetime.strptime(
+        f"{date_str} {rules.latest_checkin}", "%Y/%m/%d %H:%M"
+    )
 
     ch = workday.checkin_record
     actual_checkin = ch.actual_time if ch and ch.actual_time else work_start_time
@@ -143,14 +172,18 @@ def optimize_forget_punch(
     forget_end = actual_checkin
 
     # 計算使用預設時段的預期下班時間
-    expected_checkout_default = calculate_expected_checkout(workday, rules, default_start)
+    expected_checkout_default = calculate_expected_checkout(
+        workday, rules, default_start
+    )
 
     # 如果沒有早退，使用預設時段
     if actual_checkout >= expected_checkout_default:
         return default_start.strftime("%H:%M"), forget_end.strftime("%H:%M")
 
     # 有早退，嘗試優化
-    early_leave_minutes = int((expected_checkout_default - actual_checkout).total_seconds() // 60)
+    early_leave_minutes = int(
+        (expected_checkout_default - actual_checkout).total_seconds() // 60
+    )
     early_leave_hours = math.ceil(early_leave_minutes / 60)
 
     # 計算優化調整量：讓早退時間剛好湊整
@@ -186,7 +219,9 @@ def calculate_early_leave(
     early_leave_minutes = int(delta.total_seconds() // 60)
     early_leave_hours = math.ceil(early_leave_minutes / 60)
 
-    time_range = f"{actual_checkout.strftime('%H:%M')}~{expected_checkout.strftime('%H:%M')}"
+    time_range = (
+        f"{actual_checkout.strftime('%H:%M')}~{expected_checkout.strftime('%H:%M')}"
+    )
     calculation = (
         f"實際下班: {actual_checkout.strftime('%H:%M')}, "
         f"預期下班: {expected_checkout.strftime('%H:%M')}, "
@@ -224,7 +259,9 @@ def calculate_overtime_minutes(
     applicable_minutes = applicable_hours * rules.overtime_increment_minutes
 
     # 時段顯示完整實際加班時間
-    time_range = f"{expected_checkout.strftime('%H:%M')}~{actual_checkout.strftime('%H:%M')}"
+    time_range = (
+        f"{expected_checkout.strftime('%H:%M')}~{actual_checkout.strftime('%H:%M')}"
+    )
     calculation = (
         f"預期下班: {expected_checkout.strftime('%H:%M')}, "
         f"實際下班: {actual_checkout.strftime('%H:%M')}, "

@@ -74,7 +74,8 @@ def calculate_leave_suggestion(
 
     Returns:
         (leave_start_time, leave_end_time, leave_hours, effective_minutes)
-        leave_end_time 為「班表起始 + leave_hours」的整點請假塊；
+        leave_end_time 為涵蓋 leave_hours 個工時的請假塊終點；若塊跨午休，
+        終點會把午休時長加回（Portal 算時數時會扣午休）。
         effective_minutes 為扣午休後實際缺工分鐘（供下游算時數）。
     """
     if late_minutes <= 0:
@@ -94,7 +95,15 @@ def calculate_leave_suggestion(
     effective_minutes = max(0, late_minutes - lunch_overlap)
 
     leave_hours = math.ceil(effective_minutes / 60)
-    leave_end = schedule_start + timedelta(minutes=leave_hours * 60)
+    # 請假塊代表 leave_hours 個「工時」。換算 clock 終點時，若塊延伸進午休
+    # (naive 終點 > 午休起)，Portal 會扣掉午休，需把午休時長加回終點；
+    # 否則 09:30~13:30 會被算成 3 工時而非 4 工時（使用者會少請）。
+    naive_end = schedule_start + timedelta(minutes=leave_hours * 60)
+    if naive_end > lunch_start:
+        lunch_minutes = int((lunch_end - lunch_start).total_seconds() // 60)
+        leave_end = naive_end + timedelta(minutes=lunch_minutes)
+    else:
+        leave_end = naive_end
 
     return (
         schedule_start.strftime("%H:%M"),

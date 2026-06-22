@@ -52,6 +52,25 @@ class TestPolicyMore(unittest.TestCase):
         self.assertEqual(hours, 3)
         self.assertEqual(effective, 180)
 
+    def test_leave_suggestion_block_crossing_lunch_advances_end(self):
+        # 14:00 到班：遲到 270 分，扣午休 60 → 缺工 210 → 進位 4h。
+        # 4 工時塊跨午休，終點須加回午休 → 09:30~14:30（否則 Portal 只算 3h）
+        rules = Rules(
+            latest_checkin="10:00",
+            schedule_start="09:30",
+            lunch_start="12:30",
+            lunch_end="13:30",
+        )
+        wd = W(
+            ci=datetime(2026, 6, 18, 14, 0),
+            co=datetime(2026, 6, 18, 19, 0),
+            date=datetime(2026, 6, 18),
+        )
+        late, _tr, _calc = calculate_late_minutes(wd, rules)
+        self.assertEqual(late, 270)
+        start, end, hours, effective = calculate_leave_suggestion(wd, rules, late)
+        self.assertEqual((start, end, hours, effective), ("09:30", "14:30", 4, 210))
+
     def test_leave_suggestion_no_lunch_overlap_unchanged(self):
         # 11:26 到班：遲到 116 分，未碰午休 -> 維持 ceil 2h，缺工=遲到
         rules = Rules(

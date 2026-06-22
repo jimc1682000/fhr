@@ -15,9 +15,11 @@ coverage-check: coverage
 	$(PY) tools/check_coverage_threshold.py
 
 .PHONY: lint
+# 用 `$(PY) -m ruff`（= requirements-dev 釘的 ruff==0.15.18），而非 PATH 上
+# 可能不同版本的 ruff，確保格式判定與 CI / pre-commit 一致。
 lint:
-	@if command -v ruff >/dev/null 2>&1; then \
-		ruff check . ; \
+	@if $(PY) -m ruff --version >/dev/null 2>&1; then \
+		$(PY) -m ruff check . && $(PY) -m ruff format --check . ; \
 	else \
 		$(PY) tools/lint.py ; \
 	fi

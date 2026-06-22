@@ -26,14 +26,15 @@ tasks:
   lint:
     desc: Run linting checks
     cmds:
-      - ruff check .
-      - ruff format --check .
+      # 用 `python3 -m ruff`（= 釘版 ruff==0.15.18），避免 PATH 上飄版本
+      - python3 -m ruff check .
+      - python3 -m ruff format --check .
 
   format:
     desc: Auto-format code
     cmds:
-      - ruff check --fix .
-      - ruff format .
+      - python3 -m ruff check --fix .
+      - python3 -m ruff format .
 
   # Changelog and release tasks
   changelog-preview:

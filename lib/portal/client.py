@@ -25,6 +25,7 @@ login page in headed mode and POLLS the current URL until it changes
 away from the login screen. The user types their password directly
 into the browser window.
 """
+
 from __future__ import annotations
 
 import json
@@ -89,8 +90,7 @@ class PortalSession:
     that want a hard reset can call `close()` explicitly.
     """
 
-    def __init__(self, session: str | None = None, *, check: bool = True,
-                 timeout_secs: int = 30):
+    def __init__(self, session: str | None = None, *, check: bool = True, timeout_secs: int = 30):
         self.session = session or _default_session()
         self.timeout_secs = timeout_secs
         if check:
@@ -98,8 +98,7 @@ class PortalSession:
 
     # ---------- subprocess primitives ----------
 
-    def _run(self, args: list[str], *, timeout: int | None = None,
-             capture: bool = True) -> str:
+    def _run(self, args: list[str], *, timeout: int | None = None, capture: bool = True) -> str:
         cmd = [_binary(), *args, "--session", self.session]
         try:
             result = subprocess.run(
@@ -246,8 +245,13 @@ def is_logged_in(portal: PortalSession, base_url: str) -> bool:
     return "/ehrPortal/" in url or "/WorkflowWeb/" in url
 
 
-def ensure_login(portal: PortalSession, base_url: str, *,
-                 max_wait_secs: int = 600, poll_interval_secs: int = 3) -> None:
+def ensure_login(
+    portal: PortalSession,
+    base_url: str,
+    *,
+    max_wait_secs: int = 600,
+    poll_interval_secs: int = 3,
+) -> None:
     """If not logged in, open the login page in headed mode and poll
     until the URL transitions away. Raises `LoginTimeout` if the user
     never logs in within `max_wait_secs`."""
@@ -262,8 +266,11 @@ def ensure_login(portal: PortalSession, base_url: str, *,
     while time.time() < deadline:
         time.sleep(poll_interval_secs)
         url = portal.get_url() or ""
-        if url and "login" not in url.lower() and "loginf" not in url.lower() and (
-            "/ehrPortal/" in url or "/WorkflowWeb/" in url
+        if (
+            url
+            and "login" not in url.lower()
+            and "loginf" not in url.lower()
+            and ("/ehrPortal/" in url or "/WorkflowWeb/" in url)
         ):
             logger.info("\n🎉 登入成功 (session=%s)", portal.session)
             time.sleep(1)

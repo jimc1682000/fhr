@@ -2,6 +2,7 @@
 
 Designed to be dependency-light and avoid importing analyzer types.
 """
+
 import re
 from datetime import datetime
 

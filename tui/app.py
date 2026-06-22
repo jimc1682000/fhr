@@ -503,9 +503,7 @@ class AttendanceAnalyzerApp(App[None]):
                 yield Label("執行進度", id="progress-header")
                 self.progress_bar = ProgressBar(total=4, id="progress-bar")
                 yield self.progress_bar
-                self.progress_stage = Static(
-                    self._translate(_WAITING_MESSAGE), id="progress-stage"
-                )
+                self.progress_stage = Static(self._translate(_WAITING_MESSAGE), id="progress-stage")
                 yield self.progress_stage
                 self.progress_log = Log(highlight=True, auto_scroll=True, id="progress-log")
                 yield self.progress_log
@@ -685,9 +683,7 @@ class AttendanceAnalyzerApp(App[None]):
         for exported in result.outputs:
             prefix = "📝" if exported.actual_format == "csv" else "📄"
             fallback = " (CSV 回退)" if exported.fallback_applied else ""
-            self.progress_log.write_line(
-                f"{prefix} {exported.actual_path}{fallback}"
-            )
+            self.progress_log.write_line(f"{prefix} {exported.actual_path}{fallback}")
 
         self.summary_panel.update_result(result)
         self._render_preview(result)
@@ -757,9 +753,7 @@ class AttendanceAnalyzerApp(App[None]):
 
     def action_toggle_language(self) -> None:
         self._language = "en" if self._language == "zh_TW" else "zh_TW"
-        message_id = (
-            _LANGUAGE_MESSAGE_ZH if self._language == "zh_TW" else _LANGUAGE_MESSAGE_EN
-        )
+        message_id = _LANGUAGE_MESSAGE_ZH if self._language == "zh_TW" else _LANGUAGE_MESSAGE_EN
         message = self._translate(message_id)
         self.progress_log.write_line(message)
         self._form.show_status(message)
@@ -800,9 +794,7 @@ def run_app(*, webview: bool = False, dark: bool | None = None) -> None:
         try:
             import textual_web  # noqa: F401
         except Exception as exc:  # pragma: no cover - optional dependency
-            raise SystemExit(
-                "textual-web 未安裝或初始化失敗，無法啟動瀏覽器模式。"
-            ) from exc
+            raise SystemExit("textual-web 未安裝或初始化失敗，無法啟動瀏覽器模式。") from exc
         command = [sys.executable, "-m", "tui", "--no-webview"]
         if dark:
             command.append("--dark")

@@ -8,6 +8,7 @@ Checks:
 
 Exit code 0 if clean; 1 if issues found. Prints a brief report.
 """
+
 import os
 
 ROOT = os.path.dirname(os.path.dirname(__file__))

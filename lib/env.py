@@ -11,6 +11,7 @@ Security policy: this loader MUST NOT log values. The 104 EHR Portal
 flow never stores user passwords (see CLAUDE.md) — the .env only
 holds URLs, company info, and Slack user IDs.
 """
+
 from __future__ import annotations
 
 import os

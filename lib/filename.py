@@ -12,7 +12,7 @@ def parse_range_and_user(filepath: str) -> tuple[str | None, str | None, str | N
         (user_name, start_date 'YYYY-MM-DD', end_date 'YYYY-MM-DD')
     """
     filename = os.path.basename(filepath)
-    pattern = r'(\d{6})(?:-(\d{6}))?-(.+?)-出勤資料\.txt$'
+    pattern = r"(\d{6})(?:-(\d{6}))?-(.+?)-出勤資料\.txt$"
     match = re.match(pattern, filename)
     if not match:
         return None, None, None
@@ -49,4 +49,3 @@ def parse_range_and_user(filepath: str) -> tuple[str | None, str | None, str | N
             return None, None, None
 
     return user_name, start_date, end_date
-

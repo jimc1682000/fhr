@@ -44,7 +44,12 @@ def build_issue_section(
 
 
 def build_summary(
-    forget: int, late: int, overtime: int, early_leave: int, weekday_leave: int, wfh: int
+    forget: int,
+    late: int,
+    overtime: int,
+    early_leave: int,
+    weekday_leave: int,
+    wfh: int,
 ) -> list[str]:
     return [
         "## 📊 統計摘要：\n",

@@ -32,9 +32,14 @@ def init_workbook() -> tuple[Workbook, Worksheet, Font, PatternFill, Border, Ali
     return wb, ws, header_font, header_fill, border, center_alignment
 
 
-def write_headers(ws, headers: list[str], header_font: Font,
-                  header_fill: PatternFill, border: Border,
-                  alignment: Alignment) -> None:
+def write_headers(
+    ws,
+    headers: list[str],
+    header_font: Font,
+    header_fill: PatternFill,
+    border: Border,
+    alignment: Alignment,
+) -> None:
     """Write header row with styles."""
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col)
@@ -45,9 +50,14 @@ def write_headers(ws, headers: list[str], header_font: Font,
         cell.border = border
 
 
-def write_status_row(ws, last_date: str, complete_days: int,
-                     last_analysis_time: str, border: Border,
-                     alignment: Alignment) -> int:
+def write_status_row(
+    ws,
+    last_date: str,
+    complete_days: int,
+    last_analysis_time: str,
+    border: Border,
+    alignment: Alignment,
+) -> int:
     """Write incremental status row and return next data row."""
     ws.cell(row=2, column=1).value = last_date
     ws.cell(row=2, column=2).value = "狀態資訊"
@@ -70,9 +80,14 @@ def write_status_row(ws, last_date: str, complete_days: int,
     return 3
 
 
-def write_issue_rows(ws, issues: list[Issue], start_row: int,
-                     incremental_mode: bool, border: Border,
-                     alignment: Alignment) -> None:
+def write_issue_rows(
+    ws,
+    issues: list[Issue],
+    start_row: int,
+    incremental_mode: bool,
+    border: Border,
+    alignment: Alignment,
+) -> None:
     """Write issue rows into the worksheet."""
     for row_idx, issue in enumerate(issues, start_row):
         date_cell = ws.cell(row=row_idx, column=1)
@@ -140,10 +155,10 @@ def set_column_widths(ws, incremental_mode: bool) -> None:
     col_count = 7 if incremental_mode else 6
     for col in range(1, col_count + 1):
         ws.column_dimensions[chr(64 + col)].width = 15
-    ws.column_dimensions['D'].width = 30
-    ws.column_dimensions['F'].width = 40 if incremental_mode else 35
+    ws.column_dimensions["D"].width = 30
+    ws.column_dimensions["F"].width = 40 if incremental_mode else 35
     if incremental_mode:
-        ws.column_dimensions['G'].width = 24
+        ws.column_dimensions["G"].width = 24
 
 
 def save_workbook(wb: Workbook, filepath: str) -> None:

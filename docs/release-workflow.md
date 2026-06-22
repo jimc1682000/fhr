@@ -212,7 +212,7 @@ Git-cliff 配置檔，定義：
 
 ### .pre-commit-config.yaml
 Pre-commit hooks 配置，包含：
-- Black (格式化)
+- Ruff format (格式化)
 - Ruff (linting)
 - Commitizen (commit message 驗證)
 

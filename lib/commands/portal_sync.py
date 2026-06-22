@@ -7,6 +7,7 @@ can dedup against the local mirror.
 
 This subcommand is idempotent — running it twice in a row produces no diff
 beyond `last_full_sync`."""
+
 from __future__ import annotations
 
 import argparse
@@ -31,8 +32,11 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     )
     parser.add_argument("--user", required=True, help="state cache 上的使用者名稱")
     parser.add_argument(
-        "--kinds", nargs="+", default=["overtime", "leave"],
-        choices=["overtime", "leave"], help="要同步哪些表單種類 (預設全部)",
+        "--kinds",
+        nargs="+",
+        default=["overtime", "leave"],
+        choices=["overtime", "leave"],
+        help="要同步哪些表單種類 (預設全部)",
     )
     parser.add_argument("--base-url", help="EHR base URL (預設讀 env EHR_URL)")
     parser.add_argument("--session", help="agent-browser session 名稱 (預設 'fhr')")
@@ -45,9 +49,7 @@ def _resolve_base_url(args: argparse.Namespace) -> str:
         return args.base_url.rstrip("/")
     raw = os.environ.get("EHR_URL", "").rstrip("/")
     if not raw:
-        raise RuntimeError(
-            "找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url"
-        )
+        raise RuntimeError("找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url")
     for suffix in ("/LoginFOrginal.asp", "/LoginFOpen.asp"):
         if raw.endswith(suffix):
             raw = raw[: -len(suffix)]

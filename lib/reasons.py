@@ -110,9 +110,7 @@ def commits_on(
         if len(parts) != 3:
             continue
         sha, iso, subject = parts
-        out.append(
-            {"repo": repo.name, "sha": sha[:10], "time": iso, "subject": subject}
-        )
+        out.append({"repo": repo.name, "sha": sha[:10], "time": iso, "subject": subject})
     return out
 
 
@@ -176,12 +174,8 @@ def evidence_for_analysis(
         strict=True,
     ):
         commits = raw.get(d_str, [])
-        overtime_commits = [
-            c for c in commits if _commit_minutes_local(c) >= threshold_minutes
-        ]
-        leave_commits = [
-            c for c in commits if _commit_minutes_local(c) < threshold_minutes
-        ]
+        overtime_commits = [c for c in commits if _commit_minutes_local(c) >= threshold_minutes]
+        leave_commits = [c for c in commits if _commit_minutes_local(c) < threshold_minutes]
         entry = {"date": slash_str}
         if slash_str in overtime_dates:
             entry["overtime"] = {"git": overtime_commits}

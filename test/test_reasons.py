@@ -43,9 +43,7 @@ def _commit(
         "GIT_AUTHOR_DATE": when,
         "GIT_COMMITTER_DATE": when,
     }
-    subprocess.run(
-        ["git", "commit", "-q", "-m", subject], cwd=path, env=env, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", subject], cwd=path, env=env, check=True)
 
 
 class TestDiscoverRepos(unittest.TestCase):
@@ -110,9 +108,7 @@ class TestCommitsOn(unittest.TestCase):
 
 class TestCommitMinutesLocal(unittest.TestCase):
     def test_parses_iso(self):
-        self.assertEqual(
-            _commit_minutes_local({"time": "2026-04-20T18:30:00"}), 18 * 60 + 30
-        )
+        self.assertEqual(_commit_minutes_local({"time": "2026-04-20T18:30:00"}), 18 * 60 + 30)
 
     def test_handles_garbage(self):
         self.assertEqual(_commit_minutes_local({"time": "bad"}), -1)

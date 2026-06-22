@@ -80,9 +80,7 @@ class TestPolicyMore(unittest.TestCase):
         wd = W(ci=datetime(2025, 7, 1, 9, 0), co=None)
         # expected_checkout can be any value since co=None triggers early return
         expected_checkout = datetime(2025, 7, 1, 18, 0)
-        actual, applicable, tr, calc = calculate_overtime_minutes(
-            wd, rules, expected_checkout
-        )
+        actual, applicable, tr, calc = calculate_overtime_minutes(wd, rules, expected_checkout)
         self.assertEqual((actual, applicable, tr, calc), (0, 0, "", ""))
 
 

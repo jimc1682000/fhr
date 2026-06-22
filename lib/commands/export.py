@@ -19,9 +19,7 @@ def _parse_date(value: str) -> date:
             return datetime.strptime(value, fmt).date()
         except ValueError:
             continue
-    raise argparse.ArgumentTypeError(
-        f"無法解析日期 {value!r}（預期 YYYY/MM/DD 或 YYYY-MM-DD）"
-    )
+    raise argparse.ArgumentTypeError(f"無法解析日期 {value!r}（預期 YYYY/MM/DD 或 YYYY-MM-DD）")
 
 
 def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:

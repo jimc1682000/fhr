@@ -108,9 +108,7 @@ class TestPortalApplyDryRunReplay(unittest.TestCase):
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
         applied = state.get("users", {}).get("Tester", {}).get("applied_forms", {})
         # OT list should be empty / missing — dry-run must NOT write here.
-        self.assertFalse(
-            applied.get("overtime"), "applied_forms.overtime polluted by dry-run"
-        )
+        self.assertFalse(applied.get("overtime"), "applied_forms.overtime polluted by dry-run")
 
     def test_screenshot_emitted(self):
         # Screenshots default under cwd/tmp/dry-run-screenshots/<ts>/

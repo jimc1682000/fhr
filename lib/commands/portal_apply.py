@@ -54,9 +54,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     )
     parser.add_argument("--user", required=True, help="state cache 使用者")
     parser.add_argument("--input", required=True, help="analysis-v1 JSON 路徑")
-    parser.add_argument(
-        "--attendance", help="出勤 .txt (用於顯示打卡時間;預設 auto-detect)"
-    )
+    parser.add_argument("--attendance", help="出勤 .txt (用於顯示打卡時間;預設 auto-detect)")
     parser.add_argument("--proxy", help="非 WFH 請假的職務代理人")
     parser.add_argument(
         "--auto", action="store_true", help="自動模式,完全用 cascade 結果送單 (不互動)"
@@ -118,9 +116,7 @@ def _resolve_base_url(args: argparse.Namespace) -> str:
         return args.base_url.rstrip("/")
     raw = os.environ.get("EHR_URL", "").rstrip("/")
     if not raw:
-        raise RuntimeError(
-            "找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url"
-        )
+        raise RuntimeError("找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url")
     for suffix in ("/LoginFOrginal.asp", "/LoginFOpen.asp"):
         if raw.endswith(suffix):
             raw = raw[: -len(suffix)]
@@ -338,9 +334,7 @@ def _interactive_overtime(
 ) -> None:
     if not overtime:
         return
-    logger.info(
-        "\n%s\n加班單 (%d 筆) — 蒐集決策中\n%s", "=" * 50, len(overtime), "=" * 50
-    )
+    logger.info("\n%s\n加班單 (%d 筆) — 蒐集決策中\n%s", "=" * 50, len(overtime), "=" * 50)
     for i, entry in enumerate(overtime, 1):
         key = _entry_key(entry, "overtime")
         if key in completed:
@@ -355,9 +349,7 @@ def _interactive_overtime(
                     latest_checkin=latest_checkin,
                 ),
             )
-            plan["overtime"].append(
-                {"entry": entry, "action": "skip", "already_done": True}
-            )
+            plan["overtime"].append({"entry": entry, "action": "skip", "already_done": True})
             continue
         if key in saved_plan:
             d = saved_plan[key]
@@ -376,9 +368,7 @@ def _interactive_overtime(
             )
             continue
 
-        early, delta = _is_early_arrival(
-            entry["date"], schedule_start, latest_checkin, attendance
-        )
+        early, delta = _is_early_arrival(entry["date"], schedule_start, latest_checkin, attendance)
         early_hint = None
         if early:
             sh, sm = (int(x) for x in schedule_start.split(":"))
@@ -401,9 +391,7 @@ def _interactive_overtime(
             action = input("  申請? (y=送出 / s=跳過) [y]: ").strip().lower() or "y"
             if action == "y":
                 default_reason = entry.get("reason", "工作需要")
-                reason = (
-                    input(f"  加班原因 [{default_reason}]: ").strip() or default_reason
-                )
+                reason = input(f"  加班原因 [{default_reason}]: ").strip() or default_reason
                 plan["overtime"].append(
                     {"entry": entry, "action": "submit", "key": key, "reason": reason}
                 )
@@ -452,9 +440,7 @@ def _interactive_leave(
                     latest_checkin=latest_checkin,
                 ),
             )
-            plan["leave"].append(
-                {"entry": entry, "action": "skip", "already_done": True}
-            )
+            plan["leave"].append({"entry": entry, "action": "skip", "already_done": True})
             continue
         if key in saved_plan:
             d = saved_plan[key]
@@ -491,9 +477,7 @@ def _interactive_leave(
         if suggested:
             logger.info("  💡 建議 cascade → %s (%s)", suggested, suggested_code)
         while True:
-            default_code = suggested_code or (
-                "27" if entry.get("type_hint") == "WFH" else "30"
-            )
+            default_code = suggested_code or ("27" if entry.get("type_hint") == "WFH" else "30")
             choice = (
                 input(f"  假別 [{common_display}  ?=展開] ({default_code}): ").strip()
                 or default_code
@@ -508,9 +492,7 @@ def _interactive_leave(
             action = input("  申請? (y=送出 / s=跳過) [y]: ").strip().lower() or "y"
             if action == "y":
                 default_reason = entry.get("reason", "personal matter")
-                reason = (
-                    input(f"  請假原因 [{default_reason}]: ").strip() or default_reason
-                )
+                reason = input(f"  請假原因 [{default_reason}]: ").strip() or default_reason
                 entry_proxy = proxy
                 if "異地辦公" not in leave_type and proxy:
                     new_proxy = input(f"  代理人 [{proxy},Enter 保留]: ").strip()
@@ -671,9 +653,7 @@ def run(args: argparse.Namespace) -> None:
         for e in overtime:
             key = _entry_key(e, "overtime")
             if key in completed:
-                plan["overtime"].append(
-                    {"entry": e, "action": "skip", "already_done": True}
-                )
+                plan["overtime"].append({"entry": e, "action": "skip", "already_done": True})
                 continue
             plan["overtime"].append(
                 {
@@ -686,9 +666,7 @@ def run(args: argparse.Namespace) -> None:
         for e in leave:
             key = _entry_key(e, "leave")
             if key in completed:
-                plan["leave"].append(
-                    {"entry": e, "action": "skip", "already_done": True}
-                )
+                plan["leave"].append({"entry": e, "action": "skip", "already_done": True})
                 continue
             assigned = allocations.get(key) or (
                 "異地辦公" if e.get("type_hint") == "WFH" else "補休假"
@@ -763,9 +741,7 @@ def run(args: argparse.Namespace) -> None:
     if not args.auto:
         prompt_suffix = " (DRY RUN — 不會實際送出)" if args.dry_run else ""
         confirm = (
-            input(
-                f"\n確認送出 {len(submit_ot) + len(submit_lv)} 筆{prompt_suffix}? (y/n) [y]: "
-            )
+            input(f"\n確認送出 {len(submit_ot) + len(submit_lv)} 筆{prompt_suffix}? (y/n) [y]: ")
             .strip()
             .lower()
             or "y"
@@ -840,9 +816,7 @@ def run(args: argparse.Namespace) -> None:
                 screenshot_dir=_resolve_screenshot_dir(args),
             )
         prefix = "🧪 DRY RUN 結果" if args.dry_run else "📊 本次申請結果"
-        logger.info(
-            "\n%s: 加班 %d/%d, 請假 %d/%d", prefix, ot_ok, ot_total, lv_ok, lv_total
-        )
+        logger.info("\n%s: 加班 %d/%d, 請假 %d/%d", prefix, ot_ok, ot_total, lv_ok, lv_total)
         if args.dry_run:
             logger.info(
                 "ℹ️ DRY RUN 已跳過『確定送出』+ 未寫入 applied_forms cache "
@@ -877,9 +851,7 @@ def _resolve_screenshot_dir(args) -> Path | None:
     return Path("tmp") / "dry-run-screenshots" / stamp
 
 
-def _wrap_submit_iter(
-    plans: list[dict], completed: set[str], form_type: str
-) -> Iterable[dict]:
+def _wrap_submit_iter(plans: list[dict], completed: set[str], form_type: str) -> Iterable[dict]:
     """Yield only plans that still need submission, gracefully skipping
     completed ones (state cache may have been updated mid-run)."""
     for p in plans:

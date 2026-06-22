@@ -16,9 +16,7 @@ from lib.schema import (
 
 class TestParseVersion(unittest.TestCase):
     def test_basic_major(self):
-        self.assertEqual(
-            parse_version("attendance-analysis/v1"), ("attendance-analysis", 1, 0)
-        )
+        self.assertEqual(parse_version("attendance-analysis/v1"), ("attendance-analysis", 1, 0))
 
     def test_major_minor(self):
         self.assertEqual(
@@ -58,9 +56,7 @@ class TestRequireSchemaVersion(unittest.TestCase):
 
     def test_wrong_name(self):
         with self.assertRaises(SchemaVersionError):
-            require_schema_version(
-                {"schema_version": "other-schema/v1"}, "attendance-analysis/v1"
-            )
+            require_schema_version({"schema_version": "other-schema/v1"}, "attendance-analysis/v1")
 
     def test_wrong_major(self):
         with self.assertRaises(SchemaVersionError):

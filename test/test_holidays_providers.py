@@ -92,9 +92,7 @@ class TestHolidaysProviders(unittest.TestCase):
 
     def test_service_fallbacks_to_basic_when_gov_empty(self):
         s = HolidayService()
-        with mock.patch(
-            "lib.holidays.TaiwanGovOpenDataProvider.load", return_value=set()
-        ):
+        with mock.patch("lib.holidays.TaiwanGovOpenDataProvider.load", return_value=set()):
             out = s.load_year(2029)
         self.assertIn(datetime.strptime("2029/01/01", "%Y/%m/%d").date(), out)
 

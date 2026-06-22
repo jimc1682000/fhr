@@ -11,9 +11,7 @@ class TestImportParserArgs(unittest.TestCase):
         return parser.parse_args(argv)
 
     def test_minimal(self):
-        ns = self._parse(
-            "import", "snap.json", "--from=portal-json", "--out", "out.txt"
-        )
+        ns = self._parse("import", "snap.json", "--from=portal-json", "--out", "out.txt")
         self.assertEqual(ns.cmd, "import")
         self.assertEqual(ns.snapshot, "snap.json")
         self.assertEqual(ns.source, "portal-json")

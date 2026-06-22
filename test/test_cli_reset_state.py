@@ -12,11 +12,7 @@ class TestCliResetState(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             state_path = os.path.join(tmpdir, "attendance_state.json")
             user_name = "阿明"
-            state = {
-                "users": {
-                    user_name: {"processed_date_ranges": [], "forget_punch_usage": {}}
-                }
-            }
+            state = {"users": {user_name: {"processed_date_ranges": [], "forget_punch_usage": {}}}}
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state, f)
 

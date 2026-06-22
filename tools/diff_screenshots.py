@@ -40,9 +40,7 @@ class DiffResult:
         return (not self.size_mismatch) and self.diff_ratio <= threshold
 
 
-def diff(
-    candidate: str | Path, baseline: str | Path, *, pixel_tolerance: int = 16
-) -> DiffResult:
+def diff(candidate: str | Path, baseline: str | Path, *, pixel_tolerance: int = 16) -> DiffResult:
     """Compare two PNGs. Lazy Pillow import keeps fhr's hard deps zero."""
     from PIL import Image, ImageChops  # type: ignore
 
@@ -74,11 +72,7 @@ def diff(
     # Tally pixels whose max RGB delta exceeds the tolerance.
     changed = 0
     for i in range(0, n_rgb, 3):
-        if (
-            raw[i] > pixel_tolerance
-            or raw[i + 1] > pixel_tolerance
-            or raw[i + 2] > pixel_tolerance
-        ):
+        if raw[i] > pixel_tolerance or raw[i + 1] > pixel_tolerance or raw[i + 2] > pixel_tolerance:
             changed += 1
     total_pixels = c.size[0] * c.size[1]
     return DiffResult(
@@ -127,9 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             verdict = "✓" if ok else "❌"
-            print(
-                f"{verdict} diff_ratio={res.diff_ratio:.4f} (threshold {args.threshold})"
-            )
+            print(f"{verdict} diff_ratio={res.diff_ratio:.4f} (threshold {args.threshold})")
     return 0 if ok else 1
 
 

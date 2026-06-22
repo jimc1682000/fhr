@@ -77,9 +77,7 @@ def _open_form(portal: PortalSession, base_url: str, form_name_zh: str) -> None:
     portal.wait(3000)
 
 
-def _fill_datetime(
-    portal: PortalSession, date: str, start_time: str, end_time: str
-) -> None:
+def _fill_datetime(portal: PortalSession, date: str, start_time: str, end_time: str) -> None:
     """Populate StartDate / StartTime / EndDate / EndTime fields via eval."""
     escaped_date = js_escape(date)
     portal.eval_json(
@@ -231,9 +229,7 @@ def submit_overtime(
     portal.wait(1000)
     _trigger_hour_calc(portal)
     if dry_run:
-        _take_dry_run_screenshot(
-            portal, screenshot_dir, "overtime", entry, screenshot_seq
-        )
+        _take_dry_run_screenshot(portal, screenshot_dir, "overtime", entry, screenshot_seq)
         logger.info(
             "    ✋ DRY RUN: 表單已填寫完成,請瀏覽器手動檢查 (%ds)...",
             dry_run_pause_secs,
@@ -335,9 +331,7 @@ def submit_leave(
             return False
         if matched > 1:
             options = [m.get("text") for m in match.get("matches", [])]
-            logger.error(
-                "    ❌ 假別 %s 匹配多個 %s，跳過此單", leave_type_name, options
-            )
+            logger.error("    ❌ 假別 %s 匹配多個 %s，跳過此單", leave_type_name, options)
             return False
     portal.wait(3000)
 

@@ -67,9 +67,7 @@ class TestDiffScreenshots(unittest.TestCase):
 
         res = diff(self._paint(0.01), str(SAMPLE_PNG))
         # Painted 1% of canvas → diff ratio should be ~0.01
-        self.assertTrue(
-            res.is_within(0.05), f"diff_ratio={res.diff_ratio} should be within 5%"
-        )
+        self.assertTrue(res.is_within(0.05), f"diff_ratio={res.diff_ratio} should be within 5%")
 
     def test_big_change_over_threshold(self):
         from tools.diff_screenshots import diff

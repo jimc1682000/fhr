@@ -12,9 +12,7 @@ from pathlib import Path
 
 def compute_percent(coverdir: Path) -> float:
     files = [
-        p
-        for p in coverdir.glob("*.cover")
-        if p.name.startswith(("attendance_analyzer", "lib."))
+        p for p in coverdir.glob("*.cover") if p.name.startswith(("attendance_analyzer", "lib."))
     ]
     executed = missing = 0
     for p in files:

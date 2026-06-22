@@ -13,9 +13,7 @@ from lib.policy import (
 
 def mk_record(dt_str_sched: str, dt_str_actual: str, typ: AttendanceType):
     sched = datetime.strptime(dt_str_sched, "%Y/%m/%d %H:%M") if dt_str_sched else None
-    actual = (
-        datetime.strptime(dt_str_actual, "%Y/%m/%d %H:%M") if dt_str_actual else None
-    )
+    actual = datetime.strptime(dt_str_actual, "%Y/%m/%d %H:%M") if dt_str_actual else None
     return AttendanceRecord(
         date=sched.date() if sched else None,
         scheduled_time=sched,
@@ -40,9 +38,7 @@ class TestPolicy(unittest.TestCase):
         wd = WorkDay(
             date=date,
             checkin_record=mk_record("2025/07/04 08:00", None, AttendanceType.CHECKIN),
-            checkout_record=mk_record(
-                "2025/07/04 17:00", None, AttendanceType.CHECKOUT
-            ),
+            checkout_record=mk_record("2025/07/04 17:00", None, AttendanceType.CHECKOUT),
             is_friday=True,
         )
         self.assertTrue(is_full_day_absent(wd))

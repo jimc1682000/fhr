@@ -52,9 +52,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         help="啟用增量分析模式 (預設開啟)",
     )
     parser.add_argument("--full", "-f", action="store_true", help="強制完整重新分析")
-    parser.add_argument(
-        "--reset-state", "-r", action="store_true", help="清除指定使用者的狀態記錄"
-    )
+    parser.add_argument("--reset-state", "-r", action="store_true", help="清除指定使用者的狀態記錄")
     parser.add_argument(
         "--debug", action="store_true", help="啟用 debug 模式（詳細日誌、不寫入狀態檔）"
     )
@@ -114,9 +112,7 @@ def run(args: argparse.Namespace) -> None:
             sys.exit(1)
 
     try:
-        analyzer = AttendanceAnalyzer(
-            debug=args.debug, unprocessed_only=args.unprocessed_only
-        )
+        analyzer = AttendanceAnalyzer(debug=args.debug, unprocessed_only=args.unprocessed_only)
 
         if incremental_mode:
             logger.info("📂 正在解析考勤檔案... (增量分析模式)")
@@ -162,9 +158,7 @@ def run(args: argparse.Namespace) -> None:
 
         if format_type.lower() == "excel":
             csv_filepath = filepath.replace(".txt", "_analysis.csv")
-            backup_path = analyzer.export_report(
-                csv_filepath, "csv", export_policy=export_policy
-            )
+            backup_path = analyzer.export_report(csv_filepath, "csv", export_policy=export_policy)
             exported_files.append(csv_filepath)
             if backup_path:
                 backup_files.append(backup_path)
@@ -205,9 +199,7 @@ def run(args: argparse.Namespace) -> None:
                 else:
                     removed_paths: set[str] = set()
                     for path in exported_files:
-                        removed = cleanup_exports_helper(
-                            path, include_canonical=args.debug
-                        )
+                        removed = cleanup_exports_helper(path, include_canonical=args.debug)
                         removed_paths.update(os.path.abspath(p) for p in removed)
                     for backup in backup_files:
                         if os.path.exists(backup):

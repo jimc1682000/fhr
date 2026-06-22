@@ -29,9 +29,7 @@ class TestExportParserArgs(unittest.TestCase):
         return parser.parse_args(argv)
 
     def test_export_defaults(self):
-        ns = self._parse(
-            "export", "--to=code-agent-hr", "sample.txt", "--out", "tmp/out.json"
-        )
+        ns = self._parse("export", "--to=code-agent-hr", "sample.txt", "--out", "tmp/out.json")
         self.assertEqual(ns.cmd, "export")
         self.assertEqual(ns.to, "code-agent-hr")
         self.assertEqual(ns.filepath, "sample.txt")

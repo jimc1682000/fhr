@@ -71,9 +71,7 @@ class TestServerCleanup(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
 
-    def _analyze(
-        self, *, file_path: str, cleanup_state: dict, snapshot: dict | None = None
-    ):
+    def _analyze(self, *, file_path: str, cleanup_state: dict, snapshot: dict | None = None):
         with open(file_path, "rb") as fh:
             data = {
                 "mode": "incremental",
@@ -100,23 +98,15 @@ class TestServerCleanup(unittest.TestCase):
         return path
 
     def test_cleanup_preview_and_analyze_merges_backups(self):
-        canonical = self._write_canonical(
-            "sample-attendance-data_analysis.csv", "old,data\n"
-        )
+        canonical = self._write_canonical("sample-attendance-data_analysis.csv", "old,data\n")
         self._write_canonical(
             "sample-attendance-data_analysis_20240101_000000.csv", "backup,data\n"
         )
 
         preview = self._preview(filename="sample-attendance-data.txt", output="csv")
-        backup_names = {
-            item["name"] for item in preview["items"] if item["kind"] == "backup"
-        }
-        self.assertIn(
-            "sample-attendance-data_analysis_20240101_000000.csv", backup_names
-        )
-        canonical_entry = [
-            item for item in preview["items"] if item["kind"] == "canonical"
-        ]
+        backup_names = {item["name"] for item in preview["items"] if item["kind"] == "backup"}
+        self.assertIn("sample-attendance-data_analysis_20240101_000000.csv", backup_names)
+        canonical_entry = [item for item in preview["items"] if item["kind"] == "canonical"]
         self.assertTrue(canonical_entry)
         self.assertFalse(canonical_entry[0]["delete"])
 
@@ -134,9 +124,7 @@ class TestServerCleanup(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
         self.assertEqual(payload["cleanup"]["status"], "performed")
-        backup_path = (
-            self.canonical_dir / "sample-attendance-data_analysis_20240101_000000.csv"
-        )
+        backup_path = self.canonical_dir / "sample-attendance-data_analysis_20240101_000000.csv"
         self.assertFalse(backup_path.exists())
         self.assertTrue(canonical.exists())
 

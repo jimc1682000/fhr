@@ -146,9 +146,7 @@ class TestFormatEntry(unittest.TestCase):
 
     def test_includes_actual_punches(self):
         att = {"2026/04/22": {"上班": "09:05", "下班": "21:03"}}
-        out = _format_entry(
-            self.ENTRY, att, schedule_start="09:30", latest_checkin="10:00"
-        )
+        out = _format_entry(self.ENTRY, att, schedule_start="09:30", latest_checkin="10:00")
         self.assertIn("實際 上班 09:05", out)
         self.assertIn("下班 21:03", out)
 
@@ -164,9 +162,7 @@ class TestFormatEntry(unittest.TestCase):
         self.assertIn("💡 早到 → 預期下班 18:05", out)
 
     def test_no_attendance_data(self):
-        out = _format_entry(
-            self.ENTRY, {}, schedule_start="09:30", latest_checkin="10:00"
-        )
+        out = _format_entry(self.ENTRY, {}, schedule_start="09:30", latest_checkin="10:00")
         self.assertIn("2026/04/22", out)
         self.assertNotIn("實際", out)
 
@@ -435,9 +431,7 @@ class TestRunAutoMode(unittest.TestCase):
             mock.patch(
                 "lib.portal.balances.fetch_balances", return_value=balances
             ) as fetch_balances,
-            mock.patch(
-                "lib.portal.apply_forms.batch_submit", side_effect=fake_batch_submit
-            ),
+            mock.patch("lib.portal.apply_forms.batch_submit", side_effect=fake_batch_submit),
         ):
             run(self._args())
 

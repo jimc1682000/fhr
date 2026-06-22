@@ -13,9 +13,7 @@ class TestExcelExporter(unittest.TestCase):
     def test_write_and_save_workbook(self) -> None:
         wb, ws, header_font, header_fill, border, align = excel_exporter.init_workbook()
         headers = ["日期", "類型", "時長(分鐘)", "說明", "時段", "計算式", "狀態"]
-        excel_exporter.write_headers(
-            ws, headers, header_font, header_fill, border, align
-        )
+        excel_exporter.write_headers(ws, headers, header_font, header_fill, border, align)
         issue = Issue(
             date=datetime(2025, 9, 1),
             type=IssueType.LATE,
@@ -63,9 +61,7 @@ class TestHolidayLoading(unittest.TestCase):
         from urllib.parse import ParseResult
 
         def fake_urlparse(_url: str) -> ParseResult:
-            return ParseResult(
-                scheme="file", netloc="", path="", params="", query="", fragment=""
-            )
+            return ParseResult(scheme="file", netloc="", path="", params="", query="", fragment="")
 
         with (
             patch("attendance_analyzer.urlparse", side_effect=fake_urlparse),

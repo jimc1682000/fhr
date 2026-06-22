@@ -10,9 +10,7 @@ def main() -> None:
         tr.runfunc(lambda: unittest.main(module=None, argv=["", "-q"]))
     except SystemExit:
         pass
-    tr.results().write_results(
-        show_missing=True, summary=True, coverdir="coverage_report"
-    )
+    tr.results().write_results(show_missing=True, summary=True, coverdir="coverage_report")
     print("Coverage report written to coverage_report/.")
 
 

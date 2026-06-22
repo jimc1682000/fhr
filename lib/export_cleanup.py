@@ -58,9 +58,7 @@ def list_backups(filepath: str) -> list[str]:
             if _match_timestamped_filename(stem, ext, candidate):
                 backup_path = os.path.join(directory, candidate)
                 # Double-check the resolved path is within the expected directory
-                if os.path.dirname(os.path.abspath(backup_path)) == os.path.abspath(
-                    directory
-                ):
+                if os.path.dirname(os.path.abspath(backup_path)) == os.path.abspath(directory):
                     backups.append(backup_path)
     except FileNotFoundError:
         return []

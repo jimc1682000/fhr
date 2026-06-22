@@ -49,9 +49,7 @@ class TestParseFirstLine(unittest.TestCase):
         try:
             a = AttendanceAnalyzer()
             a.parse_attendance_file(path, incremental=False)
-            self.assertEqual(
-                len(a.records), 2, "first data line must not be dropped as header"
-            )
+            self.assertEqual(len(a.records), 2, "first data line must not be dropped as header")
         finally:
             os.remove(path)
 

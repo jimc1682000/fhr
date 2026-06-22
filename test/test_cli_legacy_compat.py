@@ -17,9 +17,7 @@ class TestLooksLikeLegacy(unittest.TestCase):
         self.assertTrue(_looks_like_legacy_invocation(["202508-王小明-出勤資料.txt"]))
 
     def test_file_then_format(self):
-        self.assertTrue(
-            _looks_like_legacy_invocation(["202508-王小明-出勤資料.txt", "csv"])
-        )
+        self.assertTrue(_looks_like_legacy_invocation(["202508-王小明-出勤資料.txt", "csv"]))
 
     def test_flag_first(self):
         # The bug: --full sample.txt csv used to NOT be treated as legacy
@@ -27,9 +25,7 @@ class TestLooksLikeLegacy(unittest.TestCase):
 
     def test_multiple_flags_first(self):
         self.assertTrue(
-            _looks_like_legacy_invocation(
-                ["--debug", "--reset-state", "sample.txt", "csv"]
-            )
+            _looks_like_legacy_invocation(["--debug", "--reset-state", "sample.txt", "csv"])
         )
 
     def test_subcommand_first(self):
@@ -38,9 +34,7 @@ class TestLooksLikeLegacy(unittest.TestCase):
     def test_subcommand_anywhere(self):
         # Defensive: even if a user types `--debug analyze ...` we should
         # NOT silently rewrite their line; argparse will handle it.
-        self.assertFalse(
-            _looks_like_legacy_invocation(["--debug", "analyze", "sample.txt"])
-        )
+        self.assertFalse(_looks_like_legacy_invocation(["--debug", "analyze", "sample.txt"]))
 
     def test_dash_h_falls_through(self):
         # Top-level --help should hit the subcommand parser, not get

@@ -1,4 +1,4 @@
-ruff>=0.5
+ruff==0.15.18  # 釘死版本：format 結果隨版本變，CI/本機/pre-commit 須一致
 pre-commit>=3.5
 commitizen>=4.0
 openpyxl>=3.1

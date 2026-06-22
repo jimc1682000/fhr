@@ -114,9 +114,7 @@ class TestAppliedForms(unittest.TestCase):
         self.sm.replace_applied_forms(
             "JimmyChen",
             {
-                "overtime": [
-                    {**self._ot("2026/04/20", "1830", "2030"), "synced_at": "earlier"}
-                ],
+                "overtime": [{**self._ot("2026/04/20", "1830", "2030"), "synced_at": "earlier"}],
                 "leave": [],
             },
             synced_at="now",

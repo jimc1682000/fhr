@@ -56,9 +56,7 @@ def _parse_time_range(time_range: str) -> tuple[str, str] | None:
     m = _TIME_RANGE_RE.match(time_range or "")
     if not m:
         return None
-    return _to_hhmm(int(m.group(1)), int(m.group(2))), _to_hhmm(
-        int(m.group(3)), int(m.group(4))
-    )
+    return _to_hhmm(int(m.group(1)), int(m.group(2))), _to_hhmm(int(m.group(3)), int(m.group(4)))
 
 
 def _end_from_start_and_hours(start_hhmm: str, hours: int) -> str:
@@ -101,14 +99,10 @@ def issues_to_analysis(
         d_str = _date_str(d)
 
         if opts.cutoff_date and d <= opts.cutoff_date:
-            skipped.append(
-                {"date": d_str, "type": _zh_type(issue.type), "reason": "<= cutoff"}
-            )
+            skipped.append({"date": d_str, "type": _zh_type(issue.type), "reason": "<= cutoff"})
             continue
         if opts.today and d > opts.today:
-            skipped.append(
-                {"date": d_str, "type": _zh_type(issue.type), "reason": "future"}
-            )
+            skipped.append({"date": d_str, "type": _zh_type(issue.type), "reason": "future"})
             continue
 
         if issue.type == IssueType.OVERTIME:
@@ -120,9 +114,7 @@ def issues_to_analysis(
             if entry:
                 leave.append(entry)
         elif issue.type == IssueType.EARLY_LEAVE:
-            entry = _make_leave_from_late(
-                issue, opts, d_str, skipped, type_hint="early_leave"
-            )
+            entry = _make_leave_from_late(issue, opts, d_str, skipped, type_hint="early_leave")
             if entry:
                 leave.append(entry)
         elif issue.type == IssueType.WFH:
@@ -153,9 +145,7 @@ def _zh_type(issue_type) -> str:
     return getattr(issue_type, "value", str(issue_type))
 
 
-def _make_overtime(
-    issue, opts: ExportOptions, d_str: str, skipped: list
-) -> dict | None:
+def _make_overtime(issue, opts: ExportOptions, d_str: str, skipped: list) -> dict | None:
     rng = _parse_time_range(issue.time_range)
     if not rng:
         skipped.append({"date": d_str, "type": "加班", "reason": "no time"})
@@ -229,9 +219,7 @@ def _make_wfh(opts: ExportOptions, d_str: str) -> dict:
     }
 
 
-def write(
-    path: str | Path, issues: Iterable, options: ExportOptions | None = None
-) -> dict:
+def write(path: str | Path, issues: Iterable, options: ExportOptions | None = None) -> dict:
     """Convenience: render + persist as pretty JSON. Returns the dict."""
     payload = issues_to_analysis(issues, options)
     Path(path).write_text(

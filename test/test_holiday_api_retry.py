@@ -32,15 +32,11 @@ class TestHolidayApiRetry(unittest.TestCase):
                     },
                 ],
             ]
-            with mock.patch(
-                "urllib.request.urlopen", side_effect=urlopen_sequence(seq)
-            ):
+            with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
                 ok = analyzer._try_load_from_gov_api(2026)
 
         self.assertTrue(ok)
-        self.assertIn(
-            datetime.strptime("2026/01/01", "%Y/%m/%d").date(), analyzer.holidays
-        )
+        self.assertIn(datetime.strptime("2026/01/01", "%Y/%m/%d").date(), analyzer.holidays)
 
     def test_retry_exhaustion_then_fallback(self):
         with temp_env(
@@ -49,9 +45,7 @@ class TestHolidayApiRetry(unittest.TestCase):
             HOLIDAY_API_MAX_BACKOFF="0",
         ):
             analyzer = AttendanceAnalyzer()
-            with mock.patch(
-                "urllib.request.urlopen", side_effect=Exception("network down")
-            ):
+            with mock.patch("urllib.request.urlopen", side_effect=Exception("network down")):
                 ok = analyzer._try_load_from_gov_api(2027)
 
         self.assertFalse(ok)
@@ -74,9 +68,7 @@ class TestHolidayApiRetry(unittest.TestCase):
                     }
                 ],
             ]
-            with mock.patch(
-                "urllib.request.urlopen", side_effect=urlopen_sequence(seq)
-            ):
+            with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
                 ok = analyzer._try_load_from_gov_api(2027)
         self.assertTrue(ok)
 

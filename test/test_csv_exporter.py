@@ -34,9 +34,7 @@ class TestCsvExporter(unittest.TestCase):
             path = tmp.name
         try:
             issues = []
-            csv_exporter.save_csv(
-                path, issues, True, ("2025/07/31", 22, "2025-09-13T10:00:00")
-            )
+            csv_exporter.save_csv(path, issues, True, ("2025/07/31", 22, "2025-09-13T10:00:00"))
             with open(path, encoding="utf-8-sig") as f:
                 rows = list(csv.reader(f, delimiter=";"))
             self.assertGreaterEqual(len(rows), 2)
@@ -50,9 +48,7 @@ class TestCsvExporter(unittest.TestCase):
             path = tmp.name
         try:
             issues = [
-                make_issue(
-                    "2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc", True
-                )
+                make_issue("2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc", True)
             ]
             csv_exporter.save_csv(path, issues, True, None)
             with open(path, encoding="utf-8-sig") as f:
@@ -67,16 +63,12 @@ class TestCsvExporter(unittest.TestCase):
             path = tmp.name
         try:
             first_issue = [
-                make_issue(
-                    "2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc", True
-                )
+                make_issue("2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc", True)
             ]
             csv_exporter.save_csv(path, first_issue, True, None)
 
             updated_issue = [
-                make_issue(
-                    "2025/09/01", "遲到", 15, "遲到15分鐘", "10:30-10:45", "calc", False
-                )
+                make_issue("2025/09/01", "遲到", 15, "遲到15分鐘", "10:30-10:45", "calc", False)
             ]
             csv_exporter.save_csv(path, updated_issue, True, None, merge=True)
 
@@ -96,20 +88,14 @@ class TestCsvExporter(unittest.TestCase):
         try:
             # First save with two issues
             first_issues = [
-                make_issue(
-                    "2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc1", True
-                ),
-                make_issue(
-                    "2025/09/02", "加班", 60, "加班60分鐘", "18:00-19:00", "calc2", True
-                ),
+                make_issue("2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc1", True),
+                make_issue("2025/09/02", "加班", 60, "加班60分鐘", "18:00-19:00", "calc2", True),
             ]
             csv_exporter.save_csv(path, first_issues, True, None)
 
             # Then merge with one new issue
             new_issues = [
-                make_issue(
-                    "2025/09/03", "WFH", 540, "WFH 9小時", "09:00-18:00", "calc3", True
-                )
+                make_issue("2025/09/03", "WFH", 540, "WFH 9小時", "09:00-18:00", "calc3", True)
             ]
             csv_exporter.save_csv(path, new_issues, True, None, merge=True)
 
@@ -198,9 +184,7 @@ class TestCsvExporter(unittest.TestCase):
         # File is now deleted
         try:
             issues = [
-                make_issue(
-                    "2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc", True
-                )
+                make_issue("2025/09/01", "遲到", 10, "遲到10分鐘", "10:30-10:40", "calc", True)
             ]
             csv_exporter.save_csv(path, issues, True, None, merge=True)
 

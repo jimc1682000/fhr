@@ -23,9 +23,7 @@ from lib.portal.client import PortalSession, js_escape
 
 logger = logging.getLogger(__name__)
 
-FORM_QUEUES_URL_PATH = (
-    "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Queues/Default.aspx"
-)
+FORM_QUEUES_URL_PATH = "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Queues/Default.aspx"
 
 # Lower-cased numbers like "1 小時" / "0 工作天" parsed into typed pieces.
 _RE_HOURS = re.compile(r"^\s*(\d+)\s*小時\s*$")
@@ -135,9 +133,7 @@ def parse_items_panel(rows: list[list[str]]) -> dict[str, dict]:
     # Metric rows follow the header in fixed order; keep only same-width rows.
     metric_rows = [r for r in rows[h + 1 :] if len(r) == width][:4]
     by_key: dict[str, list[str]] = {}
-    for key, r in zip(
-        ("total", "current", "used", "remaining"), metric_rows, strict=False
-    ):
+    for key, r in zip(("total", "current", "used", "remaining"), metric_rows, strict=False):
         by_key[key] = r
 
     out: dict[str, dict] = {}

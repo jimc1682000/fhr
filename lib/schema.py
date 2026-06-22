@@ -16,9 +16,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-_VERSION_RE = re.compile(
-    r"^(?P<name>[a-z][a-z0-9-]*)/v(?P<major>\d+)(?:\.(?P<minor>\d+))?$"
-)
+_VERSION_RE = re.compile(r"^(?P<name>[a-z][a-z0-9-]*)/v(?P<major>\d+)(?:\.(?P<minor>\d+))?$")
 
 
 class SchemaVersionError(ValueError):
@@ -62,9 +60,7 @@ def require_schema_version(payload: Any, expected: str) -> None:
     exp_name, exp_major, _ = parse_version(expected)
     act_name, act_major, _ = parse_version(str(actual))
     if act_name != exp_name:
-        raise SchemaVersionError(
-            f"schema_version 名稱不符：預期 {exp_name!r}，得到 {act_name!r}"
-        )
+        raise SchemaVersionError(f"schema_version 名稱不符：預期 {exp_name!r}，得到 {act_name!r}")
     if act_major != exp_major:
         raise SchemaVersionError(
             f"schema_version {actual!r} 與預期 {expected!r} 的主版本不相容；"

@@ -20,9 +20,7 @@ def _balances(*, bukyu=7, tehuei=81, sick_paid=0, sick_half=None):
         items["有薪病假"] = {"remaining": sick_paid}
     if sick_half is not None:
         items["半薪病假"] = {"remaining": sick_half}
-    items["異地辦公(8hr一週)"] = {
-        "remaining": None
-    }  # monthly-capped, see MONTHLY_CAPS_HOURS
+    items["異地辦公(8hr一週)"] = {"remaining": None}  # monthly-capped, see MONTHLY_CAPS_HOURS
     return {"items": items, "annual_leave": {"remaining_hours": tehuei}}
 
 

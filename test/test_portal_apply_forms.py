@@ -135,9 +135,7 @@ class TestSubmitLeave(unittest.TestCase):
             "end_time": "1030",
             "hours": 1,
         }
-        ok = submit_leave(
-            portal, "http://x", entry, leave_type_name="不存在的假別", reason="x"
-        )
+        ok = submit_leave(portal, "http://x", entry, leave_type_name="不存在的假別", reason="x")
         self.assertFalse(ok)
 
     def test_ambiguous_leave_type_returns_false(self):
@@ -159,9 +157,7 @@ class TestSubmitLeave(unittest.TestCase):
             "end_time": "1030",
             "hours": 1,
         }
-        ok = submit_leave(
-            portal, "http://x", entry, leave_type_name="補休假", reason="x"
-        )
+        ok = submit_leave(portal, "http://x", entry, leave_type_name="補休假", reason="x")
         self.assertFalse(ok)
 
 
@@ -249,9 +245,7 @@ class TestDryRunScreenshot(unittest.TestCase):
             "hours": 2,
             "location": "在辦公室",
         }
-        submit_overtime(
-            portal, "http://x", entry, reason="x", dry_run=True, dry_run_pause_secs=0
-        )
+        submit_overtime(portal, "http://x", entry, reason="x", dry_run=True, dry_run_pause_secs=0)
         portal.screenshot.assert_not_called()
 
 
@@ -278,9 +272,7 @@ class TestDryRun(unittest.TestCase):
         self.assertNotIn("確定送出", joined)
         # And no post-submit snapshot read for verification
         snap_calls = [
-            c
-            for c in portal._run.call_args_list
-            if c[0] and c[0][0] and c[0][0][0] == "snapshot"
+            c for c in portal._run.call_args_list if c[0] and c[0][0] and c[0][0][0] == "snapshot"
         ]
         self.assertEqual(snap_calls, [])
 

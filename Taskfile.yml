@@ -27,13 +27,13 @@ tasks:
     desc: Run linting checks
     cmds:
       - ruff check .
-      - black --check .
+      - ruff format --check .
 
   format:
     desc: Auto-format code
     cmds:
       - ruff check --fix .
-      - black .
+      - ruff format .
 
   # Changelog and release tasks
   changelog-preview:

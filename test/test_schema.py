@@ -1,4 +1,5 @@
 """Tests for lib.schema (version validation + parsing)."""
+
 import json
 import os
 import tempfile
@@ -18,8 +19,10 @@ class TestParseVersion(unittest.TestCase):
         self.assertEqual(parse_version("attendance-analysis/v1"), ("attendance-analysis", 1, 0))
 
     def test_major_minor(self):
-        self.assertEqual(parse_version("portal-attendance-snapshot/v2.3"),
-                         ("portal-attendance-snapshot", 2, 3))
+        self.assertEqual(
+            parse_version("portal-attendance-snapshot/v2.3"),
+            ("portal-attendance-snapshot", 2, 3),
+        )
 
     def test_malformed_no_slash(self):
         with self.assertRaises(SchemaVersionError):
@@ -36,13 +39,15 @@ class TestParseVersion(unittest.TestCase):
 
 class TestRequireSchemaVersion(unittest.TestCase):
     def test_matches_exact(self):
-        require_schema_version({"schema_version": "attendance-analysis/v1"},
-                               "attendance-analysis/v1")  # no raise
+        require_schema_version(
+            {"schema_version": "attendance-analysis/v1"}, "attendance-analysis/v1"
+        )  # no raise
 
     def test_matches_minor_diff(self):
         # major matches, minor differs — accepted
-        require_schema_version({"schema_version": "attendance-analysis/v1.2"},
-                               "attendance-analysis/v1")
+        require_schema_version(
+            {"schema_version": "attendance-analysis/v1.2"}, "attendance-analysis/v1"
+        )
 
     def test_missing_field(self):
         with self.assertRaises(SchemaVersionError) as cm:
@@ -51,13 +56,13 @@ class TestRequireSchemaVersion(unittest.TestCase):
 
     def test_wrong_name(self):
         with self.assertRaises(SchemaVersionError):
-            require_schema_version({"schema_version": "other-schema/v1"},
-                                   "attendance-analysis/v1")
+            require_schema_version({"schema_version": "other-schema/v1"}, "attendance-analysis/v1")
 
     def test_wrong_major(self):
         with self.assertRaises(SchemaVersionError):
-            require_schema_version({"schema_version": "attendance-analysis/v2"},
-                                   "attendance-analysis/v1")
+            require_schema_version(
+                {"schema_version": "attendance-analysis/v2"}, "attendance-analysis/v1"
+            )
 
     def test_non_dict_payload(self):
         with self.assertRaises(SchemaVersionError):

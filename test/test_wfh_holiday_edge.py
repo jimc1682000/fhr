@@ -13,7 +13,7 @@ ATTENDANCE_HEADER = (
 
 class TestWfhHolidayEdge(unittest.TestCase):
     def _run_analyze(self, text: str):
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(text)
             path = f.name
         try:
@@ -32,9 +32,7 @@ class TestWfhHolidayEdge(unittest.TestCase):
 2025/10/10 17:00\t\t下班\t\t\t曠職\t未處理\t\t"""
         an = self._run_analyze(data)
         holiday_date = datetime(2025, 10, 10).date()
-        wfh_dates = {
-            i.date.date() for i in an.issues if i.type == IssueType.WFH
-        }
+        wfh_dates = {i.date.date() for i in an.issues if i.type == IssueType.WFH}
         self.assertNotIn(holiday_date, wfh_dates, "國定假日不應產生WFH建議")
 
     def test_friday_national_day_processed_skipped(self):
@@ -63,7 +61,7 @@ class TestWfhHolidayEdge(unittest.TestCase):
         self.assertEqual(len(an.issues), 0, "已處理的工作日應直接跳過")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: Policy/Holidays
 Purpose: WFH suggestion behavior on holidays vs normal Fridays."""

@@ -26,6 +26,7 @@ Environment knobs:
   FHR_FAKE_AB_TRACE        if set, append each call to trace.log
   FHR_FAKE_AB_LOG_DIR      override log directory (default fixture_dir)
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -40,9 +41,7 @@ from pathlib import Path
 def _fixture_dir() -> Path:
     d = os.environ.get("FHR_FAKE_AB_FIXTURE_DIR")
     if not d:
-        sys.stderr.write(
-            "fake_agent_browser: FHR_FAKE_AB_FIXTURE_DIR not set\n"
-        )
+        sys.stderr.write("fake_agent_browser: FHR_FAKE_AB_FIXTURE_DIR not set\n")
         sys.exit(2)
     p = Path(d)
     if not p.is_dir():
@@ -68,8 +67,7 @@ def _load_state(path: Path) -> dict:
 
 
 def _save_state(path: Path, state: dict) -> None:
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2),
-                    encoding="utf-8")
+    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _trace(fixture_dir: Path, args: list[str]) -> None:
@@ -130,8 +128,7 @@ def _cmd_get(args: list[str], fixture_dir: Path, state: dict) -> int:
         return 0
     if target == "title":
         fixture = fixture_dir / "get" / "title.txt"
-        print(fixture.read_text(encoding="utf-8").rstrip()
-              if fixture.exists() else "")
+        print(fixture.read_text(encoding="utf-8").rstrip() if fixture.exists() else "")
         return 0
     # Unsupported sub — print empty.
     return 0
@@ -200,9 +197,7 @@ def _cmd_screenshot(args: list[str], fixture_dir: Path, state: dict) -> int:
     fallback = fixture_dir / "screenshot.png"
     src = override if override.exists() else fallback
     if not src.exists():
-        sys.stderr.write(
-            f"fake_agent_browser: no screenshot fixture at {src}\n"
-        )
+        sys.stderr.write(f"fake_agent_browser: no screenshot fixture at {src}\n")
         return 1
     shutil.copyfile(src, out_path)
     return 0

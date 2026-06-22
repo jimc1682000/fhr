@@ -17,6 +17,7 @@ Column mapping (must include header row):
   7 異常處理作業    ← ""
   8 備註            ← ""
 """
+
 from __future__ import annotations
 
 import json

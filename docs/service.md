@@ -31,7 +31,7 @@ Compose
 
 Dev Lint/Test Hooks
 - Optional developer tools: `pip install -r requirements-dev.txt`
-- Install git hooks to lint (black/ruff) and run tests before commit:
+- Install git hooks to lint (ruff) and run tests before commit:
   ```bash
   make install-hooks
   # Skip tests temporarily: SKIP_TESTS=1 git commit -m "..."

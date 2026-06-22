@@ -13,6 +13,7 @@ we click the 請假單 cell to open the form. agent-browser snapshot refs
 can't be used here because clicking the cell requires a real DOM event
 that the snapshot ref doesn't expose — we shell out via eval.
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,9 +23,7 @@ from lib.portal.client import PortalSession, js_escape
 
 logger = logging.getLogger(__name__)
 
-FORM_QUEUES_URL_PATH = (
-    "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Queues/Default.aspx"
-)
+FORM_QUEUES_URL_PATH = "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Queues/Default.aspx"
 
 # Lower-cased numbers like "1 小時" / "0 工作天" parsed into typed pieces.
 _RE_HOURS = re.compile(r"^\s*(\d+)\s*小時\s*$")
@@ -103,42 +102,53 @@ def _parse_hours(text: str) -> int | None:
 def parse_items_panel(rows: list[list[str]]) -> dict[str, dict]:
     """Convert the items-panel cell matrix into {leave_name: {可休總, 已休, 剩餘}}.
 
-    The Portal renders the panel as a fixed layout:
-      row 0: ["", 加班, 補休假, 事假..., 異地辦公(8hr一週), 生日假]  # header
-      row 1: [可休總時數, "", "8 小時", "", ..., "40 小時 / 1 月", ...]
-      row 2: [已休(加班)時數, "15 小時", "1 小時", "50 小時", ..., "0 工作天"]
-      row 3: [剩餘時數, "", "7 小時", "", ..., "1 工作天"]
+    The Portal wraps the real grid in nested tables, so the rows we get back
+    are noisy: a flattened blob row, the four metric labels each on their own
+    single-cell row, then the clean grid. The clean grid is:
+      header:   [加班, 補休假, 事假..., 異地辦公(8hr一週), 生日假]   # leave names
+      +1 可休總時數:  ["", "28 小時", "", ..., "40 小時 / 1 月", ...]
+      +2 目前可休時數: [...]                                     # often blank
+      +3 已休(加班)時數: ["43 小時", "0 小時", "50 小時", ...]
+      +4 剩餘時數:    ["", "28 小時", "", "0 小時", ...]
 
-    We index by the header row's column names so the parser keeps working
-    if the Portal ever reorders columns.
+    We locate the header row dynamically (the row that carries 補休假 as its
+    own cell) and read the following metric rows positionally — the Portal
+    never attaches the metric label to the data row, so order is the only
+    anchor. Columns without a 小時 value (事假/半薪病假 = legal, no cap) stay
+    None, which the cascade treats as unlimited.
     """
-    if len(rows) < 4:
+    # Header = the leave-name row. Its first cell is always 加班 and it
+    # carries 補休假 as a standalone cell. The flattened blob row also
+    # contains "補休假" (as a substring inside a tab-joined cell) and can be
+    # 60+ cells wide, so match on r[0] == "加班" to avoid picking it up.
+    h = None
+    for i, r in enumerate(rows):
+        if r and r[0] == "加班" and "補休假" in r:
+            h = i
+            break
+    if h is None:
         return {}
-    headers = rows[0]
+    headers = rows[h]
+    width = len(headers)
+    # Metric rows follow the header in fixed order; keep only same-width rows.
+    metric_rows = [r for r in rows[h + 1 :] if len(r) == width][:4]
+    by_key: dict[str, list[str]] = {}
+    for key, r in zip(("total", "current", "used", "remaining"), metric_rows, strict=False):
+        by_key[key] = r
+
     out: dict[str, dict] = {}
     for col, name in enumerate(headers):
-        if not name or col == 0:
+        if not name:
             continue
         entry: dict[str, str | int | None] = {}
-        for row, key in (
-            (1, "total"),
-            (2, "used"),
-            (3, "remaining"),
-        ):
-            if row >= len(rows) or col >= len(rows[row]):
-                entry[key] = None
-                continue
-            raw = rows[row][col]
+        for key in ("total", "used", "remaining"):
+            r = by_key.get(key)
+            raw = r[col] if r and col < len(r) else ""
             if not raw:
                 entry[key] = None
                 continue
-            hours = _parse_hours(raw)
-            if hours is not None:
-                entry[key] = hours
-                entry[f"{key}_raw"] = raw
-            else:
-                entry[key] = None
-                entry[f"{key}_raw"] = raw
+            entry[key] = _parse_hours(raw)
+            entry[f"{key}_raw"] = raw
         out[name] = entry
     return out
 

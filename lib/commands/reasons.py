@@ -10,6 +10,7 @@ wants an LLM, and the project's policy is to keep `fhr` LLM-free so
 the skill can use whatever the user prefers (Sonnet, Haiku, Codex,
 local ollama, etc.).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,6 +28,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         epilog="""
 範例:
   fhr reasons --input tmp/analysis.json --author 'Jimmy Chen' \\
+      --exclude-repo hackthon --exclude-repo film-brain \\
       --out tmp/reasons-evidence.json
 
 之後在 Claude Code 喚 /fhr-reason-abstract,skill 會讀 evidence.json
@@ -36,16 +38,28 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     parser.add_argument("--input", required=True, help="analysis-v1 JSON 路徑")
     parser.add_argument("--out", required=True, help="輸出證據 JSON")
     parser.add_argument(
-        "--author", action="append", required=True,
+        "--author",
+        action="append",
+        required=True,
         help="git --author 比對字串 (可重複指定多個 alias)",
     )
     parser.add_argument(
-        "--root", action="append", dest="roots",
+        "--root",
+        action="append",
+        dest="roots",
         help="git repo 根目錄 (可重複,預設 ~/git ~/workdir ~/github)",
     )
     parser.add_argument(
-        "--schedule-end", default="18:30",
+        "--schedule-end",
+        default="18:30",
         help="判斷 commit 屬於『加班』(>= 此時間) 還是『日間』(<) 的門檻",
+    )
+    parser.add_argument(
+        "--exclude-repo",
+        action="append",
+        dest="exclude_repos",
+        metavar="REPO_NAME",
+        help="排除的 repo 目錄名 (可重複,大小寫不敏感);把個人側專案排除在工作理由證據外",
     )
     parser.add_argument("--debug", action="store_true", help="啟用 debug 日誌")
     return parser
@@ -66,22 +80,26 @@ def run(args: argparse.Namespace) -> None:
         sys.exit(2)
 
     roots = tuple(args.roots) if args.roots else DEFAULT_GIT_REPO_ROOTS
+    exclude_repos = tuple(args.exclude_repos) if args.exclude_repos else ()
     logger.info("🔍 掃描 git repos: %s", ", ".join(roots))
     logger.info("🔍 作者比對: %s", ", ".join(args.author))
+    if exclude_repos:
+        logger.info("🚫 排除個人 repo: %s", ", ".join(exclude_repos))
 
     evidence = evidence_for_analysis(
-        analysis, args.author, roots=roots,
+        analysis,
+        args.author,
+        roots=roots,
         schedule_end=args.schedule_end,
+        exclude_repos=exclude_repos,
     )
     Path(args.out).write_text(
-        json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8",
+        json.dumps(evidence, ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
     total = sum(
-        len(d.get("overtime", {}).get("git", []))
-        + len(d.get("leave", {}).get("git", []))
+        len(d.get("overtime", {}).get("git", [])) + len(d.get("leave", {}).get("git", []))
         for d in evidence.values()
     )
     logger.info("✅ %s (%d 日 / %d commits)", args.out, len(evidence), total)
-    logger.info(
-        "ℹ️ Slack 部分由 .claude/skills/fhr-reason-abstract 自行抓 + 合併到 reason 欄位"
-    )
+    logger.info("ℹ️ Slack 部分由 .claude/skills/fhr-reason-abstract 自行抓 + 合併到 reason 欄位")

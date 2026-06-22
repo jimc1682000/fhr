@@ -4,6 +4,7 @@ Currently supports a single target (`code-agent-hr`), which produces
 `attendance-analysis/v1` JSON consumable by code_agent_hr's
 `apply_forms.py`. Future targets register here as additional `--to`
 values."""
+
 from __future__ import annotations
 
 import argparse
@@ -35,20 +36,27 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     )
     parser.add_argument("filepath", help="考勤檔案路徑（同 `fhr analyze`）")
     parser.add_argument(
-        "--to", required=True, choices=["code-agent-hr"],
+        "--to",
+        required=True,
+        choices=["code-agent-hr"],
         help="目標格式 (= schema 名稱)",
     )
     parser.add_argument("--out", required=True, help="輸出 JSON 路徑")
     parser.add_argument(
-        "--cutoff", type=_parse_date, default=None,
+        "--cutoff",
+        type=_parse_date,
+        default=None,
         help="排除此日期(含)以前的條目；通常設為上一次申請的最後日期",
     )
     parser.add_argument(
-        "--today", type=_parse_date, default=None,
+        "--today",
+        type=_parse_date,
+        default=None,
         help="排除此日期之後的條目（用來剔除未來的 WFH 自動建議）",
     )
     parser.add_argument(
-        "--incremental", action="store_true",
+        "--incremental",
+        action="store_true",
         help=(
             "啟用增量分析 (預設關閉)。export 預設走完整分析,因為下游 portal-apply"
             " 走 applied_forms dedup,不該被 analyzer state cache 影響。"
@@ -92,8 +100,10 @@ def run(args: argparse.Namespace) -> None:
             logger.info(
                 "✅ %s (%d 加班 / %d 小時, %d 請假 / %d 小時, %d skipped)",
                 args.out,
-                s["overtime_count"], s["overtime_hours"],
-                s["leave_count"], s["leave_hours"],
+                s["overtime_count"],
+                s["overtime_hours"],
+                s["leave_count"],
+                s["leave_hours"],
                 len(payload["skipped"]),
             )
         else:

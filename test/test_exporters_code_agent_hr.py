@@ -3,6 +3,7 @@
 Cover end-time math (`start + hours`), filters (cutoff / future),
 WFH synthesis, and the schema_version stamp.
 """
+
 import json
 import os
 import tempfile
@@ -51,6 +52,17 @@ def _wfh(date_str: str) -> Issue:
     )
 
 
+def _full_day(date_str: str) -> Issue:
+    return Issue(
+        date=datetime.strptime(date_str, "%Y/%m/%d"),
+        type=IssueType.WEEKDAY_LEAVE,
+        duration_minutes=480,
+        description="整天沒進公司，建議請假",
+        time_range="",
+        calculation="",
+    )
+
+
 class TestOvertimeMath(unittest.TestCase):
     def test_end_time_is_start_plus_hours_not_actual_punch(self):
         # 04/20 18:30-21:05 actual punch → 2h applicable, end = 18:30+2h = 20:30
@@ -73,10 +85,12 @@ class TestOvertimeMath(unittest.TestCase):
 
     def test_floor_to_whole_hours(self):
         # 178min → 2h (not 3); 200min → 3h
-        out = issues_to_analysis([
-            _ot("2026/04/22", "18:30~21:28", 178),
-            _ot("2026/04/27", "18:30~21:50", 200),
-        ])
+        out = issues_to_analysis(
+            [
+                _ot("2026/04/22", "18:30~21:28", 178),
+                _ot("2026/04/27", "18:30~21:50", 200),
+            ]
+        )
         self.assertEqual(out["overtime"][0]["hours"], 2)
         self.assertEqual(out["overtime"][1]["hours"], 3)
 
@@ -109,19 +123,41 @@ class TestWFH(unittest.TestCase):
         self.assertEqual(e["reason"], "WFH")
 
     def test_respects_schedule_overrides(self):
-        out = issues_to_analysis([_wfh("2026/04/24")],
-                                 ExportOptions(schedule_start_hhmm="0900",
-                                               schedule_end_hhmm="1800"))
+        out = issues_to_analysis(
+            [_wfh("2026/04/24")],
+            ExportOptions(schedule_start_hhmm="0900", schedule_end_hhmm="1800"),
+        )
         e = out["leave"][0]
         self.assertEqual(e["start_time"], "0900")
         self.assertEqual(e["end_time"], "1800")
         self.assertEqual(e["hours"], 9)
 
 
+class TestFullDayLeave(unittest.TestCase):
+    def test_weekday_full_day_emitted_as_leave(self):
+        # 平日整日缺勤須輸出成可申請的整天請假（修復先前 silently ignored）
+        out = issues_to_analysis([_full_day("2026/06/10")])
+        self.assertEqual(len(out["leave"]), 1)
+        e = out["leave"][0]
+        self.assertEqual(e["date"], "2026/06/10")
+        self.assertEqual(e["start_time"], "0930")
+        self.assertEqual(e["end_time"], "1830")
+        self.assertEqual(e["hours"], 8)  # 午休不計
+        self.assertEqual(e["type_hint"], "full_day")
+
+    def test_full_day_counts_in_summary(self):
+        out = issues_to_analysis([_full_day("2026/06/10"), _full_day("2026/06/15")])
+        self.assertEqual(out["summary"]["leave_count"], 2)
+        self.assertEqual(out["summary"]["leave_hours"], 16)
+
+
 class TestFilters(unittest.TestCase):
     def test_cutoff_drops_on_or_before(self):
         out = issues_to_analysis(
-            [_ot("2026/04/17", "18:30~20:30", 120), _ot("2026/04/18", "18:30~20:30", 120)],
+            [
+                _ot("2026/04/17", "18:30~20:30", 120),
+                _ot("2026/04/18", "18:30~20:30", 120),
+            ],
             ExportOptions(cutoff_date=date(2026, 4, 17)),
         )
         self.assertEqual(len(out["overtime"]), 1)
@@ -130,7 +166,10 @@ class TestFilters(unittest.TestCase):
 
     def test_future_drops_after_today(self):
         out = issues_to_analysis(
-            [_ot("2026/05/19", "18:30~20:30", 120), _ot("2026/05/22", "18:30~20:30", 120)],
+            [
+                _ot("2026/05/19", "18:30~20:30", 120),
+                _ot("2026/05/22", "18:30~20:30", 120),
+            ],
             ExportOptions(today=date(2026, 5, 20)),
         )
         self.assertEqual(len(out["overtime"]), 1)
@@ -145,19 +184,23 @@ class TestPayloadShape(unittest.TestCase):
         self.assertEqual(out["schema_version"], SCHEMA_VERSION)
 
     def test_summary_matches_arrays(self):
-        out = issues_to_analysis([
-            _ot("2026/04/20", "18:30~20:30", 120),
-            _ot("2026/04/22", "18:30~20:30", 120),
-            _late("2026/04/20", "09:30~10:30", 60),
-        ])
+        out = issues_to_analysis(
+            [
+                _ot("2026/04/20", "18:30~20:30", 120),
+                _ot("2026/04/22", "18:30~20:30", 120),
+                _late("2026/04/20", "09:30~10:30", 60),
+            ]
+        )
         self.assertEqual(out["summary"]["overtime_count"], 2)
         self.assertEqual(out["summary"]["overtime_hours"], 4)
         self.assertEqual(out["summary"]["leave_count"], 1)
         self.assertEqual(out["summary"]["leave_hours"], 1)
 
     def test_cutoff_date_in_payload(self):
-        out = issues_to_analysis([_ot("2026/04/20", "18:30~20:30", 120)],
-                                 ExportOptions(cutoff_date=date(2026, 4, 17)))
+        out = issues_to_analysis(
+            [_ot("2026/04/20", "18:30~20:30", 120)],
+            ExportOptions(cutoff_date=date(2026, 4, 17)),
+        )
         self.assertEqual(out["cutoff_date"], "2026/04/17")
 
 

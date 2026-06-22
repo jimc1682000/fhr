@@ -6,6 +6,7 @@ and date-range CLI flags. The output file is named in the
 parse the user/date metadata from the filename (see
 `lib/filename.py`).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,10 +45,10 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         """,
     )
     parser.add_argument("--user", required=True, help="檔名 user 段（會出現在輸出檔名）")
-    parser.add_argument("--date-s", dest="date_s", type=_parse_date,
-                        help="起始日 (預設本月 1 日)")
-    parser.add_argument("--date-e", dest="date_e", type=_parse_date,
-                        help="結束日 (預設本月最後一日)")
+    parser.add_argument("--date-s", dest="date_s", type=_parse_date, help="起始日 (預設本月 1 日)")
+    parser.add_argument(
+        "--date-e", dest="date_e", type=_parse_date, help="結束日 (預設本月最後一日)"
+    )
     parser.add_argument("--out", help="輸出 .txt 路徑 (預設 ./tmp/<auto>.txt)")
     parser.add_argument("--session", help="agent-browser session 名稱 (預設 'fhr')")
     parser.add_argument("--base-url", help="EHR base URL (預設讀 env EHR_URL)")
@@ -67,6 +68,7 @@ def _default_range(today: date | None = None) -> tuple[date, date]:
 
 def _prev_day(d: date) -> date:
     from datetime import timedelta
+
     return d - timedelta(days=1)
 
 
@@ -74,8 +76,7 @@ def _default_out(user: str, start: date, end: date) -> Path:
     if start.year == end.year and start.month == end.month:
         stem = f"{start.year}{start.month:02d}-{user}-出勤資料.txt"
     else:
-        stem = (f"{start.year}{start.month:02d}-{end.year}{end.month:02d}"
-                f"-{user}-出勤資料.txt")
+        stem = f"{start.year}{start.month:02d}-{end.year}{end.month:02d}-{user}-出勤資料.txt"
     return Path("tmp") / stem
 
 
@@ -84,9 +85,7 @@ def _resolve_base_url(args: argparse.Namespace) -> str:
         return args.base_url.rstrip("/")
     raw = os.environ.get("EHR_URL", "").rstrip("/")
     if not raw:
-        raise RuntimeError(
-            "找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url"
-        )
+        raise RuntimeError("找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url")
     # `.env` may carry a full login URL like .../LoginFOrginal.asp; strip the
     # trailing page so the rest of the code can append paths.
     for suffix in ("/LoginFOrginal.asp", "/LoginFOpen.asp"):
@@ -134,9 +133,13 @@ def run(args: argparse.Namespace) -> None:
         with PortalSession(args.session) as portal:
             ensure_login(portal, base_url)
             count = att.fetch_to_txt(
-                portal, base_url, str(out_path),
-                start_year=start.year, start_month=start.month,
-                end_year=end.year, end_month=end.month,
+                portal,
+                base_url,
+                str(out_path),
+                start_year=start.year,
+                start_month=start.month,
+                end_year=end.year,
+                end_month=end.month,
             )
         logger.info("✅ %s (%d 筆)", out_path, count)
     except AgentBrowserMissing as e:

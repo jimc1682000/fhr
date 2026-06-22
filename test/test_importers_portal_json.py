@@ -1,4 +1,5 @@
 """Tests for `lib/importers/portal_json.py`."""
+
 import json
 import os
 import tempfile
@@ -126,8 +127,9 @@ class TestImportFromDict(unittest.TestCase):
 
     def test_rejects_wrong_major(self):
         with self.assertRaises(SchemaVersionError):
-            import_from_dict({"schema_version": f"{SCHEMA_VERSION.split('/')[0]}/v9",
-                              "records": []})
+            import_from_dict(
+                {"schema_version": f"{SCHEMA_VERSION.split('/')[0]}/v9", "records": []}
+            )
 
 
 class TestConvertFile(unittest.TestCase):

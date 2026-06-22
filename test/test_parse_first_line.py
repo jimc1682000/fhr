@@ -3,16 +3,26 @@
 Previously line 1 was unconditionally skipped, silently dropping the first
 record when the input had no header row (e.g. files produced by other tools).
 """
+
 import os
 import tempfile
 import unittest
 
 from attendance_analyzer import AttendanceAnalyzer
 
-HEADER = "\t".join([
-    "應刷卡時段", "當日卡鐘資料", "刷卡別", "卡鐘編號", "資料來源",
-    "異常狀態", "處理狀態", "異常處理作業", "備註",
-])
+HEADER = "\t".join(
+    [
+        "應刷卡時段",
+        "當日卡鐘資料",
+        "刷卡別",
+        "卡鐘編號",
+        "資料來源",
+        "異常狀態",
+        "處理狀態",
+        "異常處理作業",
+        "備註",
+    ]
+)
 ROW_IN = "2025/07/01 09:30\t2025/07/01 10:25\t上班\t1\t刷卡匯入\t遲到\t\t\t"
 ROW_OUT = "2025/07/01 18:30\t2025/07/01 19:49\t下班\t1\t刷卡匯入\t\t\t\t"
 

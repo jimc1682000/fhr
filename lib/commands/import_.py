@@ -7,6 +7,7 @@ tab-delimited .txt the analyzer ingests.
 
 Legacy un-stamped JSON dumps (the kind this session captured ad-hoc)
 are auto-promoted to v1 when `--legacy` is set."""
+
 from __future__ import annotations
 
 import argparse
@@ -31,12 +32,16 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     )
     parser.add_argument("snapshot", help="輸入 JSON 路徑")
     parser.add_argument(
-        "--from", dest="source", required=True, choices=["portal-json"],
+        "--from",
+        dest="source",
+        required=True,
+        choices=["portal-json"],
         help="來源格式 (= schema 名稱)",
     )
     parser.add_argument("--out", required=True, help="輸出 .txt 路徑")
     parser.add_argument(
-        "--legacy", action="store_true",
+        "--legacy",
+        action="store_true",
         help="輸入是舊版未標 schema_version 的 dump，先 promote 再讀",
     )
     parser.add_argument("--debug", action="store_true", help="啟用 debug 模式")

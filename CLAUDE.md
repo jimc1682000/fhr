@@ -86,7 +86,7 @@ pre-commit run --all-files
 ```
 
 #### 配置的 Hooks
-- **black**: Python 代碼自動格式化（行長度 100）
+- **ruff-format**: Python 代碼自動格式化（行長度 100，取代 black）
 - **ruff**: Python linting 和自動修復
 - **trailing-whitespace**: 移除行尾空白
 - **end-of-file-fixer**: 確保文件以換行符結尾
@@ -125,7 +125,7 @@ Endpoints
 - Workflow：`.github/workflows/ci.yml`
 - 內容：
   - 安裝 dev 相依 `requirements-dev.txt`
-  - Ruff lint & Black 格式檢查
+  - Ruff lint（`ruff check`）& Ruff 格式檢查（`ruff format --check`）
   - 單元測試 + 覆蓋率 >=90% 要求
   - 上傳 coverage_report 與 coverage.svg 產物
 
@@ -194,11 +194,18 @@ Utility helpers for managing generated exports:
 
 ### Business Rules (Hard-coded Constants)
 - Working hours: 8 hours + 1 hour lunch break
-- Flexible check-in: 08:30 (earliest) to 10:30 (latest)
-- Lunch period: 12:30-13:30 (deducted from late calculations when applicable)
+- Flexible check-in: 08:30 (earliest) to **10:00 (latest)**; arriving after 10:00 counts as late
+- Lunch period: 12:30-13:30. **Late-leave hours deduct the lunch overlap**: a late
+  arrival whose 09:30→check-in span crosses lunch subtracts the 12:30-13:30 portion
+  before rounding up to whole hours (e.g. arriving 13:19 = 3h leave, not 4h)
 - Overtime threshold: Minimum 60 minutes to qualify for application
-- Forget-punch allowance: 2 times per month for tardiness ≤60 minutes
+- Forget-punch allowance: **4 times per year** (company policy change; scarce manual
+  resource). The analyzer does **not** auto-substitute forget-punch for late arrivals —
+  all late arrivals are suggested as leave; forget-punch is left for the user to apply
+  manually. (`config.forget_punch_allowance_per_month` is vestigial / unused by analysis.)
 - Friday WFH policy: **All Fridays (regardless of attendance) are recommended as WFH days (9-hour WFH leave), except national holidays**
+- Full-day weekday absence: suggested as a full-day leave (8h, 09:30-18:30); now emitted
+  by the `code-agent-hr` export (`type_hint="full_day"`)
 
 ### Taiwan Holiday Integration
 The system supports mixed holiday loading strategy:
@@ -217,8 +224,9 @@ Key methods:
 ## Key Behavioral Notes
 
 ### Issue Classification Logic
-- **Forget-punch**: Tardiness ≤60 minutes with monthly allowance available
-- **Late**: Tardiness >60 minutes or when forget-punch allowance exhausted
+- **Late**: Any arrival after 10:00 → leave suggestion. Leave hours = ceil of the
+  missed work minutes (09:30→check-in, minus any lunch overlap). Forget-punch is **not**
+  auto-applied (4/year manual allowance; see Business Rules).
 - **Overtime**: Work beyond calculated end time, minimum 60 minutes
 - **WFH Leave**: **Recommended for ALL Fridays (with or without attendance records), unless it's a national holiday**
 - **Regular Leave**: Recommended for full-day absences on weekdays (excluding Fridays)

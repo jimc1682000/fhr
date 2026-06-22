@@ -39,7 +39,7 @@
 | **執行測試** | `python -m unittest -q` | 完整測試套件 |
 | **測試覆蓋率** | `make coverage` | 產生覆蓋率報告 |
 | **程式碼檢查** | `make lint` | Ruff 或 fallback 檢查 |
-| **安裝開發工具** | `pip install -r requirements-dev.txt` | Black, Ruff, pre-commit |
+| **安裝開發工具** | `pip install -r requirements-dev.txt` | Ruff, pre-commit |
 | **安裝 Git Hook** | `make install-hooks` | 自動格式化與測試 |
 
 ## 📁 檔案格式速查

@@ -37,12 +37,8 @@ class TestPolicy(unittest.TestCase):
         # missing actual times on both records
         wd = WorkDay(
             date=date,
-            checkin_record=mk_record(
-                "2025/07/04 08:00", None, AttendanceType.CHECKIN
-            ),
-            checkout_record=mk_record(
-                "2025/07/04 17:00", None, AttendanceType.CHECKOUT
-            ),
+            checkin_record=mk_record("2025/07/04 08:00", None, AttendanceType.CHECKIN),
+            checkout_record=mk_record("2025/07/04 17:00", None, AttendanceType.CHECKOUT),
             is_friday=True,
         )
         self.assertTrue(is_full_day_absent(wd))
@@ -85,28 +81,32 @@ class TestPolicy(unittest.TestCase):
     def test_late_from_schedule_start(self):
         # checkin at 13:30, schedule_start 09:30 -> 240 minutes late
         date = datetime.strptime("2025/07/01", "%Y/%m/%d")
-        wd = WorkDay(date=date,
-                     checkin_record=mk_record(
-                         "2025/07/01 08:00", "2025/07/01 13:30", AttendanceType.CHECKIN
-                     ),
-                     checkout_record=mk_record(
-                         "2025/07/01 17:00", "2025/07/01 22:45", AttendanceType.CHECKOUT
-                     ),
-                     is_friday=False)
+        wd = WorkDay(
+            date=date,
+            checkin_record=mk_record(
+                "2025/07/01 08:00", "2025/07/01 13:30", AttendanceType.CHECKIN
+            ),
+            checkout_record=mk_record(
+                "2025/07/01 17:00", "2025/07/01 22:45", AttendanceType.CHECKOUT
+            ),
+            is_friday=False,
+        )
         minutes, _range, _calc = calculate_late_minutes(wd, self.rules)
         self.assertEqual(minutes, 240)  # 13:30 - 09:30 = 240 min
 
     def test_overtime_rounding(self):
         # checkin 09:00 => expected out 18:00; actual 20:01 => 121m actual, applicable 120m
         date = datetime.strptime("2025/07/01", "%Y/%m/%d")
-        wd = WorkDay(date=date,
-                     checkin_record=mk_record(
-                         "2025/07/01 09:00", "2025/07/01 09:00", AttendanceType.CHECKIN
-                     ),
-                     checkout_record=mk_record(
-                         "2025/07/01 17:00", "2025/07/01 20:01", AttendanceType.CHECKOUT
-                     ),
-                     is_friday=False)
+        wd = WorkDay(
+            date=date,
+            checkin_record=mk_record(
+                "2025/07/01 09:00", "2025/07/01 09:00", AttendanceType.CHECKIN
+            ),
+            checkout_record=mk_record(
+                "2025/07/01 17:00", "2025/07/01 20:01", AttendanceType.CHECKOUT
+            ),
+            is_friday=False,
+        )
         # Calculate expected checkout based on work start at 09:00
         work_start = datetime.strptime("2025/07/01 09:00", "%Y/%m/%d %H:%M")
         expected_checkout = calculate_expected_checkout(wd, self.rules, work_start)
@@ -116,7 +116,7 @@ class TestPolicy(unittest.TestCase):
         self.assertEqual(applicable, 120)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 """Category: Policy
 Purpose: Late calculation branches and overtime applicability thresholds."""

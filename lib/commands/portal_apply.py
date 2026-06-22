@@ -195,7 +195,7 @@ def _format_entry(
 ) -> str:
     st = entry["start_time"]
     et = entry["end_time"]
-    base = f"{entry['date']} {_fmt_time(st)}-{_fmt_time(et)} " f"({entry['hours']}h)"
+    base = f"{entry['date']} {_fmt_time(st)}-{_fmt_time(et)} ({entry['hours']}h)"
     rec = attendance.get(entry["date"])
     if rec:
         base += f"  | 實際 上班 {rec.get('上班', '—')}  下班 {rec.get('下班', '—')}"
@@ -343,7 +343,10 @@ def _interactive_overtime(
                 i,
                 len(overtime),
                 _format_entry(
-                    entry, attendance, schedule_start=schedule_start, latest_checkin=latest_checkin
+                    entry,
+                    attendance,
+                    schedule_start=schedule_start,
+                    latest_checkin=latest_checkin,
                 ),
             )
             plan["overtime"].append({"entry": entry, "action": "skip", "already_done": True})
@@ -356,7 +359,10 @@ def _interactive_overtime(
                 i,
                 len(overtime),
                 _format_entry(
-                    entry, attendance, schedule_start=schedule_start, latest_checkin=latest_checkin
+                    entry,
+                    attendance,
+                    schedule_start=schedule_start,
+                    latest_checkin=latest_checkin,
                 ),
                 d.get("action"),
             )
@@ -428,7 +434,10 @@ def _interactive_leave(
                 i,
                 len(leave),
                 _format_entry(
-                    entry, attendance, schedule_start=schedule_start, latest_checkin=latest_checkin
+                    entry,
+                    attendance,
+                    schedule_start=schedule_start,
+                    latest_checkin=latest_checkin,
                 ),
             )
             plan["leave"].append({"entry": entry, "action": "skip", "already_done": True})
@@ -441,7 +450,10 @@ def _interactive_leave(
                 i,
                 len(leave),
                 _format_entry(
-                    entry, attendance, schedule_start=schedule_start, latest_checkin=latest_checkin
+                    entry,
+                    attendance,
+                    schedule_start=schedule_start,
+                    latest_checkin=latest_checkin,
                 ),
                 d.get("action"),
                 d.get("leave_type", ""),
@@ -455,7 +467,10 @@ def _interactive_leave(
             i,
             len(leave),
             _format_entry(
-                entry, attendance, schedule_start=schedule_start, latest_checkin=latest_checkin
+                entry,
+                attendance,
+                schedule_start=schedule_start,
+                latest_checkin=latest_checkin,
             ),
             entry.get("type_hint", ""),
         )
@@ -641,7 +656,12 @@ def run(args: argparse.Namespace) -> None:
                 plan["overtime"].append({"entry": e, "action": "skip", "already_done": True})
                 continue
             plan["overtime"].append(
-                {"entry": e, "action": "submit", "key": key, "reason": e.get("reason", "工作需要")}
+                {
+                    "entry": e,
+                    "action": "submit",
+                    "key": key,
+                    "reason": e.get("reason", "工作需要"),
+                }
             )
         for e in leave:
             key = _entry_key(e, "leave")
@@ -721,7 +741,7 @@ def run(args: argparse.Namespace) -> None:
     if not args.auto:
         prompt_suffix = " (DRY RUN — 不會實際送出)" if args.dry_run else ""
         confirm = (
-            input(f"\n確認送出 {len(submit_ot)+len(submit_lv)} 筆{prompt_suffix}? " "(y/n) [y]: ")
+            input(f"\n確認送出 {len(submit_ot) + len(submit_lv)} 筆{prompt_suffix}? (y/n) [y]: ")
             .strip()
             .lower()
             or "y"

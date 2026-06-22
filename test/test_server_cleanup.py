@@ -98,9 +98,7 @@ class TestServerCleanup(unittest.TestCase):
         return path
 
     def test_cleanup_preview_and_analyze_merges_backups(self):
-        canonical = self._write_canonical(
-            "sample-attendance-data_analysis.csv", "old,data\n"
-        )
+        canonical = self._write_canonical("sample-attendance-data_analysis.csv", "old,data\n")
         self._write_canonical(
             "sample-attendance-data_analysis_20240101_000000.csv", "backup,data\n"
         )

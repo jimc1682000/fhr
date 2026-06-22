@@ -15,6 +15,7 @@ Usage:
   python tools/check_coverage_threshold.py --min 90          # legacy mode
   python tools/check_coverage_threshold.py --baseline tools/coverage_baseline.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -72,21 +73,32 @@ def _summary(by_pkg: dict[str, tuple[int, int]]) -> tuple[float, dict[str, float
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--min", dest="legacy_min", type=float, default=None,
-                    help="Legacy mode — single overall threshold; "
-                    "skips per-package baseline check.")
-    ap.add_argument("--baseline", default="tools/coverage_baseline.json",
-                    help="Per-package baseline JSON (default: %(default)s)")
-    ap.add_argument("--dir", dest="coverdir", default="coverage_report",
-                    help="Coverage directory (default: %(default)s)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--min",
+        dest="legacy_min",
+        type=float,
+        default=None,
+        help="Legacy mode — single overall threshold; skips per-package baseline check.",
+    )
+    ap.add_argument(
+        "--baseline",
+        default="tools/coverage_baseline.json",
+        help="Per-package baseline JSON (default: %(default)s)",
+    )
+    ap.add_argument(
+        "--dir",
+        dest="coverdir",
+        default="coverage_report",
+        help="Coverage directory (default: %(default)s)",
+    )
     args = ap.parse_args()
 
     coverdir = Path(args.coverdir)
     if not coverdir.exists():
-        print("coverage_report/ not found. Run 'make coverage' first.",
-              file=sys.stderr)
+        print("coverage_report/ not found. Run 'make coverage' first.", file=sys.stderr)
         return 2
 
     by_pkg = compute_per_package(coverdir)
@@ -130,8 +142,10 @@ def main() -> int:
 
     print("-" * 56)
     overall_ok = overall + 1e-9 >= overall_min
-    print(f"{'OVERALL':<22} {overall:>7.2f}%  {overall_min:>8.2f}  "
-          f"{'✓ ok' if overall_ok else '❌ FAIL'}")
+    print(
+        f"{'OVERALL':<22} {overall:>7.2f}%  {overall_min:>8.2f}  "
+        f"{'✓ ok' if overall_ok else '❌ FAIL'}"
+    )
     if not overall_ok:
         failed.append(f"overall: {overall:.2f}% < min {overall_min:.2f}%")
 

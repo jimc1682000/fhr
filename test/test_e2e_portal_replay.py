@@ -8,6 +8,7 @@ This catches CLI/wiring regressions that mock-based unit tests miss —
 e.g. arg-parser drift, env-var loading, JSON I/O edges, the integration
 between PortalSession + apply_forms + state cache.
 """
+
 import json
 import os
 import shutil
@@ -55,22 +56,35 @@ class TestPortalApplyDryRunReplay(unittest.TestCase):
 
     def _run(self, *extra: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [sys.executable, "attendance_analyzer.py",
-             "portal-apply",
-             "--user", "Tester",
-             "--input", str(self.analysis),
-             "--auto", "--dry-run", "--dry-run-pause-secs", "0",
-             "--no-sync", "--overtime-only",
-             *extra],
-            cwd=REPO_ROOT, env=self._env(),
-            capture_output=True, text=True, check=False,
+            [
+                sys.executable,
+                "attendance_analyzer.py",
+                "portal-apply",
+                "--user",
+                "Tester",
+                "--input",
+                str(self.analysis),
+                "--auto",
+                "--dry-run",
+                "--dry-run-pause-secs",
+                "0",
+                "--no-sync",
+                "--overtime-only",
+                *extra,
+            ],
+            cwd=REPO_ROOT,
+            env=self._env(),
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
     def test_dry_run_overtime_succeeds(self):
         result = self._run()
         # Exit 0 + DRY RUN result line
         self.assertEqual(
-            result.returncode, 0,
+            result.returncode,
+            0,
             msg=f"stderr: {result.stderr}\nstdout: {result.stdout}",
         )
         self.assertIn("DRY RUN", result.stdout + result.stderr)
@@ -94,13 +108,13 @@ class TestPortalApplyDryRunReplay(unittest.TestCase):
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
         applied = state.get("users", {}).get("Tester", {}).get("applied_forms", {})
         # OT list should be empty / missing — dry-run must NOT write here.
-        self.assertFalse(applied.get("overtime"),
-                         "applied_forms.overtime polluted by dry-run")
+        self.assertFalse(applied.get("overtime"), "applied_forms.overtime polluted by dry-run")
 
     def test_screenshot_emitted(self):
         # Screenshots default under cwd/tmp/dry-run-screenshots/<ts>/
         self._run(
-            "--screenshot-dir", str(Path(self.workdir) / "shots"),
+            "--screenshot-dir",
+            str(Path(self.workdir) / "shots"),
         )
         shots = list((Path(self.workdir) / "shots").glob("*.png"))
         self.assertGreaterEqual(len(shots), 1, "no screenshot copied")
@@ -115,6 +129,7 @@ class TestPortalApplyDryRunReplay(unittest.TestCase):
 
 try:
     from PIL import Image  # noqa: F401
+
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False
@@ -153,19 +168,35 @@ class TestPortalApplyScreenshotsMatchBaseline(unittest.TestCase):
             "EHR_URL": "http://fake.local/ehrPortal",
         }
         subprocess.run(
-            [sys.executable, "attendance_analyzer.py", "portal-apply",
-             "--user", "Tester", "--input", str(self.analysis),
-             "--auto", "--dry-run", "--dry-run-pause-secs", "0",
-             "--no-sync", "--overtime-only",
-             "--screenshot-dir", str(self.shot_dir)],
-            cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=True,
+            [
+                sys.executable,
+                "attendance_analyzer.py",
+                "portal-apply",
+                "--user",
+                "Tester",
+                "--input",
+                str(self.analysis),
+                "--auto",
+                "--dry-run",
+                "--dry-run-pause-secs",
+                "0",
+                "--no-sync",
+                "--overtime-only",
+                "--screenshot-dir",
+                str(self.shot_dir),
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         from tools.diff_screenshots import diff
+
         shots = sorted(self.shot_dir.glob("*-overtime-*.png"))
         self.assertEqual(len(shots), 1, "expected exactly one overtime screenshot")
         baseline = BASELINE_DIR / "overtime-20260420-1830-2030.png"
-        self.assertTrue(baseline.is_file(),
-                        f"missing baseline: {baseline}")
+        self.assertTrue(baseline.is_file(), f"missing baseline: {baseline}")
         res = diff(str(shots[0]), str(baseline))
         self.assertTrue(
             res.is_within(0.05),

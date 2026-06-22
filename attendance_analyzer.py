@@ -392,9 +392,13 @@ class AttendanceAnalyzer:
             complete_days = self._identify_complete_work_days()
             unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
             if unprocessed_dates:
-                logger.info("🔄 增量分析: 發現 %d 個新的完整工作日需要處理", len(unprocessed_dates))
                 logger.info(
-                    "📊 跳過已處理的工作日: %d 個", len(complete_days) - len(unprocessed_dates)
+                    "🔄 增量分析: 發現 %d 個新的完整工作日需要處理",
+                    len(unprocessed_dates),
+                )
+                logger.info(
+                    "📊 跳過已處理的工作日: %d 個",
+                    len(complete_days) - len(unprocessed_dates),
                 )
                 formatted_dates = [d.strftime("%Y-%m-%d") for d in unprocessed_dates]
                 logger.debug("📆  新增待處理日期: %s", formatted_dates)
@@ -478,7 +482,6 @@ class AttendanceAnalyzer:
         return False
 
     def _analyze_single_workday(self, workday: WorkDay, rules) -> None:
-
         from lib.policy import (
             calculate_early_leave,
             calculate_expected_checkout,
@@ -511,9 +514,9 @@ class AttendanceAnalyzer:
 
         work_start_time = actual_checkin
 
-        # 3. 處理遲到情況（全部走請假）
+        # 3. 處理遲到情況（全部走請假；忘刷卡為年額度，不在此自動套用）
         if late_minutes > 0:
-            leave_start, leave_end, leave_hours = calculate_leave_suggestion(
+            leave_start, leave_end, leave_hours, effective_minutes = calculate_leave_suggestion(
                 workday, rules, late_minutes
             )
 
@@ -521,7 +524,9 @@ class AttendanceAnalyzer:
                 Issue(
                     date=workday.date,
                     type=IssueType.LATE,
-                    duration_minutes=late_minutes,
+                    # duration 用扣午休後的缺工分鐘（下游 ceil 算請假時數）；
+                    # 描述仍顯示實際遲到分鐘
+                    duration_minutes=effective_minutes,
                     description=f"遲到{late_minutes}分鐘 ⏱️",
                     time_range=f"{leave_start}~{leave_end}",
                     calculation=f"建議請假 {leave_hours} 小時: {leave_start}~{leave_end}",

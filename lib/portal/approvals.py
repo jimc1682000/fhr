@@ -11,6 +11,7 @@ For multi-month dedup we still iterate every page (the Portal has its
 own 全部 / 已核准 / 未處理 filter). Pagination follows the same
 select-dropdown trick as attendance scraping.
 """
+
 from __future__ import annotations
 
 import logging
@@ -21,9 +22,7 @@ from lib.portal.client import PortalSession
 
 logger = logging.getLogger(__name__)
 
-FORM_LIST_URL_PATH = (
-    "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Search/Default.aspx"
-)
+FORM_LIST_URL_PATH = "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Search/Default.aspx"
 
 # Maps each (form-name, JS-side filter-value) pair we care about.
 FORM_NAMES = {
@@ -49,47 +48,34 @@ _RE_OT_LOCATION = re.compile(r"加班地點[：:]\s*(.+)")
 _RE_REASON = re.compile(r"(加班原因|請假原因)[：:]\s*(.+)")
 _RE_STATUS = re.compile(r"(目前狀態|簽核狀態|表單狀態)[：:]\s*(.+)")
 
-# JS that pulls every row's wsdinfotext and current page's controls.
-# Returns the raw `<tr>` payloads — Python parses them.
-_LIST_ALL_PAGES_JS = """
+# JS that reads ONE page of the form list (and reports totalPages).
+# Navigating + parsing 25 pages inside a single eval kept the daemon busy
+# long enough to time out / go unresponsive, so the Python side drives the
+# pagination instead — one short eval per page. `__PAGE__` is substituted
+# with the target page index before each call.
+_READ_PAGE_JS = """
 (async () => {
   const iframes = document.querySelectorAll('iframe');
   if (iframes.length === 0) return {error: 'No iframe found'};
   const dataFrame = iframes[iframes.length - 1];
-
-  function rowsIn(doc) {
-    const rows = doc.querySelectorAll('tr[id^="tbWorkSheetDataList_"]');
-    return Array.from(rows).map(r => ({
-      id: r.id || '',
-      wsdinfotext: r.getAttribute('wsdinfotext') || ''
-    }));
-  }
-
   let doc = dataFrame.contentDocument;
   if (!doc) return {error: 'Cannot access iframe contentDocument'};
 
+  const target = __PAGE__;
   const sel = doc.querySelector('select');
   const totalPages = sel ? sel.options.length : 1;
-  const out = [];
-  const seen = new Set();
 
-  for (let i = 0; i < totalPages; i++) {
+  if (sel && sel.selectedIndex !== target) {
+    sel.selectedIndex = target;
+    sel.dispatchEvent(new Event('change', {bubbles: true}));
+    await new Promise(r => setTimeout(r, 1500));
     doc = dataFrame.contentDocument;
-    const pageSel = doc.querySelector('select');
-    if (pageSel && i > 0) {
-      pageSel.selectedIndex = i;
-      pageSel.dispatchEvent(new Event('change', {bubbles: true}));
-      await new Promise(r => setTimeout(r, 1500));
-      doc = dataFrame.contentDocument;
-    }
-    for (const r of rowsIn(doc)) {
-      if (r.id && !seen.has(r.id)) {
-        seen.add(r.id);
-        out.push(r);
-      }
-    }
   }
-  return {totalPages, rows: out};
+
+  const rows = Array.from(
+    doc.querySelectorAll('tr[id^="tbWorkSheetDataList_"]')
+  ).map(r => ({id: r.id || '', wsdinfotext: r.getAttribute('wsdinfotext') || ''}));
+  return {totalPages, page: target, rows};
 })()
 """
 
@@ -109,8 +95,8 @@ def parse_wsdinfotext(text: str) -> dict | None:
     status = _RE_STATUS.search(text or "")
 
     return {
-        "date": start.group(1),                              # YYYY/MM/DD
-        "start_time": start.group(2).replace(":", ""),       # HHMM
+        "date": start.group(1),  # YYYY/MM/DD
+        "start_time": start.group(2).replace(":", ""),  # HHMM
         "end_date": end.group(1) if end else start.group(1),
         "end_time": end.group(2).replace(":", "") if end else "",
         "hours": int(hours.group(1)) if hours else None,
@@ -146,8 +132,10 @@ def _extract_filter_refs(snapshot: str) -> dict[str, str]:
             ref = "@" + line.split("ref=")[1].split("]")[0]
             comboboxes.append(ref)
         if (
-            'button "提交"' in line and "[disabled" not in line
-            and "ref=" in line and "submit" not in refs
+            'button "提交"' in line
+            and "[disabled" not in line
+            and "ref=" in line
+            and "submit" not in refs
         ):
             refs["submit"] = "@" + line.split("ref=")[1].split("]")[0]
     if len(comboboxes) < 2 or "submit" not in refs:
@@ -162,25 +150,46 @@ def fetch_form_entries(
     base_url: str,
     form_name_zh: str,
 ) -> list[dict]:
-    """Return parsed entries for a single form type (e.g. "加班單")."""
+    """Return parsed entries for a single form type (e.g. "加班單").
+
+    Pages are read one short eval at a time (Python drives pagination) so a
+    long form list doesn't tie up the agent-browser daemon."""
     portal.open(f"{base_url}{FORM_LIST_URL_PATH}")
     portal.wait(2500)
     _set_form_filter(portal, form_name_zh)
 
-    result = portal.eval_json(_LIST_ALL_PAGES_JS)
-    if not isinstance(result, dict) or "rows" not in result:
-        raise RuntimeError(f"eval 失敗或回傳格式異常: {result!r}")
-    if "error" in result:
-        raise RuntimeError(f"eval 回報錯誤: {result['error']}")
+    def _read_page(idx: int) -> dict:
+        result = portal.eval_json(_READ_PAGE_JS.replace("__PAGE__", str(idx)))
+        if isinstance(result, dict) and "error" in result:
+            raise RuntimeError(f"eval 回報錯誤: {result['error']}")
+        if not isinstance(result, dict) or "rows" not in result:
+            raise RuntimeError(f"eval 失敗或回傳格式異常: {result!r}")
+        return result
 
     entries: list[dict] = []
-    for row in result["rows"]:
-        parsed = parse_wsdinfotext(row.get("wsdinfotext", ""))
-        if parsed is None:
-            continue
-        parsed["row_id"] = row.get("id", "")
-        entries.append(parsed)
-    logger.info("✅ %s: %d 筆", form_name_zh, len(entries))
+    seen: set[str] = set()
+
+    first = _read_page(0)
+    total_pages = int(first.get("totalPages", 1) or 1)
+
+    def _collect(rows: list[dict]) -> None:
+        for row in rows:
+            rid = row.get("id", "")
+            if rid and rid in seen:
+                continue
+            if rid:
+                seen.add(rid)
+            parsed = parse_wsdinfotext(row.get("wsdinfotext", ""))
+            if parsed is None:
+                continue
+            parsed["row_id"] = rid
+            entries.append(parsed)
+
+    _collect(first["rows"])
+    for idx in range(1, total_pages):
+        _collect(_read_page(idx)["rows"])
+
+    logger.info("✅ %s: %d 筆 (%d 頁)", form_name_zh, len(entries), total_pages)
     return entries
 
 

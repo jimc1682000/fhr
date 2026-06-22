@@ -51,7 +51,7 @@ pre-commit run
 我們的 `.pre-commit-config.yaml` 包含以下 hooks：
 
 ### 代碼格式化
-- **black**: Python 代碼自動格式化，行長度限制 100 字符
+- **ruff-format**: Python 代碼自動格式化，行長度限制 100 字符（取代 black）
 - **ruff**: Python linting 和自動修復
 
 ### 通用檢查
@@ -76,7 +76,7 @@ pre-commit run
 ### Hooks 失敗時的處理
 
 ```bash
-# 如果 hooks 修復了代碼（如 black 格式化）
+# 如果 hooks 修復了代碼（如 ruff-format 格式化）
 # 需要重新暫存修改的文件
 git add .
 git commit
@@ -90,8 +90,8 @@ git commit --no-verify
 ### 只運行特定 hook
 
 ```bash
-# 只運行 black
-pre-commit run black
+# 只運行 ruff-format
+pre-commit run ruff-format
 
 # 只運行 ruff
 pre-commit run ruff
@@ -154,7 +154,7 @@ pre-commit install --install-hooks
 在 `.pre-commit-config.yaml` 中使用 `exclude` 參數：
 
 ```yaml
-- id: black
+- id: ruff-format
   exclude: ^(migrations/|legacy_code/)
 ```
 
@@ -190,8 +190,8 @@ pre-commit install --install-hooks
 
 - [Pre-commit 官方文檔](https://pre-commit.com/)
 - [Pre-commit Hooks 倉庫](https://github.com/pre-commit/pre-commit-hooks)
-- [Black 文檔](https://black.readthedocs.io/)
 - [Ruff 文檔](https://docs.astral.sh/ruff/)
+- [Ruff formatter 文檔](https://docs.astral.sh/ruff/formatter/)
 
 ---
 

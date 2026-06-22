@@ -9,7 +9,13 @@ from lib import csv_exporter
 
 
 def make_issue(
-    date_str: str, typ_value: str, minutes: int, desc: str, rng: str, calc: str, is_new=True
+    date_str: str,
+    typ_value: str,
+    minutes: int,
+    desc: str,
+    rng: str,
+    calc: str,
+    is_new=True,
 ):
     return SimpleNamespace(
         date=datetime.strptime(date_str, "%Y/%m/%d"),
@@ -108,12 +114,28 @@ class TestCsvExporter(unittest.TestCase):
         status = csv_exporter._status_row("2025/09/30", 22, "2025-10-01T10:00:00")
         existing = [
             header,
-            ["2025/09/05", "WFH假", "540", "Friday WFH", "09:00-18:00", "calc", "已存在"],
+            [
+                "2025/09/05",
+                "WFH假",
+                "540",
+                "Friday WFH",
+                "09:00-18:00",
+                "calc",
+                "已存在",
+            ],
         ]
         new_rows = [
             header,
             status,
-            ["2025/09/12", "WFH假", "540", "Friday WFH", "09:00-18:00", "calc", "[NEW] 本次新發現"],
+            [
+                "2025/09/12",
+                "WFH假",
+                "540",
+                "Friday WFH",
+                "09:00-18:00",
+                "calc",
+                "[NEW] 本次新發現",
+            ],
         ]
 
         rows = csv_exporter._merge_rows(existing, new_rows)
@@ -126,12 +148,28 @@ class TestCsvExporter(unittest.TestCase):
         status = csv_exporter._status_row("2025/09/30", 22, "2025-10-01T10:00:00")
         existing = [
             header,
-            ["2025/09/05", "WFH假", "540", "Friday WFH", "09:00-18:00", "calc", "已存在"],
+            [
+                "2025/09/05",
+                "WFH假",
+                "540",
+                "Friday WFH",
+                "09:00-18:00",
+                "calc",
+                "已存在",
+            ],
         ]
         new_rows = [
             header,
             status,
-            ["2025/09/12", "遲到", "10", "遲到10分鐘", "10:00-10:10", "calc", "[NEW] 本次新發現"],
+            [
+                "2025/09/12",
+                "遲到",
+                "10",
+                "遲到10分鐘",
+                "10:00-10:10",
+                "calc",
+                "[NEW] 本次新發現",
+            ],
         ]
 
         rows = csv_exporter._merge_rows(existing, new_rows)

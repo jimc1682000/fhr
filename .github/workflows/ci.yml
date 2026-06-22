@@ -20,7 +20,8 @@ jobs:
           pip install openpyxl
       - name: Lint and format check (ruff)
         run: |
-          if command -v ruff >/dev/null 2>&1; then ruff --version && ruff check . && ruff format --check .; else echo 'ruff missing'; fi
+          # 用 `python -m ruff`（= requirements-dev 釘的 ruff==0.15.18），避免抓到系統其他版本
+          python -m ruff --version && python -m ruff check . && python -m ruff format --check .
       - name: Run tests with coverage (stdlib trace)
         run: |
           make coverage

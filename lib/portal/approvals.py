@@ -22,9 +22,7 @@ from lib.portal.client import PortalSession
 
 logger = logging.getLogger(__name__)
 
-FORM_LIST_URL_PATH = (
-    "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Search/Default.aspx"
-)
+FORM_LIST_URL_PATH = "/eWorkFlow/eWorkFlow_NewRed.asp?URL=~/Workflow_Frontend/Search/Default.aspx"
 
 # Maps each (form-name, JS-side filter-value) pair we care about.
 FORM_NAMES = {

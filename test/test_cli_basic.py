@@ -82,8 +82,7 @@ class TestCliBasic(unittest.TestCase):
             backups = [
                 name
                 for name in os.listdir(self.tmp.name)
-                if name.startswith("sample-attendance-data_analysis_")
-                and name.endswith(".csv")
+                if name.startswith("sample-attendance-data_analysis_") and name.endswith(".csv")
             ]
             self.assertFalse(backups)
         finally:

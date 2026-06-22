@@ -34,9 +34,7 @@ class TestHolidaysMissingRecords(unittest.TestCase):
         self.assertEqual(out, set())
         logs = "\n".join(cm.output)
         self.assertIn("資訊: 嘗試載入 2026 年假日 (第 1/1 次)...", logs)
-        self.assertIn(
-            "錯誤: 嘗試 1 次後仍無法載入 2026 年假日資料。回退到基本假日。", logs
-        )
+        self.assertIn("錯誤: 嘗試 1 次後仍無法載入 2026 年假日資料。回退到基本假日。", logs)
 
 
 if __name__ == "__main__":

@@ -295,9 +295,7 @@ class AttendanceAnalyzer:
             operation,
             note,
         ) = parsed
-        attendance_type = (
-            AttendanceType.CHECKIN if type_str == "上班" else AttendanceType.CHECKOUT
-        )
+        attendance_type = AttendanceType.CHECKIN if type_str == "上班" else AttendanceType.CHECKOUT
         return AttendanceRecord(
             date=scheduled_time.date() if scheduled_time else None,
             scheduled_time=scheduled_time,
@@ -392,9 +390,7 @@ class AttendanceAnalyzer:
     def _get_workdays_to_analyze(self) -> list[WorkDay]:
         if self.incremental_mode and self.current_user:
             complete_days = self._identify_complete_work_days()
-            unprocessed_dates = self._get_unprocessed_dates(
-                self.current_user, complete_days
-            )
+            unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
             if unprocessed_dates:
                 logger.info(
                     "🔄 增量分析: 發現 %d 個新的完整工作日需要處理",
@@ -407,9 +403,7 @@ class AttendanceAnalyzer:
                 formatted_dates = [d.strftime("%Y-%m-%d") for d in unprocessed_dates]
                 logger.debug("📆  新增待處理日期: %s", formatted_dates)
                 unprocessed_date_set = {d.date() for d in unprocessed_dates}
-                candidates = [
-                    wd for wd in self.workdays if wd.date.date() in unprocessed_date_set
-                ]
+                candidates = [wd for wd in self.workdays if wd.date.date() in unprocessed_date_set]
                 return self._filter_processed_workdays(candidates)
             logger.info("✅ 增量分析: 沒有新的工作日需要處理")
             return []
@@ -445,9 +439,7 @@ class AttendanceAnalyzer:
                 friday = date(year, month, date_num)
                 if friday in existing_wfh_dates:
                     continue
-                if friday in {
-                    d.date() if hasattr(d, "date") else d for d in self.holidays
-                }:
+                if friday in {d.date() if hasattr(d, "date") else d for d in self.holidays}:
                     continue
                 self.issues.append(
                     Issue(
@@ -514,9 +506,7 @@ class AttendanceAnalyzer:
             return
 
         # 1. 計算遲到（超過遲到門檻，從班表起始算起）
-        late_minutes, late_time_range, late_calculation = calculate_late_minutes(
-            workday, rules
-        )
+        late_minutes, late_time_range, late_calculation = calculate_late_minutes(workday, rules)
 
         # 2. 確定工作起始時間
         ch = workday.checkin_record
@@ -526,8 +516,8 @@ class AttendanceAnalyzer:
 
         # 3. 處理遲到情況（全部走請假；忘刷卡為年額度，不在此自動套用）
         if late_minutes > 0:
-            leave_start, leave_end, leave_hours, effective_minutes = (
-                calculate_leave_suggestion(workday, rules, late_minutes)
+            leave_start, leave_end, leave_hours, effective_minutes = calculate_leave_suggestion(
+                workday, rules, late_minutes
             )
 
             self.issues.append(
@@ -547,8 +537,8 @@ class AttendanceAnalyzer:
         expected_checkout = calculate_expected_checkout(workday, rules, work_start_time)
 
         # 5. 檢查早退
-        early_leave_minutes, early_leave_range, early_leave_calc = (
-            calculate_early_leave(workday, rules, expected_checkout)
+        early_leave_minutes, early_leave_range, early_leave_calc = calculate_early_leave(
+            workday, rules, expected_checkout
         )
         if early_leave_minutes > 0:
             self.issues.append(
@@ -611,9 +601,7 @@ class AttendanceAnalyzer:
         }
 
         # 更新狀態
-        self.state_manager.update_user_state(
-            self.current_user, range_info, self.forget_punch_usage
-        )
+        self.state_manager.update_user_state(self.current_user, range_info, self.forget_punch_usage)
 
         # 儲存狀態檔案
         self.state_manager.save_state()
@@ -627,9 +615,7 @@ class AttendanceAnalyzer:
         # 顯示增量分析資訊
         if self.incremental_mode and self.current_user:
             complete_days = self._identify_complete_work_days()
-            unprocessed_dates = self._get_unprocessed_dates(
-                self.current_user, complete_days
-            )
+            unprocessed_dates = self._get_unprocessed_dates(self.current_user, complete_days)
             from lib.report import build_incremental_lines
 
             report.extend(
@@ -648,32 +634,20 @@ class AttendanceAnalyzer:
         from lib.report import build_issue_section, build_summary
 
         report.extend(
-            build_issue_section(
-                "## 🔄 建議使用忘刷卡的日期：", "🔄", forget_punch_issues
-            )
+            build_issue_section("## 🔄 建議使用忘刷卡的日期：", "🔄", forget_punch_issues)
         )
 
         # 遲到統計
         late_issues = [issue for issue in self.issues if issue.type == IssueType.LATE]
-        report.extend(
-            build_issue_section("## 😰 需要請遲到的日期：", "😅", late_issues)
-        )
+        report.extend(build_issue_section("## 😰 需要請遲到的日期：", "😅", late_issues))
 
         # 加班統計
-        overtime_issues = [
-            issue for issue in self.issues if issue.type == IssueType.OVERTIME
-        ]
-        report.extend(
-            build_issue_section("## 💪 需要請加班的日期：", "🔥", overtime_issues)
-        )
+        overtime_issues = [issue for issue in self.issues if issue.type == IssueType.OVERTIME]
+        report.extend(build_issue_section("## 💪 需要請加班的日期：", "🔥", overtime_issues))
 
         # 早退統計
-        early_leave_issues = [
-            issue for issue in self.issues if issue.type == IssueType.EARLY_LEAVE
-        ]
-        report.extend(
-            build_issue_section("## ⏰ 早退需要請假的日期：", "⏰", early_leave_issues)
-        )
+        early_leave_issues = [issue for issue in self.issues if issue.type == IssueType.EARLY_LEAVE]
+        report.extend(build_issue_section("## ⏰ 早退需要請假的日期：", "⏰", early_leave_issues))
 
         # 週一到週四請假建議
         weekday_leave_issues = [

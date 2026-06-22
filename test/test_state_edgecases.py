@@ -39,9 +39,7 @@ class TestStateEdgeCases(unittest.TestCase):
                 "source_file": "202507-小明-出勤資料.txt",
                 "last_analysis_time": "2025-09-13T10:00:00",
             }
-            r2 = dict(
-                r1, end_date="2025-08-31", last_analysis_time="2025-09-13T11:00:00"
-            )
+            r2 = dict(r1, end_date="2025-08-31", last_analysis_time="2025-09-13T11:00:00")
 
             m.update_user_state("小明", r1, {"2025-07": 1})
             self.assertEqual(len(m.get_user_processed_ranges("小明")), 1)

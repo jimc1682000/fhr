@@ -40,17 +40,13 @@ class TestMiscGaps(unittest.TestCase):
         # parse_datetime_str invalid
         self.assertIsNone(parser.parse_datetime_str("not-a-dt"))
         # parse_line invalid type returns None
-        self.assertIsNone(
-            parser.parse_line("2025/07/01 09:00\t2025/07/01 09:00\t打卡\t")
-        )
+        self.assertIsNone(parser.parse_line("2025/07/01 09:00\t2025/07/01 09:00\t打卡\t"))
         # parse_line missing scheduled returns None
         self.assertIsNone(parser.parse_line("\t2025/07/01 09:00\t上班\t"))
 
     def test_filename_value_error_paths(self):
         # Invalid month causes ValueError path
-        self.assertEqual(
-            parse_range_and_user("20251x-姓名-出勤資料.txt"), (None, None, None)
-        )
+        self.assertEqual(parse_range_and_user("20251x-姓名-出勤資料.txt"), (None, None, None))
         # Force second segment to parse and then fail month math (13th month)
         self.assertEqual(
             parse_range_and_user("202501-202513-姓名-出勤資料.txt"), (None, None, None)

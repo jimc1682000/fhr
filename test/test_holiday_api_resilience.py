@@ -27,9 +27,7 @@ class TestHolidayApiResilience(unittest.TestCase):
                     }
                 ],
             ]
-            with mock.patch(
-                "urllib.request.urlopen", side_effect=urlopen_sequence(seq)
-            ):
+            with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
                 ok = an._try_load_from_gov_api(2027)
         self.assertTrue(ok)
         self.assertIn(datetime.strptime("2027/10/10", "%Y/%m/%d").date(), an.holidays)
@@ -60,9 +58,7 @@ class TestHolidayApiResilience(unittest.TestCase):
                     }
                 ],
             ]
-            with mock.patch(
-                "urllib.request.urlopen", side_effect=urlopen_sequence(seq)
-            ):
+            with mock.patch("urllib.request.urlopen", side_effect=urlopen_sequence(seq)):
                 ok = an._try_load_from_gov_api(2026)
         self.assertTrue(ok)
         self.assertIn(datetime.strptime("2026/01/01", "%Y/%m/%d").date(), an.holidays)

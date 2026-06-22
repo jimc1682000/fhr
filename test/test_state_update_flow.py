@@ -19,9 +19,7 @@ class DummyState:
 
     def update_user_state(self, user, range_info, forget_punch_usage):
         self.updated = True
-        self.state_data.setdefault("users", {}).setdefault(user, {})[
-            "last"
-        ] = range_info
+        self.state_data.setdefault("users", {}).setdefault(user, {})["last"] = range_info
 
     def save_state(self):
         self.saved = True

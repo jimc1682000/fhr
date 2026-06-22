@@ -69,9 +69,7 @@ class TestAnalyzerAdditionalPaths(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(os.getcwd(), "sample-attendance-data.txt")
             path = os.path.join(tmp, "sample-attendance-data.txt")
-            with open(src, encoding="utf-8") as fsrc, open(
-                path, "w", encoding="utf-8"
-            ) as fdst:
+            with open(src, encoding="utf-8") as fsrc, open(path, "w", encoding="utf-8") as fdst:
                 fdst.write(fsrc.read())
 
             an = AttendanceAnalyzer()
@@ -134,9 +132,7 @@ class TestAnalyzerAdditionalPaths(unittest.TestCase):
         an = AttendanceAnalyzer()
         # No records; direct call to use default years branch
         an._load_taiwan_holidays()
-        self.assertTrue(
-            any(d.strftime("%Y/%m/%d") == "2025/10/10" for d in an.holidays)
-        )
+        self.assertTrue(any(d.strftime("%Y/%m/%d") == "2025/10/10" for d in an.holidays))
 
 
 if __name__ == "__main__":

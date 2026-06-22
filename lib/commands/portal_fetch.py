@@ -23,9 +23,7 @@ def _parse_date(value: str) -> date:
             return datetime.strptime(value, fmt).date()
         except ValueError:
             continue
-    raise argparse.ArgumentTypeError(
-        f"無法解析日期 {value!r}（預期 YYYY/MM/DD 或 YYYY-MM-DD）"
-    )
+    raise argparse.ArgumentTypeError(f"無法解析日期 {value!r}（預期 YYYY/MM/DD 或 YYYY-MM-DD）")
 
 
 def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
@@ -46,12 +44,8 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
 需在 .env 設定 EHR_URL（之後若擴增其他欄位再補）。
         """,
     )
-    parser.add_argument(
-        "--user", required=True, help="檔名 user 段（會出現在輸出檔名）"
-    )
-    parser.add_argument(
-        "--date-s", dest="date_s", type=_parse_date, help="起始日 (預設本月 1 日)"
-    )
+    parser.add_argument("--user", required=True, help="檔名 user 段（會出現在輸出檔名）")
+    parser.add_argument("--date-s", dest="date_s", type=_parse_date, help="起始日 (預設本月 1 日)")
     parser.add_argument(
         "--date-e", dest="date_e", type=_parse_date, help="結束日 (預設本月最後一日)"
     )
@@ -91,9 +85,7 @@ def _resolve_base_url(args: argparse.Namespace) -> str:
         return args.base_url.rstrip("/")
     raw = os.environ.get("EHR_URL", "").rstrip("/")
     if not raw:
-        raise RuntimeError(
-            "找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url"
-        )
+        raise RuntimeError("找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url")
     # `.env` may carry a full login URL like .../LoginFOrginal.asp; strip the
     # trailing page so the rest of the code can append paths.
     for suffix in ("/LoginFOrginal.asp", "/LoginFOpen.asp"):

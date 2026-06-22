@@ -49,9 +49,7 @@ def _resolve_base_url(args: argparse.Namespace) -> str:
         return args.base_url.rstrip("/")
     raw = os.environ.get("EHR_URL", "").rstrip("/")
     if not raw:
-        raise RuntimeError(
-            "找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url"
-        )
+        raise RuntimeError("找不到 EHR_URL — 請在 .env 設定 `EHR_URL=...` 或傳 --base-url")
     for suffix in ("/LoginFOrginal.asp", "/LoginFOpen.asp"):
         if raw.endswith(suffix):
             raw = raw[: -len(suffix)]

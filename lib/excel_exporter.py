@@ -20,9 +20,7 @@ def init_workbook() -> tuple[Workbook, Worksheet, Font, PatternFill, Border, Ali
     ws.title = "考勤分析"
 
     header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(
-        start_color="366092", end_color="366092", fill_type="solid"
-    )
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
     border = Border(
         left=Side(style="thin"),
         right=Side(style="thin"),

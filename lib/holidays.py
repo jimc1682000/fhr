@@ -94,9 +94,7 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
         ]
     """
 
-    JSDELIVR_URL_TEMPLATE = (
-        "https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/{year}.json"
-    )
+    JSDELIVR_URL_TEMPLATE = "https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/{year}.json"
     USER_AGENT = "fhr-attendance-analyzer/1.0 (+https://github.com/jimc1682000/fhr)"
 
     def __init__(self):
@@ -132,9 +130,7 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
                     attempt,
                     self.max_retries,
                 )
-                with urllib.request.urlopen(
-                    request, timeout=10, context=context
-                ) as resp:  # nosec B310
+                with urllib.request.urlopen(request, timeout=10, context=context) as resp:  # nosec B310
                     data = _json.loads(resp.read().decode("utf-8"))
                     if not isinstance(data, list):
                         logger.warning("API 回傳格式非預期（不是 list）")
@@ -160,9 +156,7 @@ class TaiwanGovOpenDataProvider(HolidayProvider):
                     # err_desc = f"HTTP {status}"  # Variable assigned but never used
                     pass
                 else:
-                    logger.warning(
-                        "無法從API載入 %d 年假日資料: HTTP %s — 不重試。", year, status
-                    )
+                    logger.warning("無法從API載入 %d 年假日資料: HTTP %s — 不重試。", year, status)
                     return set()
             except (URLError, TimeoutError, _json.JSONDecodeError, ValueError):
                 # err_desc = f"連線/解析錯誤: {e}"  # Variable assigned but never used

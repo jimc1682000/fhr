@@ -14,9 +14,7 @@ class TestExcelExporterMore(unittest.TestCase):
         xls.write_headers(ws, headers, header_font, header_fill, border, align)
 
         # Write status row and assert returned next row index
-        next_row = xls.write_status_row(
-            ws, "2025/07/31", 22, "2025-09-13T12:00:00", border, align
-        )
+        next_row = xls.write_status_row(ws, "2025/07/31", 22, "2025-09-13T12:00:00", border, align)
         self.assertEqual(next_row, 3)
         self.assertEqual(ws["A2"].value, "2025/07/31")
         self.assertEqual(ws["B2"].value, "狀態資訊")
@@ -34,9 +32,7 @@ class TestExcelExporterMore(unittest.TestCase):
                 True,
             ),
             Issue(datetime(2025, 7, 2), IssueType.WFH, 540, "WFH", "", "", False),
-            Issue(
-                datetime(2025, 7, 3), IssueType.FORGET_PUNCH, 30, "忘刷卡", "", "", True
-            ),
+            Issue(datetime(2025, 7, 3), IssueType.FORGET_PUNCH, 30, "忘刷卡", "", "", True),
         ]
         xls.write_issue_rows(
             ws,

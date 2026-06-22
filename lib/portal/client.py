@@ -90,9 +90,7 @@ class PortalSession:
     that want a hard reset can call `close()` explicitly.
     """
 
-    def __init__(
-        self, session: str | None = None, *, check: bool = True, timeout_secs: int = 30
-    ):
+    def __init__(self, session: str | None = None, *, check: bool = True, timeout_secs: int = 30):
         self.session = session or _default_session()
         self.timeout_secs = timeout_secs
         if check:
@@ -100,9 +98,7 @@ class PortalSession:
 
     # ---------- subprocess primitives ----------
 
-    def _run(
-        self, args: list[str], *, timeout: int | None = None, capture: bool = True
-    ) -> str:
+    def _run(self, args: list[str], *, timeout: int | None = None, capture: bool = True) -> str:
         cmd = [_binary(), *args, "--session", self.session]
         try:
             result = subprocess.run(

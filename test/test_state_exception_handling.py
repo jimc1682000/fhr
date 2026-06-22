@@ -87,9 +87,7 @@ class TestStateExceptionHandling(unittest.TestCase):
         """Test get_last_analysis_time when user exists but no processed ranges."""
         manager = AttendanceStateManager(self.state_file)
         manager.state_data = {
-            "users": {
-                "test_user": {"processed_date_ranges": [], "forget_punch_usage": {}}
-            }
+            "users": {"test_user": {"processed_date_ranges": [], "forget_punch_usage": {}}}
         }
 
         last_time = manager.get_last_analysis_time("test_user")

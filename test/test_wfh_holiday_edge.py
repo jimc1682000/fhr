@@ -6,7 +6,9 @@ from datetime import datetime
 from attendance_analyzer import AttendanceAnalyzer, IssueType
 
 # Long header extracted to module level to avoid line length issues
-ATTENDANCE_HEADER = "應刷卡時段\t當日卡鐘資料\t刷卡別\t卡鐘編號\t資料來源\t異常狀態\t處理狀態\t異常處理作業\t備註"
+ATTENDANCE_HEADER = (
+    "應刷卡時段\t當日卡鐘資料\t刷卡別\t卡鐘編號\t資料來源\t異常狀態\t處理狀態\t異常處理作業\t備註"
+)
 
 
 class TestWfhHolidayEdge(unittest.TestCase):

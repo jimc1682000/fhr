@@ -114,11 +114,7 @@ def _issues_to_dtos(analyzer: AttendanceAnalyzer, limit: int = 50) -> list[Issue
                 time_range=getattr(issue, "time_range", ""),
                 calculation=getattr(issue, "calculation", ""),
                 status=(
-                    (
-                        "[NEW] 本次新發現"
-                        if getattr(issue, "is_new", False)
-                        else "已存在"
-                    )
+                    ("[NEW] 本次新發現" if getattr(issue, "is_new", False) else "已存在")
                     if analyzer.incremental_mode
                     else None
                 ),
@@ -152,9 +148,7 @@ def _sanitize_stem(filename: str | None) -> str:
     return base or "analysis"
 
 
-def _canonical_output_path(
-    filename: str | None, output: Literal["csv", "excel"]
-) -> str:
+def _canonical_output_path(filename: str | None, output: Literal["csv", "excel"]) -> str:
     stem = _sanitize_stem(filename)
     ext = ".xlsx" if output == "excel" else ".csv"
     preferred = os.path.join(CANONICAL_OUTPUT_DIR, f"{stem}_analysis{ext}")
@@ -276,9 +270,7 @@ def _snapshots_cleanup_compatible(
     current_snapshot: dict,
     export_policy: Literal["merge", "archive"],
 ) -> bool:
-    if preview_snapshot.get("delete_canonical") != current_snapshot.get(
-        "delete_canonical"
-    ):
+    if preview_snapshot.get("delete_canonical") != current_snapshot.get("delete_canonical"):
         return False
     if preview_snapshot.get("export_policy") != current_snapshot.get("export_policy"):
         return False
@@ -399,13 +391,9 @@ def create_app() -> FastAPI:
         if debug_mode and not GLOBAL_DEBUG_MODE:
             logger.setLevel(logging.DEBUG)
             analyzer_logger.setLevel(logging.DEBUG)
-            logger.debug(
-                "🐞 FHR Debug 模式（請求層級）啟用：服務將跳過狀態寫入並輸出詳細日誌。"
-            )
+            logger.debug("🐞 FHR Debug 模式（請求層級）啟用：服務將跳過狀態寫入並輸出詳細日誌。")
 
-        session_id = (
-            datetime.utcnow().strftime("%Y%m%dT%H%M%S") + "_" + uuid.uuid4().hex[:8]
-        )
+        session_id = datetime.utcnow().strftime("%Y%m%dT%H%M%S") + "_" + uuid.uuid4().hex[:8]
         session_dir = os.path.join(UPLOAD_DIR, session_id)
         os.makedirs(session_dir, exist_ok=True)
         upload_path = _save_upload(file, session_dir)
@@ -414,21 +402,15 @@ def create_app() -> FastAPI:
         cleanup_exports = bool(cleanup_exports)
         provided_snapshot: dict | None = None
         canonical_requested_output = output
-        canonical_path = _canonical_output_path(
-            file.filename, canonical_requested_output
-        )
+        canonical_path = _canonical_output_path(file.filename, canonical_requested_output)
 
         if cleanup_exports:
             if not cleanup_token or not cleanup_snapshot:
                 raise HTTPException(status_code=400, detail="cleanup_preview_required")
             try:
                 provided_snapshot = json.loads(cleanup_snapshot)
-            except (
-                json.JSONDecodeError
-            ) as exc:  # pragma: no cover - malformed client input
-                raise HTTPException(
-                    status_code=400, detail="invalid_cleanup_snapshot"
-                ) from exc
+            except json.JSONDecodeError as exc:  # pragma: no cover - malformed client input
+                raise HTTPException(status_code=400, detail="invalid_cleanup_snapshot") from exc
 
             if _snapshot_token(provided_snapshot) != cleanup_token:
                 raise HTTPException(status_code=400, detail="cleanup_token_mismatch")
@@ -444,9 +426,7 @@ def create_app() -> FastAPI:
                     },
                 )
 
-            expected_snapshot = _build_snapshot_payload(
-                canonical_path, debug_mode, export_policy
-            )
+            expected_snapshot = _build_snapshot_payload(canonical_path, debug_mode, export_policy)
             if not _snapshots_strict_equal(provided_snapshot, expected_snapshot):
                 raise HTTPException(
                     status_code=409,
@@ -581,11 +561,7 @@ def create_app() -> FastAPI:
             return AnalyzeResponse(
                 analysis_id=session_id,
                 user=user_name,
-                mode=(
-                    "full"
-                    if first_time_user or requested_mode == "full"
-                    else "incremental"
-                ),
+                mode=("full" if first_time_user or requested_mode == "full" else "incremental"),
                 requested_mode=requested_mode,
                 requested_format=output,
                 actual_format=actual_format,
@@ -609,15 +585,8 @@ def create_app() -> FastAPI:
     @app.get("/api/download/{session_id}/{filename}")
     def download(session_id: str, filename: str):
         # Validate both session_id and filename to prevent path traversal
-        if (
-            "/" in session_id
-            or ".." in session_id
-            or "/" in filename
-            or ".." in filename
-        ):
-            raise HTTPException(
-                status_code=400, detail="Invalid session_id or filename"
-            )
+        if "/" in session_id or ".." in session_id or "/" in filename or ".." in filename:
+            raise HTTPException(status_code=400, detail="Invalid session_id or filename")
 
         # Use Path.resolve() to ensure the final path is within OUTPUT_ROOT
         file_path = Path(OUTPUT_ROOT) / session_id / filename

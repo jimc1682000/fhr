@@ -98,11 +98,8 @@ def run(args: argparse.Namespace) -> None:
         encoding="utf-8",
     )
     total = sum(
-        len(d.get("overtime", {}).get("git", []))
-        + len(d.get("leave", {}).get("git", []))
+        len(d.get("overtime", {}).get("git", [])) + len(d.get("leave", {}).get("git", []))
         for d in evidence.values()
     )
     logger.info("✅ %s (%d 日 / %d commits)", args.out, len(evidence), total)
-    logger.info(
-        "ℹ️ Slack 部分由 .claude/skills/fhr-reason-abstract 自行抓 + 合併到 reason 欄位"
-    )
+    logger.info("ℹ️ Slack 部分由 .claude/skills/fhr-reason-abstract 自行抓 + 合併到 reason 欄位")

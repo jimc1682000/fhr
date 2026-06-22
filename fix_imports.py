@@ -18,9 +18,7 @@ def fix_imports_in_file(filepath):
         if i == 0 and lines[i].startswith("#!"):
             i += 1
             continue
-        if i < len(lines) and (
-            lines[i].startswith('"""') or lines[i].startswith("'''")
-        ):
+        if i < len(lines) and (lines[i].startswith('"""') or lines[i].startswith("'''")):
             # Skip docstring
             if lines[i].count('"""') == 1 or lines[i].count("'''") == 1:
                 i += 1

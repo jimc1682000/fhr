@@ -87,9 +87,7 @@ def detect_candidates(
         commits.sort(key=lambda c: c["time"])
         first = datetime.fromisoformat(commits[0]["time"])
         last = datetime.fromisoformat(commits[-1]["time"])
-        total_min = max(
-            min_minutes, int((last - first).total_seconds() // 60) + min_minutes
-        )
+        total_min = max(min_minutes, int((last - first).total_seconds() // 60) + min_minutes)
         hours = max(1, math.floor(total_min / 60))
         start_hhmm = f"{first.hour:02d}{(first.minute // 30) * 30:02d}"
         end_total = first.hour * 60 + (first.minute // 30) * 30 + hours * 60
@@ -115,10 +113,7 @@ def merge_into_analysis(analysis: dict, candidates: list[dict]) -> int:
 
     Skips candidates that already match an existing entry by (date,
     start_time, end_time). Returns the number added."""
-    existing = {
-        (e["date"], e["start_time"], e["end_time"])
-        for e in analysis.get("overtime", [])
-    }
+    existing = {(e["date"], e["start_time"], e["end_time"]) for e in analysis.get("overtime", [])}
     added = 0
     for c in candidates:
         key = (c["date"], c["start_time"], c["end_time"])
@@ -138,7 +133,5 @@ def merge_into_analysis(analysis: dict, candidates: list[dict]) -> int:
     if added:
         analysis.setdefault("summary", {})
         analysis["summary"]["overtime_count"] = len(analysis["overtime"])
-        analysis["summary"]["overtime_hours"] = sum(
-            e["hours"] for e in analysis["overtime"]
-        )
+        analysis["summary"]["overtime_hours"] = sum(e["hours"] for e in analysis["overtime"])
     return added

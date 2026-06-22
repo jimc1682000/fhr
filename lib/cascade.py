@@ -167,9 +167,7 @@ def allocate(
                 insufficient=(picked is None),
             )
         )
-    return AllocationResult(
-        decisions=decisions, remaining=remaining, monthly_used=monthly_used
-    )
+    return AllocationResult(decisions=decisions, remaining=remaining, monthly_used=monthly_used)
 
 
 def summarize(result: AllocationResult) -> str:

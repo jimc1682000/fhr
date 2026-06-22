@@ -12,11 +12,7 @@ class TestCliAdditionalBranches(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             # state file with a different user
             state_path = os.path.join(tmpdir, "attendance_state.json")
-            state = {
-                "users": {
-                    "別人": {"processed_date_ranges": [], "forget_punch_usage": {}}
-                }
-            }
+            state = {"users": {"別人": {"processed_date_ranges": [], "forget_punch_usage": {}}}}
             with open(state_path, "w", encoding="utf-8") as f:
                 json.dump(state, f)
 

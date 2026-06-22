@@ -57,9 +57,7 @@ class TestHolidaysExtraCoverage(unittest.TestCase):
         ):
             svc = H.HolidayService()
             fake_set = {datetime(2026, 1, 1).date()}
-            with mock.patch.object(
-                H.TaiwanGovOpenDataProvider, "load", return_value=fake_set
-            ):
+            with mock.patch.object(H.TaiwanGovOpenDataProvider, "load", return_value=fake_set):
                 out = svc.load_year(2026)
         self.assertEqual(out, fake_set)
 

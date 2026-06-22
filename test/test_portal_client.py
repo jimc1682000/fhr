@@ -25,9 +25,7 @@ def _ok(stdout: str = "") -> subprocess.CompletedProcess:
 
 
 def _err(returncode: int = 1, stderr: str = "boom") -> subprocess.CompletedProcess:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout="", stderr=stderr
-    )
+    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout="", stderr=stderr)
 
 
 class TestEnsureInstalled(unittest.TestCase):
@@ -121,9 +119,7 @@ class TestPortalSession(unittest.TestCase):
 
     def test_timeout_raises(self):
         portal = self._portal()
-        with mock.patch(
-            "subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=[], timeout=1)
-        ):
+        with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=[], timeout=1)):
             with self.assertRaises(AgentBrowserError):
                 portal.open("http://x")
 
@@ -189,9 +185,7 @@ class TestIsLoggedIn(unittest.TestCase):
         portal = self._portal()
         with (
             mock.patch.object(portal, "open"),
-            mock.patch.object(
-                portal, "get_url", return_value="http://x/LoginFOrginal.asp"
-            ),
+            mock.patch.object(portal, "get_url", return_value="http://x/LoginFOrginal.asp"),
             mock.patch("time.sleep"),
         ):
             self.assertFalse(is_logged_in(portal, "http://x"))
@@ -253,9 +247,7 @@ class TestEnsureLogin(unittest.TestCase):
         with (
             mock.patch("lib.portal.client.is_logged_in", return_value=False),
             mock.patch.object(portal, "open"),
-            mock.patch.object(
-                portal, "get_url", return_value="http://x/LoginFOrginal.asp"
-            ),
+            mock.patch.object(portal, "get_url", return_value="http://x/LoginFOrginal.asp"),
             mock.patch("time.sleep"),
         ):
             with self.assertRaises(LoginTimeout):

@@ -23,6 +23,8 @@ KNOWN_SUBCOMMANDS = {
     "portal_fetch",
     "portal-sync",
     "portal_sync",
+    "portal-check",
+    "portal_check",
     "portal-balances",
     "portal_balances",
     "portal-apply",
@@ -70,6 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
         import_ as import_cmd,
         portal_apply as portal_apply_cmd,
         portal_balances as portal_balances_cmd,
+        portal_check as portal_check_cmd,
         portal_fetch as portal_fetch_cmd,
         portal_sync as portal_sync_cmd,
         reasons as reasons_cmd,
@@ -80,6 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     import_cmd.add_parser(sub)
     portal_fetch_cmd.add_parser(sub)
     portal_sync_cmd.add_parser(sub)
+    portal_check_cmd.add_parser(sub)
     portal_balances_cmd.add_parser(sub)
     portal_apply_cmd.add_parser(sub)
     reasons_cmd.add_parser(sub)
@@ -114,6 +118,10 @@ def run(argv: list | None = None) -> None:
         from lib.commands import portal_sync as portal_sync_cmd
 
         portal_sync_cmd.run(args)
+    elif args.cmd in ("portal-check", "portal_check"):
+        from lib.commands import portal_check as portal_check_cmd
+
+        portal_check_cmd.run(args)
     elif args.cmd in ("portal-balances", "portal_balances"):
         from lib.commands import portal_balances as portal_balances_cmd
 

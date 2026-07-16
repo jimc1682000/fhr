@@ -8,6 +8,7 @@ End-to-end Portal integration via the optional [`agent-browser`](https://github.
 |---------|---------|
 | `fhr portal-fetch`     | Scrape 全部刷卡資料 → fhr-native 9-column `.txt` |
 | `fhr portal-sync`      | Mirror Portal's already-submitted 加班 / 請假單 into the state cache |
+| `fhr portal-check`     | Pre-flight: list 已駁回 (rejected) + 未處理 (still in-flow) forms before a new batch |
 | `fhr portal-balances`  | Print 假別餘額 table (補休 / 特休 / 事假 / 病假 / 異地辦公) |
 | `fhr portal-apply`     | Interactive (or `--auto`) batch submission of OT + leave forms |
 
@@ -33,6 +34,9 @@ End-to-end Portal integration via the optional [`agent-browser`](https://github.
 ## End-to-end flow
 
 ```bash
+# 0. Pre-flight — nothing rejected / stuck in簽核 before a new batch
+fhr portal-check --since 2026/05
+
 # 1. Scrape this month's punches → .txt the analyzer can ingest
 fhr portal-fetch --user JimmyChen
 
@@ -50,6 +54,31 @@ fhr reasons --input tmp/analysis.json --author 'Jimmy Chen' \
 
 # 5. Submit. Pre-syncs already-applied forms from Portal automatically.
 fhr portal-apply --user JimmyChen --input tmp/analysis.json --proxy 賴菁甫
+```
+
+## Pre-flight check (`portal-check`)
+
+Run this **before** submitting a new wave of forms. It queries the eWorkFlow
+Search page's 狀態 dropdown for the two buckets that need attention and skips
+the terminal ones:
+
+- **已駁回** — a form was rejected; decide whether to re-submit.
+- **未處理** — still waiting on an approver (in-flow); avoid stacking new forms.
+
+Anything 已核准 or withdrawn is terminal and not surfaced. `--since YYYY/MM`
+scopes the report to a work-date window (lexical prefix match on `YYYY/MM/DD`);
+omit it to scan all history. Read-only — no Portal writes, no cache mutation.
+
+> Status taxonomy (validated against the live Portal): the 狀態 dropdown offers
+> `未處理 / 已處理 / 已核准 / 已駁回 / 全部`. `已處理` = every acted-on form
+> (= 全部 when nothing is pending); `未處理` is the in-flow bucket. The approval
+> status shown per row lives in the visible 狀態 column (`流程結束(完成/駁回)`),
+> **not** in `wsdinfotext` — `portal-sync` now stores it on each cached entry
+> (previously blank).
+
+```bash
+fhr portal-check                 # all history
+fhr portal-check --since 2026/05 # only work-dates >= 2026/05
 ```
 
 ## State cache

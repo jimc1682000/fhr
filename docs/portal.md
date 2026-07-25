@@ -81,6 +81,9 @@ fhr portal-check                 # all history
 fhr portal-check --since 2033/07 # only work-dates >= 2033/07
 ```
 
+Exits `0` only when the report is clean; rejected / in-flow findings exit `1`,
+so scripted gating works: `fhr portal-check --since 2033/07 && fhr portal-apply …`.
+
 ## State cache
 
 Per-user data persists in `attendance_state.json` (or wherever `FHR_STATE_FILE` points):

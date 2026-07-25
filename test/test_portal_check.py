@@ -103,12 +103,14 @@ class TestRun(unittest.TestCase):
     def _run_capture(self, args, rejected, pending):
         """Run portal_check.run() with the portal + approvals layer mocked.
 
-        Returns (joined_logs, fetch_mock). Patches the concrete symbols the
-        lazy imports resolve to (patching sys.modules would not intercept
-        `from lib.portal import approvals` once the real module is loaded)."""
+        Returns (joined_logs, fetch_mock, exit_code). Patches the concrete
+        symbols the lazy imports resolve to (patching sys.modules would not
+        intercept `from lib.portal import approvals` once the real module is
+        loaded). exit_code is None when run() returns normally."""
         session_cm = mock.MagicMock()
         session_cm.__enter__.return_value = mock.MagicMock()
         logs: list[str] = []
+        exit_code = None
 
         with (
             mock.patch(
@@ -120,35 +122,42 @@ class TestRun(unittest.TestCase):
             mock.patch("attendance_analyzer.logger") as logger,
         ):
             logger.info.side_effect = lambda fmt, *a: logs.append(fmt % a if a else fmt)
-            portal_check.run(args)
-        return "\n".join(logs), fetch
+            try:
+                portal_check.run(args)
+            except SystemExit as e:
+                exit_code = e.code
+        return "\n".join(logs), fetch, exit_code
 
     def test_run_clean(self):
-        joined, fetch = self._run_capture(
+        joined, fetch, code = self._run_capture(
             self._args(),
             {"overtime": [], "leave": []},
             {"overtime": [], "leave": []},
         )
         self.assertIn("乾淨", joined)
+        self.assertIsNone(code)
         # queried both 已駁回 + 未處理
         self.assertEqual(fetch.call_count, 2)
 
     def test_run_reports_rejected(self):
-        joined, _ = self._run_capture(
+        joined, _, code = self._run_capture(
             self._args(),
             {"overtime": [_entry("2026/07/01")], "leave": []},
             {"overtime": [], "leave": []},
         )
         self.assertIn("被駁回 1 筆", joined)
+        # blockers present → non-zero exit so `portal-check && portal-apply` stops
+        self.assertEqual(code, 1)
 
     def test_run_with_since_filters(self):
         # the 2024 rejection is filtered out by --since 2026/05 → clean
-        joined, _ = self._run_capture(
+        joined, _, code = self._run_capture(
             self._args(since="2026/05"),
             {"overtime": [_entry("2024/01/01")], "leave": []},
             {"overtime": [], "leave": []},
         )
         self.assertIn("乾淨", joined)
+        self.assertIsNone(code)
 
     def test_run_missing_base_url_exits(self):
         args = self._args(base_url=None)

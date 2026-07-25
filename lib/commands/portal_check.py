@@ -176,6 +176,10 @@ def run(args: argparse.Namespace) -> None:
     rejected = {k: filter_since(v, args.since) for k, v in rejected_raw.items()}
     pending = {k: filter_since(v, args.since) for k, v in pending_raw.items()}
 
-    report, _clean = format_report(rejected, pending, args.since)
+    report, clean = format_report(rejected, pending, args.since)
     for line in report.splitlines():
         logger.info("%s", line)
+    if not clean:
+        # Non-zero exit so scripted use (`fhr portal-check && fhr portal-apply`)
+        # stops when rejected / in-flow forms need attention first.
+        sys.exit(1)

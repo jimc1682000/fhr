@@ -110,7 +110,7 @@ pre-commit autoupdate
 
 ### 打包與發佈（Packaging）
 - `pyproject.toml` 定義 `[project]`,console script `fhr = lib.cli:run`；`[project].version` 為版本單一真相(commitizen `version_provider = pep621`)。
-- wheel `only-include = ["attendance_analyzer.py", "lib", "server"]`。**注意**:`attendance_analyzer.py` 是核心模組(`lib.*`/`server.*` 反向 import `Issue`/`IssueType`/`AttendanceAnalyzer`/`logger`),不可漏。
+- wheel `only-include = ["attendance_analyzer.py", "lib", "server", "web"]`。**注意**:`attendance_analyzer.py` 是核心模組(`lib.*`/`server.*` 反向 import `Issue`/`IssueType`/`AttendanceAnalyzer`/`logger`),不可漏;`web/` 是前端靜態資源(`server/main.py` 以安裝根目錄解析 `WEB_DIR`,pip 安裝的 `[service]` 靠它掛載 `/`),也不可漏。
 - 安裝:`uvx --from . fhr ...` / `pipx install .`(CLI);`pip install .[service]`(含 Web 相依)。
 - 容器:單一 image 由 `docker-entrypoint.sh` 分流——預設 `CMD=["web"]` 啟 uvicorn,`analyze`/其他子命令走 `fhr` CLI。CI(`.github/workflows/release-image.yml`)在 push `v*` tag 時 buildx 多架構(amd64+arm64)推 `ghcr.io/jimc1682000/fhr`。
 - **邊界**:`portal-*`(agent-browser headed 瀏覽器 + 內網)**不進 image**,走原生安裝。詳見 [`docs/packaging.md`](docs/packaging.md)。
@@ -248,7 +248,7 @@ Key methods:
       "processed_date_ranges": [
         {
           "start_date": "2025-08-01",
-          "end_date": "2025-08-31", 
+          "end_date": "2025-08-31",
           "source_file": "202508-員工姓名-出勤資料.txt",
           "last_analysis_time": "2025-08-27T14:30:00"
         }
@@ -393,10 +393,10 @@ Use `sample-attendance-data.txt` for integration testing - it contains various s
 ### docs/ Directory
 The project includes comprehensive documentation organized in a tiered structure:
 
-**Core Documentation**: Basic usage, troubleshooting, and quick reference  
-**Operational Documentation**: System requirements, deployment, configuration  
-**Developer Documentation**: Architecture, testing, contributing guidelines  
-**Enterprise Documentation**: API architecture, service architecture, integration patterns  
+**Core Documentation**: Basic usage, troubleshooting, and quick reference
+**Operational Documentation**: System requirements, deployment, configuration
+**Developer Documentation**: Architecture, testing, contributing guidelines
+**Enterprise Documentation**: API architecture, service architecture, integration patterns
 
 **Navigation**: Use `docs/index.md` as the central navigation hub to find specific documentation.
 
@@ -405,7 +405,7 @@ Project improvement and development task management:
 
 - **`immediate-documentation-tasks.md`** - Ready-to-execute documentation tasks (2-3 hours)
 - **`api-architecture-enhancements.md`** - API features requiring development work
-- **`documentation-enhancement-roadmap.md`** - Overall planning and timelines  
+- **`documentation-enhancement-roadmap.md`** - Overall planning and timelines
 - **`README.md`** - Task management index and usage guide
 
 **Usage**: Check `todos/` for actionable improvement items and development priorities.

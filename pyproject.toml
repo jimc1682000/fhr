@@ -30,8 +30,11 @@ fhr = "lib.cli:run"
 # Explicit allow-list: ship only runtime code. `attendance_analyzer.py` is a
 # core module (lib.* and server.* import Issue/IssueType/AttendanceAnalyzer/
 # logger from it), so it must be included alongside the lib/ and server/
-# packages. Tests, tools, and PII data files are excluded by omission.
-only-include = ["attendance_analyzer.py", "lib", "server"]
+# packages. `web/` holds the frontend static assets: server/main.py resolves
+# WEB_DIR relative to the installed package root and only mounts `/` when the
+# directory exists, so a pip-installed `[service]` needs it in the wheel too.
+# Tests, tools, and PII data files are excluded by omission.
+only-include = ["attendance_analyzer.py", "lib", "server", "web"]
 
 [tool.ruff]
 line-length = 100

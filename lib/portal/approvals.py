@@ -74,7 +74,17 @@ _READ_PAGE_JS = """
 
   const rows = Array.from(
     doc.querySelectorAll('tr[id^="tbWorkSheetDataList_"]')
-  ).map(r => ({id: r.id || '', wsdinfotext: r.getAttribute('wsdinfotext') || ''}));
+  ).map(r => {
+    // Column 4 (index 3) is the 狀態 column, e.g. 「流程結束(完成)」/
+    // 「流程結束(駁回)」. wsdinfotext carries the form body but not the
+    // approval status, so we read the visible cell instead.
+    const cells = Array.from(r.querySelectorAll('td')).map(td => (td.innerText || '').trim());
+    return {
+      id: r.id || '',
+      wsdinfotext: r.getAttribute('wsdinfotext') || '',
+      status_cell: cells[3] || '',
+    };
+  });
   return {totalPages, page: target, rows};
 })()
 """
@@ -107,13 +117,17 @@ def parse_wsdinfotext(text: str) -> dict | None:
     }
 
 
-def _set_form_filter(portal: PortalSession, form_name_zh: str) -> None:
-    """Set 狀態=全部 + 表單名稱=<form_name_zh> + click 提交."""
+def _set_form_filter(portal: PortalSession, form_name_zh: str, status_zh: str = "全部") -> None:
+    """Set 狀態=<status_zh> + 表單名稱=<form_name_zh> + click 提交.
+
+    `status_zh` accepts any option offered by the Portal's 狀態 dropdown
+    (未處理 / 已處理 / 已核准 / 已駁回 / 全部). Defaults to 全部 so the
+    sync path mirrors every submitted form."""
     raw = portal._run(["snapshot", "-i"])  # noqa: SLF001
     refs = _extract_filter_refs(raw)
     if not refs:
         raise RuntimeError("找不到 eWorkFlow 查詢表單 refs — Portal 版本可能不相容")
-    portal.select_ref(refs["status"], "全部")
+    portal.select_ref(refs["status"], status_zh)
     portal.select_ref(refs["form"], form_name_zh)
     portal.click_ref(refs["submit"])
     portal.wait(3000)
@@ -149,14 +163,16 @@ def fetch_form_entries(
     portal: PortalSession,
     base_url: str,
     form_name_zh: str,
+    status_zh: str = "全部",
 ) -> list[dict]:
     """Return parsed entries for a single form type (e.g. "加班單").
 
-    Pages are read one short eval at a time (Python drives pagination) so a
-    long form list doesn't tie up the agent-browser daemon."""
+    `status_zh` filters by the Portal's 狀態 dropdown (預設 全部). Pages are
+    read one short eval at a time (Python drives pagination) so a long form
+    list doesn't tie up the agent-browser daemon."""
     portal.open(f"{base_url}{FORM_LIST_URL_PATH}")
     portal.wait(2500)
-    _set_form_filter(portal, form_name_zh)
+    _set_form_filter(portal, form_name_zh, status_zh)
 
     def _read_page(idx: int) -> dict:
         result = portal.eval_json(_READ_PAGE_JS.replace("__PAGE__", str(idx)))
@@ -182,6 +198,11 @@ def fetch_form_entries(
             parsed = parse_wsdinfotext(row.get("wsdinfotext", ""))
             if parsed is None:
                 continue
+            # The visible 狀態 column is the reliable approval status;
+            # wsdinfotext rarely carries it. Prefer the cell when present.
+            status_cell = row.get("status_cell", "")
+            if status_cell:
+                parsed["status"] = status_cell
             parsed["row_id"] = rid
             entries.append(parsed)
 
@@ -198,12 +219,15 @@ def fetch_all_applied_forms(
     base_url: str,
     *,
     kinds: Iterable[str] = ("overtime", "leave"),
+    status_zh: str = "全部",
 ) -> dict[str, list[dict]]:
-    """Scrape all requested form kinds. Returns dict keyed by english name."""
+    """Scrape all requested form kinds. Returns dict keyed by english name.
+
+    `status_zh` filters every kind by the Portal's 狀態 dropdown (預設 全部)."""
     out: dict[str, list[dict]] = {}
     for kind in kinds:
         zh = FORM_NAMES.get(kind)
         if not zh:
             raise ValueError(f"未知的 form kind: {kind!r}")
-        out[kind] = fetch_form_entries(portal, base_url, zh)
+        out[kind] = fetch_form_entries(portal, base_url, zh, status_zh)
     return out

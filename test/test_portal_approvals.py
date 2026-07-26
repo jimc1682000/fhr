@@ -5,6 +5,7 @@ from unittest import mock
 
 from lib.portal.approvals import (
     _extract_filter_refs,
+    _set_form_filter,
     fetch_all_applied_forms,
     fetch_form_entries,
     parse_wsdinfotext,
@@ -152,6 +153,61 @@ class TestFetchFormEntries(unittest.TestCase):
             fetch_form_entries(portal, "http://x", "加班單")
 
 
+class TestSetFormFilter(unittest.TestCase):
+    def _portal(self):
+        portal = mock.Mock()
+        portal._run.return_value = FILTER_SNAPSHOT
+        return portal
+
+    def test_defaults_to_all(self):
+        portal = self._portal()
+        _set_form_filter(portal, "加班單")
+        # status combobox (@e4) selected with 全部
+        portal.select_ref.assert_any_call("@e4", "全部")
+        portal.select_ref.assert_any_call("@e5", "加班單")
+
+    def test_honours_status(self):
+        portal = self._portal()
+        _set_form_filter(portal, "請假單", "已駁回")
+        portal.select_ref.assert_any_call("@e4", "已駁回")
+        portal.select_ref.assert_any_call("@e5", "請假單")
+
+    def test_missing_refs_raises(self):
+        portal = mock.Mock()
+        portal._run.return_value = "- cell foo"
+        with self.assertRaises(RuntimeError):
+            _set_form_filter(portal, "加班單", "未處理")
+
+
+class TestStatusCellCapture(unittest.TestCase):
+    def test_status_cell_overrides_wsd_status(self):
+        portal = mock.Mock()
+        portal._run.return_value = FILTER_SNAPSHOT
+        portal.eval_json.return_value = {
+            "totalPages": 1,
+            "rows": [
+                {
+                    "id": "tbWorkSheetDataList_1",
+                    "wsdinfotext": SAMPLE_WSD_OT,  # 目前狀態：已核准
+                    "status_cell": "流程結束(駁回)",
+                }
+            ],
+        }
+        entries = fetch_form_entries(portal, "http://x", "加班單", "已駁回")
+        # The visible 狀態 cell wins over the wsdinfotext-embedded status.
+        self.assertEqual(entries[0]["status"], "流程結束(駁回)")
+
+    def test_missing_status_cell_keeps_wsd_status(self):
+        portal = mock.Mock()
+        portal._run.return_value = FILTER_SNAPSHOT
+        portal.eval_json.return_value = {
+            "totalPages": 1,
+            "rows": [{"id": "r1", "wsdinfotext": SAMPLE_WSD_OT}],  # no status_cell
+        }
+        entries = fetch_form_entries(portal, "http://x", "加班單")
+        self.assertEqual(entries[0]["status"], "已核准")
+
+
 class TestFetchAllAppliedForms(unittest.TestCase):
     def test_iterates_kinds(self):
         portal = mock.Mock()
@@ -170,6 +226,13 @@ class TestFetchAllAppliedForms(unittest.TestCase):
         portal = mock.Mock()
         with self.assertRaises(ValueError):
             fetch_all_applied_forms(portal, "http://x", kinds=("nope",))
+
+    def test_threads_status_zh(self):
+        portal = mock.Mock()
+        portal._run.return_value = FILTER_SNAPSHOT
+        portal.eval_json.return_value = {"totalPages": 1, "rows": []}
+        fetch_all_applied_forms(portal, "http://x", kinds=("overtime",), status_zh="未處理")
+        portal.select_ref.assert_any_call("@e4", "未處理")
 
 
 if __name__ == "__main__":

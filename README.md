@@ -51,6 +51,9 @@ python attendance_analyzer.py portal-fetch --user JimmyChen
 # 從 Portal 同步「已申請的加班/請假單」進本地 state cache (dedup)
 python attendance_analyzer.py portal-sync --user JimmyChen
 
+# 送單前先行確認:列出被駁回 / 仍在簽核中的單 (--since 可限縮月份)
+python attendance_analyzer.py portal-check --since 2026/05
+
 # 顯示假別餘額 (補休/特休/事假/有薪病假/半薪病假/異地辦公)
 python attendance_analyzer.py portal-balances
 
@@ -93,7 +96,7 @@ make coverage                                     # 檢查測試覆蓋率
 ```
 
 ## 📊 系統能力與特色
-- **🎯 精準度**: 90%+ 測試覆蓋率  
+- **🎯 精準度**: 90%+ 測試覆蓋率
 - **⚡ 效能**: 支援處理 10 萬筆記錄，增量分析避免重複處理
 - **🔒 安全性**: 本地處理，資料不上傳，支援企業隱私要求
 - **🌏 國際化**: 完整中英文介面，支援台灣國定假日
@@ -101,7 +104,7 @@ make coverage                                     # 檢查測試覆蓋率
 
 ## 🏢 企業級功能
 - **🌐 Web 介面**: FastAPI 後端 + 現代化前端，支援多人使用
-- **🐳 容器部署**: Docker 生產就緒，支援 Kubernetes 擴展  
+- **🐳 容器部署**: Docker 生產就緒，支援 Kubernetes 擴展
 - **🔗 API 整合**: REST API 支援與 HRIS/薪資系統整合
 - **👥 多租戶**: 支援多部門、多公司資料隔離
 - **📈 監控**: 內建健康檢查、日誌管理與效能監控
@@ -133,16 +136,16 @@ make coverage                                     # 檢查測試覆蓋率
 
 ## 📚 完整文件
 
-👉 **[文件導航中心](docs/index.md)** - 快速找到您需要的文件  
-🔍 **[命令速查手冊](docs/quick-reference.md)** - 常用命令與格式參考  
-🛠️ **[疑難排解指南](docs/troubleshooting.md)** - 問題診斷與解決方案  
+👉 **[文件導航中心](docs/index.md)** - 快速找到您需要的文件
+🔍 **[命令速查手冊](docs/quick-reference.md)** - 常用命令與格式參考
+🛠️ **[疑難排解指南](docs/troubleshooting.md)** - 問題診斷與解決方案
 📋 **[改進項目清單](todos/README.md)** - 待開發功能與文檔改進項目
 
 ## 延伸閱讀（docs/）
 
 **核心功能文件**:
 - [系統概覽](docs/overview.md) - 整體功能與企業級特色
-- [使用指南](docs/usage.md) - 詳細操作說明與最佳實務  
+- [使用指南](docs/usage.md) - 詳細操作說明與最佳實務
 - [檔案格式](docs/data-format.md) - 輸入檔案格式與命名規範
 - [增量分析](docs/incremental.md) - 智慧狀態管理與處理邏輯
 - [輸出格式](docs/output.md) - Excel/CSV 匯出與備份機制

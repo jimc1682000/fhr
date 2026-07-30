@@ -44,6 +44,7 @@ agent-browser install
 ## 容器 image(CLI + Web 共用一個 image)
 
 CI 在 push `v*` tag 時,用 `docker buildx` 建 **`linux/amd64` + `linux/arm64`** 並推到 GHCR(見 `.github/workflows/release-image.yml`)。
+也可從 GitHub Actions 手動執行同一個 workflow,並在必填的 `tag` input 指定 image tag(例如 `v1.1.0-rc.1`)。
 
 ```bash
 docker pull ghcr.io/jimc1682000/fhr:latest

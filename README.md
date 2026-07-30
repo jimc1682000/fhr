@@ -27,8 +27,9 @@
 安裝成 `fhr` 命令(建議,跨平台、免 clone)：
 
 ```bash
-uvx --from . fhr analyze "202508-王小明-出勤資料.txt"   # 一次性執行
-pipx install .                                          # 或常駐安裝 → 之後直接 fhr ...
+uvx --from git+https://github.com/jimc1682000/fhr fhr analyze \
+  "202508-王小明-出勤資料.txt"                          # 一次性執行
+pipx install git+https://github.com/jimc1682000/fhr     # 或常駐安裝 → 之後直接 fhr ...
 ```
 
 直接從原始碼樹跑也行(免安裝)：

@@ -236,4 +236,5 @@ CI（GitHub Actions）
 備註：
 - UI 預設為「完整」模式與「Excel」輸出，且選項順序預設優先顯示。
 - 下載檔名結尾會自動加上 UTC 時間戳（`_analysis_YYYYMMDD_HHMMSS`），避免重複下載覆蓋。
+- pip 安裝的 Web service 預設將 runtime 檔案寫入目前工作目錄的 `build/`；system service 可用 `FHR_BUILD_DIR` 指定可寫的絕對路徑。
 - Docker 內部會將狀態檔寫入 `/app/build/attendance_state.json`（可由 `FHR_STATE_FILE` 覆蓋）。掛載 `-v "$PWD/build:/app/build"` 可保留狀態於主機端。

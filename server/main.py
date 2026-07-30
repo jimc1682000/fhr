@@ -24,8 +24,17 @@ from lib.filename import parse_range_and_user
 from lib.state import AttendanceStateManager
 
 APP_ROOT = os.path.dirname(os.path.dirname(__file__))
-UPLOAD_DIR = os.path.join(APP_ROOT, "build", "uploads")
-OUTPUT_ROOT = os.path.join(APP_ROOT, "build", "api-outputs")
+
+
+def _resolve_build_root() -> str:
+    configured = os.environ.get("FHR_BUILD_DIR")
+    build_root = configured if configured else os.path.join(os.getcwd(), "build")
+    return os.path.abspath(os.path.expanduser(build_root))
+
+
+BUILD_ROOT = _resolve_build_root()
+UPLOAD_DIR = os.path.join(BUILD_ROOT, "uploads")
+OUTPUT_ROOT = os.path.join(BUILD_ROOT, "api-outputs")
 WEB_DIR = os.path.join(APP_ROOT, "web")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -351,9 +360,7 @@ def create_app() -> FastAPI:
     )
 
     # Ensure state file persists inside build/ volume unless explicitly overridden
-    os.environ.setdefault(
-        "FHR_STATE_FILE", os.path.join(APP_ROOT, "build", "attendance_state.json")
-    )
+    os.environ.setdefault("FHR_STATE_FILE", os.path.join(BUILD_ROOT, "attendance_state.json"))
 
     @app.get("/api/health")
     def health():

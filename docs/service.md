@@ -6,7 +6,7 @@ Overview
 - Reuses existing analyzer logic without renaming core files.
 
 Run
-- Install: `pip install fastapi uvicorn pydantic python-multipart` (optional: `openpyxl` for Excel)
+- Install: `pip install .[service]`
 - Start: `uvicorn server.main:app --reload`
 - Open: http://localhost:8000/
 - API docs: http://localhost:8000/docs (OpenAPI) · http://localhost:8000/openapi.json
@@ -18,6 +18,7 @@ Docker
   - Open http://localhost:8000/ (UI) · http://localhost:8000/docs (API docs)
 
 Persistence
+- Runtime uploads and outputs default to `build/` under the process working directory. Set `FHR_BUILD_DIR` to an absolute writable path for system services or shared virtual environments.
 - The incremental state file defaults to `/app/build/attendance_state.json` in Docker (env `FHR_STATE_FILE`).
 - Mount `-v "$PWD/build:/app/build"` to persist user state across restarts.
 
@@ -74,7 +75,7 @@ Web UI Flow
 Notes
 - If `openpyxl` is missing and `output=excel`, the backend falls back to CSV and returns `actual_format = csv`.
 - Holiday API retries are minimized in service mode via `HOLIDAY_API_MAX_RETRIES=0` to keep requests fast when network is restricted.
-- Uploaded files and outputs are placed under `build/uploads/` and `build/api-outputs/`.
+- Uploaded files and outputs are placed under `$FHR_BUILD_DIR/uploads/` and `$FHR_BUILD_DIR/api-outputs/`.
 - Download 欄位仍提供每次分析的唯一路徑；同時在 canonical 目錄保留（或覆寫）`<stem>_analysis.(csv|xlsx)` 以支援 CLI/服務共用清理流程。
 
 Example (curl)

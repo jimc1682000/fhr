@@ -1,14 +1,42 @@
+# --- VCS / CI / dev tooling ---
 .git
 .github
+.gitignore
+.pre-commit-config.yaml
 __pycache__/
 *.py[cod]
 *.egg-info/
 dist/
-coverage_report/
 build/
-test/
+coverage_report/
+coverage.svg
+.coverage*
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.venv/
+venv/
 .DS_Store
+
+# --- tests / fixtures / scratch (not needed at runtime) ---
+test/
+tests/
+tmp/
+fix_imports.py
+
+# --- secrets (NEVER bake into a pushed image) ---
+.env
+.env.*
+!.env.example
+
+# --- PII: real employee attendance data & analysis outputs ---
+# Mirrors .gitignore. sample-* stays out of the image too (not runtime data).
+*-出勤資料.txt
+*員工*出勤*.txt
+*JimmyChen*.txt
 *_analysis.csv
 *_analysis.xlsx
+*_analysis.txt
+*_analysis_*.csv
+*_analysis_*.xlsx
 attendance_state.json
-

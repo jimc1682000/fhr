@@ -119,6 +119,7 @@ pre-commit autoupdate
 - App 入口：`server/main.py`
 - 本地啟動：`uvicorn server.main:app --reload`
 - Docker：`docker compose up --build -d`
+- Runtime 根目錄：`FHR_BUILD_DIR`（預設目前工作目錄的 `build/`；Docker 為 `/app/build`）
 - 狀態檔持久化：環境變數 `FHR_STATE_FILE`（Docker 預設 `/app/build/attendance_state.json`）
 - Debug 模式：`FHR_DEBUG=true` 啟用全域唯讀/詳細日誌；`POST /api/analyze` 可用 `debug=true` 請求層級切換（前端有對應核取方塊）。
 - OpenAPI 文件：http://localhost:8000/docs

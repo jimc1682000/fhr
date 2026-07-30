@@ -1,0 +1,7 @@
+# Repo-specific overrides (unioned with jimc1682000/repo-policy defaults).
+
+trusted_comment_authors:
+  - jimc1682000
+
+allowed_merge_actors:
+  - jimc1682000

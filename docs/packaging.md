@@ -60,7 +60,8 @@ docker run -p 8000:8000 ghcr.io/jimc1682000/fhr:latest
 #   → http://localhost:8000
 
 # CLI:把待分析檔所在目錄掛進 /data
-docker run --rm -v "$PWD:/data" -w /data \
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/data" -w /data \
   ghcr.io/jimc1682000/fhr:latest analyze 202508-Name-出勤資料.txt
 
 # 任意命令(debug)

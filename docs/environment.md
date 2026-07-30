@@ -7,6 +7,8 @@
 - `HOLIDAY_API_BACKOFF_BASE`：指數退避基準秒數（預設 0.5）
 - `HOLIDAY_API_MAX_BACKOFF`：每次重試的最大等待秒數上限（預設 8）
 - `FHR_DEBUG`：設定為 `true` 時啟用 Debug 模式（詳細日誌、唯讀狀態）
+- `FHR_BUILD_DIR`：Web service 上傳與輸出的可寫根目錄（預設為目前工作目錄下的 `build/`；Docker 為 `/app/build`）
+- `FHR_STATE_FILE`：狀態檔路徑（Web service 預設為 `$FHR_BUILD_DIR/attendance_state.json`）
 
 測試建議將上述值設為 0，以加快測試並避免 flakiness；網路呼叫請使用 mock（`urllib.request.urlopen`）。
 

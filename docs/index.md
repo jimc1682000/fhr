@@ -25,6 +25,7 @@
 
 ### 🏗️ **運維文件** - 適合系統管理員
 - **[service.md](service.md)** - Web 服務部署與管理
+- **[packaging.md](packaging.md)** - 打包與發佈(pip/uvx 安裝、GHCR 多架構 container image)
 - **[requirements.md](requirements.md)** - 系統需求與依賴
 - **[environment.md](environment.md)** - 環境變數與假日 API 設定
 - **[project-structure.md](project-structure.md)** - 專案檔案結構

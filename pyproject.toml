@@ -1,3 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fhr"
+version = "1.1.0"
+description = "Attendance analysis system for flexible working hours in Taiwan (CLI + web service)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Jimmy Chen", email = "jimc1682000@gmail.com" }]
+# Core CLI (analyze / export / import / reasons). openpyxl powers Excel export
+# and gracefully falls back to CSV when unavailable.
+dependencies = ["openpyxl>=3.1"]
+
+[project.optional-dependencies]
+# Web service (server.main:app). Mirrors requirements-service.txt.
+service = [
+  "fastapi>=0.112",
+  "uvicorn[standard]>=0.23",
+  "pydantic>=2.0",
+  "python-multipart>=0.0.6",
+  "openpyxl>=3.1",
+]
+
+[project.scripts]
+fhr = "lib.cli:run"
+
+[tool.hatch.build.targets.wheel]
+# Explicit allow-list: ship only runtime code. `attendance_analyzer.py` is a
+# core module (lib.* and server.* import Issue/IssueType/AttendanceAnalyzer/
+# logger from it), so it must be included alongside the lib/ and server/
+# packages. `web/` holds the frontend static assets: server/main.py resolves
+# WEB_DIR relative to the installed package root and only mounts `/` when the
+# directory exists, so a pip-installed `[service]` needs it in the wheel too.
+# Tests, tools, and PII data files are excluded by omission.
+only-include = ["attendance_analyzer.py", "lib", "server", "web"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -31,10 +69,8 @@ quote-style = "double"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.1.0"
-version_files = [
-    "pyproject.toml:version",
-]
+# Single source of truth: [project].version (PEP 621). `cz bump` updates it.
+version_provider = "pep621"
 tag_format = "v$version"
 update_changelog_on_bump = true
 changelog_file = "CHANGELOG.md"

@@ -1,5 +1,8 @@
 # Reason collector + abstractor
 
+> 整波假勤流程(含送單與對帳)的入口是 `/fhr-attendance-run` skill;本頁只講
+> 其中的證據收集與理由抽象化兩步。
+
 Two-step pipeline that fills the `reason` field on each entry of an `attendance-analysis/v1` payload:
 
 1. **`fhr reasons`** — pure Python, harvests git commit evidence per date from the configured repo roots. No LLM, no MCP, no API keys.

@@ -105,6 +105,11 @@ hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure`，辨識非 dry-run、�
 
 `portal-check` 只補充需要注意的單，已核准的單不會列出；報告缺單或查詢失敗不推翻已核對的本次結果。它會持有同一把鎖直到查詢結束；查詢正常且無待處理事項回傳 `0`，有退件、抽單或簽核中單據回傳 `1`，參數、瀏覽器缺失、登入逾時分別回傳 `2`、`3`、`4`，鎖被占用回傳 `5`，查詢失敗回傳 `6`。
 
+在 Claude Code 裡可以用 `/fhr-attendance-run` 一次跑完整波:送單前確認 →
+抓卡鐘 → 分析 → 收集證據(git + Slack/任務系統/Calendar) → 修正 analyzer 的已知
+誤判 → 攤開待決清單 → 送單 → 回 Portal 對帳。假別、無佐證的加班、週末時數
+這類會影響薪資的判斷一律停下來問,不自行推定。skill 定義在
+[`.claude/skills/fhr-attendance-run/`](.claude/skills/fhr-attendance-run/SKILL.md)。
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。過去的設計決定記在 [`docs/adr/`](docs/adr/README.md)。
 

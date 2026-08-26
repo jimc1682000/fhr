@@ -82,6 +82,12 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
     --input tmp/analysis.json --proxy 賴菁甫
 ```
 
+在 Claude Code 裡可以用 `/fhr-attendance-run` 一次跑完整波:送單前確認 →
+抓卡鐘 → 分析 → 收集證據(git + Slack/PJM/Calendar) → 修正 analyzer 的已知
+誤判 → 攤開待決清單 → 送單 → 回 Portal 對帳。假別、無佐證的加班、週末時數
+這類會影響薪資的判斷一律停下來問,不自行推定。skill 定義在
+[`.claude/skills/fhr-attendance-run/`](.claude/skills/fhr-attendance-run/SKILL.md)。
+
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。
 
 ### 🖥️ 系統管理員 (Web 服務 + Docker)

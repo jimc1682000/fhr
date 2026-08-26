@@ -13,14 +13,29 @@ from lib.reasons import (
     commits_on,
     discover_repos,
     evidence_for_analysis,
+    is_work_repo,
+    remote_host,
 )
+from lib.weekend_ot import detect_candidates
+
+# git exports these to hooks. When the suite runs from a pre-commit hook
+# inside a worktree they point at the REAL repo, so an un-scrubbed subprocess
+# env makes `git init` flip the shared config and `git commit` land on the
+# live branch. Strip them from every git call this module makes.
+_GIT_ENV_LEAKS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY")
+
+
+def _clean_env(**extra: str) -> dict:
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_LEAKS}
+    env.update(extra)
+    return env
 
 
 def _make_repo(path: Path) -> None:
     """Init a minimal git repo. Author is supplied per-commit via env vars
     so pre-commit's stashed environment can't shadow it via global gitconfig."""
     path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True, env=_clean_env())
 
 
 def _commit(
@@ -33,16 +48,17 @@ def _commit(
 ) -> None:
     f = path / "x"
     f.write_text(subject)
-    subprocess.run(["git", "add", "x"], cwd=path, check=True)
-    env = {
-        **os.environ,
-        "GIT_AUTHOR_NAME": author_name,
-        "GIT_AUTHOR_EMAIL": author_email,
-        "GIT_COMMITTER_NAME": author_name,
-        "GIT_COMMITTER_EMAIL": author_email,
-        "GIT_AUTHOR_DATE": when,
-        "GIT_COMMITTER_DATE": when,
-    }
+    env = _clean_env(
+        **{
+            "GIT_AUTHOR_NAME": author_name,
+            "GIT_AUTHOR_EMAIL": author_email,
+            "GIT_COMMITTER_NAME": author_name,
+            "GIT_COMMITTER_EMAIL": author_email,
+            "GIT_AUTHOR_DATE": when,
+            "GIT_COMMITTER_DATE": when,
+        }
+    )
+    subprocess.run(["git", "add", "x"], cwd=path, check=True, env=env)
     subprocess.run(["git", "commit", "-q", "-m", subject], cwd=path, env=env, check=True)
 
 
@@ -176,3 +192,128 @@ class TestEvidenceForAnalysis(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRemoteHost(unittest.TestCase):
+    def setUp(self):
+        remote_host.cache_clear()
+
+    def _repo_with_remote(self, tmp: str, url: str) -> Path:
+        repo = Path(tmp) / "r"
+        _make_repo(repo)
+        subprocess.run(
+            ["git", "remote", "add", "origin", url],
+            cwd=repo,
+            check=True,
+            env=_clean_env(),
+        )
+        return repo
+
+    def test_parses_scp_style_ssh_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_remote(tmp, "git@git.example.com:devops/deployer.git")
+            self.assertEqual(remote_host(str(repo)), "git.example.com")
+
+    def test_parses_https_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_remote(tmp, "https://github.com/owner/repo.git")
+            self.assertEqual(remote_host(str(repo)), "github.com")
+
+    def test_no_remote_returns_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "r"
+            _make_repo(repo)
+            self.assertEqual(remote_host(str(repo)), "")
+
+    def test_is_work_repo_matches_host(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_remote(tmp, "git@git.example.com:devops/x.git")
+            self.assertTrue(is_work_repo(repo, ["git.example.com"]))
+            self.assertFalse(is_work_repo(repo, ["other.host"]))
+
+    def test_empty_work_hosts_means_everything_counts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_remote(tmp, "https://github.com/owner/repo.git")
+            self.assertTrue(is_work_repo(repo, []))
+
+
+class TestCommitsOnBranchCoverage(unittest.TestCase):
+    """`git log` without --all only walks HEAD — commits parked on another
+    branch were silently missing from the evidence file."""
+
+    def setUp(self):
+        remote_host.cache_clear()
+
+    def test_finds_commit_on_non_head_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "r"
+            _make_repo(repo)
+            _commit(repo, "on main", "2026-07-29T10:00:00+08:00")
+            subprocess.run(
+                ["git", "checkout", "-q", "-b", "side"], cwd=repo, check=True, env=_clean_env()
+            )
+            _commit(repo, "on side branch", "2026-07-29T18:37:00+08:00")
+            subprocess.run(["git", "checkout", "-q", "-"], cwd=repo, check=True, env=_clean_env())
+
+            got = commits_on(repo, date(2026, 7, 29), ["Tester McTest"])
+            subjects = sorted(c["subject"] for c in got)
+            self.assertEqual(subjects, ["on main", "on side branch"])
+
+    def test_commit_reachable_from_two_refs_appears_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "r"
+            _make_repo(repo)
+            _commit(repo, "shared", "2026-07-29T18:37:00+08:00")
+            subprocess.run(["git", "branch", "dup"], cwd=repo, check=True, env=_clean_env())
+            got = commits_on(repo, date(2026, 7, 29), ["Tester McTest"])
+            self.assertEqual(len(got), 1)
+
+    def test_tags_host_and_work_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "r"
+            _make_repo(repo)
+            subprocess.run(
+                ["git", "remote", "add", "origin", "git@git.example.com:devops/x.git"],
+                cwd=repo,
+                check=True,
+                env=_clean_env(),
+            )
+            _commit(repo, "work thing", "2026-07-29T18:37:00+08:00")
+
+            work = commits_on(
+                repo, date(2026, 7, 29), ["Tester McTest"], work_hosts=["git.example.com"]
+            )
+            self.assertEqual(work[0]["host"], "git.example.com")
+            self.assertTrue(work[0]["work"])
+
+            remote_host.cache_clear()
+            personal = commits_on(
+                repo, date(2026, 7, 29), ["Tester McTest"], work_hosts=["elsewhere.com"]
+            )
+            self.assertFalse(personal[0]["work"])
+
+
+class TestWeekendCandidateClamp(unittest.TestCase):
+    def test_all_day_span_is_capped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "r"
+            _make_repo(repo)
+            _commit(repo, "early", "2026-08-22T00:02:00+08:00")
+            _commit(repo, "late", "2026-08-22T23:50:00+08:00")
+
+            got = detect_candidates(
+                date(2026, 8, 22), date(2026, 8, 22), ["Tester McTest"], repos=[repo]
+            )
+            self.assertEqual(len(got), 1)
+            self.assertLessEqual(got[0]["hours"], 12)
+            self.assertEqual(got[0]["weekday"], "六")
+
+    def test_weekday_with_commits_is_not_a_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "r"
+            _make_repo(repo)
+            _commit(repo, "weekday work", "2026-08-19T19:00:00+08:00")
+            got = detect_candidates(
+                date(2026, 8, 19), date(2026, 8, 19), ["Tester McTest"], repos=[repo]
+            )
+            self.assertEqual(got, [])

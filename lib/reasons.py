@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,32 @@ def _git(repo: Path, *args: str) -> str:
     return (result.stdout or "").strip()
 
 
+@lru_cache(maxsize=512)
+def remote_host(repo: str) -> str:
+    """Host of the repo's `origin` remote (e.g. `git.example.com`), or "".
+
+    Cached — a repo's remote never changes inside one run, and we ask once
+    per repo per date otherwise.
+    """
+    url = _git(Path(repo), "remote", "get-url", "origin")
+    if not url:
+        return ""
+    m = re.match(r"(?:[\w.+-]+@)?([^:/]+)[:/]", url.split("://")[-1])
+    return m.group(1) if m else ""
+
+
+def is_work_repo(repo: Path, work_hosts: Iterable[str]) -> bool:
+    """True when the repo's origin host is one of `work_hosts`.
+
+    Empty `work_hosts` means "caller didn't say" — everything counts, which
+    keeps the old behaviour for callers that don't care.
+    """
+    hosts = tuple(work_hosts)
+    if not hosts:
+        return True
+    return remote_host(str(repo)) in hosts
+
+
 def commits_on(
     repo: Path,
     target: date,
@@ -81,6 +109,7 @@ def commits_on(
     *,
     since_time: str = "00:00",
     until_offset_hours: int = 26,
+    work_hosts: Iterable[str] = (),
 ) -> list[dict]:
     """Return commits in `repo` authored on `target` (local time) by any of
     `authors`. Time window: target@since_time → next-day+2h (covers late-
@@ -99,18 +128,35 @@ def commits_on(
     raw = _git(
         repo,
         "log",
+        "--all",
         *author_flags,
         f"--since={since}",
         f"--until={until}",
         "--pretty=format:%H%x00%aI%x00%s",
     )
+    host = remote_host(str(repo))
+    work = is_work_repo(repo, work_hosts)
     out: list[dict] = []
+    seen: set[str] = set()
     for line in raw.splitlines():
         parts = line.split("\x00")
         if len(parts) != 3:
             continue
         sha, iso, subject = parts
-        out.append({"repo": repo.name, "sha": sha[:10], "time": iso, "subject": subject})
+        # `--all` can surface the same commit from several refs.
+        if sha in seen:
+            continue
+        seen.add(sha)
+        out.append(
+            {
+                "repo": repo.name,
+                "sha": sha[:10],
+                "time": iso,
+                "subject": subject,
+                "host": host,
+                "work": work,
+            }
+        )
     return out
 
 
@@ -121,6 +167,7 @@ def harvest_dates(
     roots: Iterable[str] = DEFAULT_GIT_REPO_ROOTS,
     after_time: str = "00:00",
     exclude_repos: Iterable[str] = (),
+    work_hosts: Iterable[str] = (),
 ) -> dict[str, list[dict]]:
     """For each date, scan every repo and collect commits.
 
@@ -135,7 +182,7 @@ def harvest_dates(
     for d in dates:
         rows: list[dict] = []
         for repo in repos:
-            rows.extend(commits_on(repo, d, authors, since_time=after_time))
+            rows.extend(commits_on(repo, d, authors, since_time=after_time, work_hosts=work_hosts))
         rows.sort(key=lambda r: r["time"])
         out[d.strftime("%Y-%m-%d")] = rows
     return out
@@ -148,6 +195,7 @@ def evidence_for_analysis(
     roots: Iterable[str] = DEFAULT_GIT_REPO_ROOTS,
     schedule_end: str = "18:30",
     exclude_repos: Iterable[str] = (),
+    work_hosts: Iterable[str] = (),
 ) -> dict[str, dict]:
     """Build a per-date evidence dict from an attendance-analysis/v1 payload.
 
@@ -162,7 +210,13 @@ def evidence_for_analysis(
 
     # Two harvests: one window for overtime (≥ schedule_end), one for leave
     # (whole day). We avoid double-scanning by gathering everything once.
-    raw = harvest_dates(parsed_dates, authors, roots=roots, exclude_repos=exclude_repos)
+    raw = harvest_dates(
+        parsed_dates,
+        authors,
+        roots=roots,
+        exclude_repos=exclude_repos,
+        work_hosts=work_hosts,
+    )
 
     sh, sm = (int(x) for x in schedule_end.split(":"))
     threshold_minutes = sh * 60 + sm

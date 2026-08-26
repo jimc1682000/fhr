@@ -61,6 +61,24 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
         metavar="REPO_NAME",
         help="排除的 repo 目錄名 (可重複,大小寫不敏感);把個人側專案排除在工作理由證據外",
     )
+    parser.add_argument(
+        "--work-host",
+        action="append",
+        dest="work_hosts",
+        metavar="HOST",
+        help=(
+            "公司 git remote 的 host (可重複)。每筆 commit 會標上 work=true/false，"
+            "讓 skill 判斷加班理由能不能採信；也決定 --weekend 掃哪些 repo。"
+        ),
+    )
+    parser.add_argument(
+        "--weekend",
+        action="store_true",
+        help=(
+            "另外掃描週末/假日有無公司 repo 的 commit，列為加班候選寫進證據檔。"
+            "候選僅供人工判斷,不會自動變成可送的單。需搭配 --work-host。"
+        ),
+    )
     parser.add_argument("--debug", action="store_true", help="啟用 debug 日誌")
     return parser
 
@@ -81,10 +99,15 @@ def run(args: argparse.Namespace) -> None:
 
     roots = tuple(args.roots) if args.roots else DEFAULT_GIT_REPO_ROOTS
     exclude_repos = tuple(args.exclude_repos) if args.exclude_repos else ()
+    work_hosts = tuple(args.work_hosts) if args.work_hosts else ()
     logger.info("🔍 掃描 git repos: %s", ", ".join(roots))
     logger.info("🔍 作者比對: %s", ", ".join(args.author))
     if exclude_repos:
         logger.info("🚫 排除個人 repo: %s", ", ".join(exclude_repos))
+    if work_hosts:
+        logger.info("🏢 公司 repo host: %s", ", ".join(work_hosts))
+    elif args.weekend:
+        logger.warning("⚠️ --weekend 未搭配 --work-host,個人 repo 的週末活動也會被列為候選")
 
     evidence = evidence_for_analysis(
         analysis,
@@ -92,7 +115,20 @@ def run(args: argparse.Namespace) -> None:
         roots=roots,
         schedule_end=args.schedule_end,
         exclude_repos=exclude_repos,
+        work_hosts=work_hosts,
     )
+
+    if args.weekend:
+        found = _add_weekend_candidates(
+            evidence,
+            analysis,
+            args.author,
+            roots=roots,
+            exclude_repos=exclude_repos,
+            work_hosts=work_hosts,
+        )
+        logger.info("🗓️ 週末/假日加班候選: %d 日 (僅供人工判斷,未自動列入送單)", found)
+
     Path(args.out).write_text(
         json.dumps(evidence, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -103,3 +139,55 @@ def run(args: argparse.Namespace) -> None:
     )
     logger.info("✅ %s (%d 日 / %d commits)", args.out, len(evidence), total)
     logger.info("ℹ️ Slack 部分由 .claude/skills/fhr-reason-abstract 自行抓 + 合併到 reason 欄位")
+
+
+def _add_weekend_candidates(
+    evidence: dict,
+    analysis: dict,
+    authors: list[str],
+    *,
+    roots: tuple[str, ...],
+    exclude_repos: tuple[str, ...],
+    work_hosts: tuple[str, ...],
+) -> int:
+    """Scan weekends/holidays inside the analysis' date span for work-repo
+    commits and add them to `evidence` as overtime candidates.
+
+    The analyzer skips non-working days entirely (no scheduled hours → no
+    overtime calc), so a Saturday spent on an incident leaves no trace in
+    the payload. These entries are flagged `candidate: True` — a human
+    decides whether to claim them; nothing here is auto-submittable.
+
+    Returns the number of candidate dates added.
+    """
+    from datetime import datetime
+
+    from lib.reasons import discover_repos, is_work_repo
+    from lib.weekend_ot import detect_candidates
+
+    dates = [e["date"] for e in analysis.get("overtime", [])]
+    dates += [e["date"] for e in analysis.get("leave", [])]
+    if not dates:
+        return 0
+    parsed = sorted(datetime.strptime(d, "%Y/%m/%d").date() for d in dates)
+
+    repos = discover_repos(list(roots), exclude=exclude_repos)
+    if work_hosts:
+        repos = [r for r in repos if is_work_repo(r, work_hosts)]
+
+    added = 0
+    for cand in detect_candidates(parsed[0], parsed[-1], authors, repos=repos):
+        entry = evidence.setdefault(cand["date"], {"date": cand["date"]})
+        entry["overtime"] = {
+            "git": cand["evidence"]["git"],
+            "candidate": True,
+            "weekday": cand["weekday"],
+            "suggested": {
+                "start_time": cand["start_time"],
+                "end_time": cand["end_time"],
+                "hours": cand["hours"],
+                "location": cand["location"],
+            },
+        }
+        added += 1
+    return added

@@ -187,3 +187,4 @@ tests/fixtures/portal_replay_v1/state/
 # v2.1 testing transients
 tests/fixtures/portal_replay_v1/state/
 tmp/
+.claude/skills/*/local.md

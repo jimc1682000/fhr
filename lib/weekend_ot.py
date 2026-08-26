@@ -59,6 +59,7 @@ def detect_candidates(
     repos: list[Path] | None = None,
     default_location: str = "在外地",
     min_minutes: int = 60,
+    max_hours: int = 12,
 ) -> list[dict]:
     """Find weekend / holiday dates that have at least one matching commit.
 
@@ -88,7 +89,10 @@ def detect_candidates(
         first = datetime.fromisoformat(commits[0]["time"])
         last = datetime.fromisoformat(commits[-1]["time"])
         total_min = max(min_minutes, int((last - first).total_seconds() // 60) + min_minutes)
-        hours = max(1, math.floor(total_min / 60))
+        # A day that starts at 00:02 and ends at 23:50 would otherwise emit a
+        # 24h "candidate" — useless to a human reviewer. Cap it; the evidence
+        # list below still carries every commit so the real span is visible.
+        hours = min(max_hours, max(1, math.floor(total_min / 60)))
         start_hhmm = f"{first.hour:02d}{(first.minute // 30) * 30:02d}"
         end_total = first.hour * 60 + (first.minute // 30) * 30 + hours * 60
         end_hhmm = f"{end_total // 60:02d}{end_total % 60:02d}"

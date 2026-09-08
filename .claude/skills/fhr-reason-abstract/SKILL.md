@@ -106,8 +106,12 @@ hit as confirming evidence only; phrase a miss as "查無佐證", not "沒有工
 ### Calendar
 
 `list_events` for the date. Catches evening meetings that leave no commit
-and no message. Cheap; worth running for any date where git and Slack are
-both empty.
+and no message, and morning appointments that explain a late arrival.
+
+Run it for **every** date, not only ones where git and Slack came back
+empty. A 09:00 medical appointment or an 18:00 external meeting is exactly
+the evidence the other sources structurally cannot hold — waiting until
+they are both empty means never running it at all.
 
 ### Jira
 
@@ -122,7 +126,16 @@ For each date in the evidence file:
 1. **Gather git evidence** — `overtime.git` (commits ≥ `schedule_end`) and
    `leave.git` (earlier in the day). Split by the `work` flag.
 
-2. **Pull Slack / task tracker / Calendar** for that date as described above.
+2. **Pull Slack, the task tracker and Calendar** for that date — all three, every date.
+   They fail in different directions: git misses meetings and discussion,
+   Slack misses anything done outside chat, the tracker misses evening work on a
+   task that was touched again later, Calendar misses unscheduled work.
+   Skipping one because another looked sufficient is how a date ends up
+   with a reason resting on a single message.
+
+   Track which sources you actually queried per date. **"查無佐證" is a
+   claim about all four sources** — never write it having checked fewer,
+   and name the ones you checked when you report it.
 
 3. **Grade the evidence before writing anything:**
 
@@ -130,6 +143,7 @@ For each date in the evidence file:
    |---|---|
    | Work commits, Slack, or tracker activity after `schedule_end` | Abstract them into a reason |
    | Only personal-repo commits after `schedule_end` | **Not claimable.** Report "查無佐證" and ask the user what they were doing — do not invent a reason |
+   | Activity only *outside* the claimed span (18:20 messages for a 19:00–20:00 form) | Doesn't back the claim. Treat the date as unbacked, and say which timestamps you rejected and why |
    | Nothing anywhere | Same — surface it, let the user decide whether to claim or drop the entry |
 
    Never fill a blank overtime reason with a generic placeholder. An
@@ -166,6 +180,9 @@ not the technical detail. Manager already knows the substance. Aim for:
 - Continuous-noun phrases, no verbs ("環境建置作業" not "建置環境")
 - Don't list multiple subprojects unless they're genuinely
   distinct categories of work
+- One reason names one kind of work. Two unrelated activities fused into a
+  single abstract phrase ("範例文件校對 + 測試資料整理") reads as noise to
+  everyone, the user included — keep the one the in-span evidence supports
 - Keep punctuation simple: `+` between concepts, no parentheses
 - ≤ 30 characters
 

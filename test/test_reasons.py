@@ -72,6 +72,20 @@ class TestDiscoverRepos(unittest.TestCase):
             names = sorted(r.name for r in repos)
             self.assertEqual(names, ["alpha", "beta"])
 
+    def test_finds_ghq_layout_three_levels_deep(self):
+        # ghq clones land at <root>/<host>/<owner>/<repo>.
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _make_repo(root / "git.example.com" / "devops" / "deployer-tf")
+            repos = discover_repos([str(root)])
+            self.assertEqual([r.name for r in repos], ["deployer-tf"])
+
+    def test_does_not_recurse_past_the_scan_depth(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _make_repo(root / "a" / "b" / "c" / "too-deep")
+            self.assertEqual(discover_repos([str(root)]), [])
+
     def test_missing_root_is_skipped(self):
         self.assertEqual(discover_repos(["/no/such/path/__missing__"]), [])
 

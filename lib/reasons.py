@@ -1,7 +1,7 @@
 """Harvest raw evidence for analyzer entries from the user's git activity.
 
 Scans every git repo under the configured roots (default
-`~/git`, `~/workdir`, `~/github`) for commits authored by the
+`~/src`, `~/git`, `~/workdir`, `~/github`) for commits authored by the
 current user on a given date. The output is consumed by a
 Claude Code agent skill (`.claude/skills/fhr-reason-abstract`)
 that turns the raw evidence into an HR-friendly abstracted
@@ -28,15 +28,19 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GIT_REPO_ROOTS: tuple[str, ...] = ("~/git", "~/workdir", "~/github")
+GIT_REPO_SCAN_DEPTH = 3
+DEFAULT_GIT_REPO_ROOTS: tuple[str, ...] = ("~/src", "~/git", "~/workdir", "~/github")
 DEFAULT_AUTHORS: tuple[str, ...] = ()  # caller must supply
 
 
 def discover_repos(roots: Iterable[str], *, exclude: Iterable[str] = ()) -> list[Path]:
-    """Return every immediate subdir of `roots` that looks like a git repo.
+    """Return every subdir of `roots` up to `GIT_REPO_SCAN_DEPTH` that looks
+    like a git repo.
 
-    We look two levels deep (`<root>/*/.git` and `<root>/*/*/.git`) — that
-    matches how the user organizes work (`~/git/<repo>`, `~/github/<owner>/<repo>`).
+    Three levels, because that is how the user organizes work: `~/git/<repo>`,
+    `~/github/<owner>/<repo>`, and — for ghq-managed clones, which is the
+    current convention — `~/src/<host>/<owner>/<repo>`. Stopping at two levels
+    silently finds nothing under `~/src`.
 
     `exclude` is a set of repo *directory names* (basename, case-insensitive)
     to skip — used to keep personal side-projects out of work reason evidence.
@@ -48,7 +52,8 @@ def discover_repos(roots: Iterable[str], *, exclude: Iterable[str] = ()) -> list
         root = Path(os.path.expanduser(r))
         if not root.is_dir():
             continue
-        for candidate in (*root.glob("*/.git"), *root.glob("*/*/.git")):
+        patterns = ["/".join(["*"] * d) + "/.git" for d in range(1, GIT_REPO_SCAN_DEPTH + 1)]
+        for candidate in (c for pat in patterns for c in root.glob(pat)):
             repo = candidate.parent.resolve()
             if repo.name.lower() in excluded:
                 continue

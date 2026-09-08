@@ -23,7 +23,7 @@ Optional flags:
 
 | Flag | Purpose |
 |------|---------|
-| `--root PATH`        | git repo root (repeatable; defaults `~/git ~/workdir ~/github`) |
+| `--root PATH`        | git repo root (repeatable; defaults `~/src ~/git ~/workdir ~/github`). Scanned three levels deep, so ghq layouts (`~/src/<host>/<owner>/<repo>`) are found as well as flat ones. |
 | `--schedule-end HH:MM` | Threshold for splitting commits into "overtime" vs "morning leave" buckets. Match the analyzer's `AttendanceConfig.schedule_end`. |
 | `--exclude-repo NAME` | Skip a repo by directory name (repeatable) |
 | `--work-host HOST`   | Company git remote host (repeatable). Tags each commit `work: true/false`. |
@@ -58,7 +58,7 @@ Pair it with `--work-host`; without one, personal weekend hacking gets listed to
 ```bash
 fhr reasons --input tmp/analysis.json --out tmp/reasons-evidence.json \
     --author 'Your Name' \
-    --root ~/src/git.example.com --root ~/workdir \
+    --root ~/src --root ~/workdir \
     --work-host git.example.com --weekend
 ```
 

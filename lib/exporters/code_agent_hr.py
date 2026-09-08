@@ -126,6 +126,10 @@ def issues_to_analysis(
 
     payload = {
         "cutoff_date": _date_str(opts.cutoff_date) if opts.cutoff_date else None,
+        # End of the analysed period. The entries only cover days the analyzer
+        # flagged, so consumers that need the *period* (e.g. `fhr reasons
+        # --weekend`) cannot derive it from the entry dates alone.
+        "analysis_end": _date_str(opts.today) if opts.today else None,
         "overtime": overtime,
         "leave": leave,
         "skipped": skipped,

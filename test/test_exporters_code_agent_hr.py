@@ -203,6 +203,17 @@ class TestPayloadShape(unittest.TestCase):
         )
         self.assertEqual(out["cutoff_date"], "2026/04/17")
 
+    def test_analysis_end_in_payload(self):
+        out = issues_to_analysis(
+            [_ot("2026/04/20", "18:30~20:30", 120)],
+            ExportOptions(today=date(2026, 5, 20)),
+        )
+        self.assertEqual(out["analysis_end"], "2026/05/20")
+
+    def test_analysis_end_is_null_without_today(self):
+        out = issues_to_analysis([_ot("2026/04/20", "18:30~20:30", 120)])
+        self.assertIsNone(out["analysis_end"])
+
 
 class TestWrite(unittest.TestCase):
     def test_persists_pretty_json(self):

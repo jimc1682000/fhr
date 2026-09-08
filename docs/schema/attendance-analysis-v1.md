@@ -25,6 +25,7 @@ Unknown major versions: refuse to parse with a friendly message.
 {
   "schema_version": "attendance-analysis/v1",
   "cutoff_date":    "YYYY/MM/DD" | null,        // last-applied-form date, or null
+  "analysis_end":   "YYYY/MM/DD" | null,        // end of the analysed period (`--today`), or null
   "overtime":       [OvertimeEntry],
   "leave":          [LeaveEntry],
   "skipped":        [SkippedEntry],             // dates dropped during conversion
@@ -103,6 +104,7 @@ Counts and hours MUST equal the lengths/sums of the corresponding arrays.
 {
   "schema_version": "attendance-analysis/v1",
   "cutoff_date": "2026/04/17",
+  "analysis_end": "2026/05/19",
   "overtime": [
     {
       "date": "2026/04/22",

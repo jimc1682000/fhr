@@ -79,5 +79,86 @@ class TestReasonsParserArgs(unittest.TestCase):
         self.assertEqual(ns.schedule_end, "19:00")
 
 
+class TestWeekendCandidateSpan(unittest.TestCase):
+    """`_add_weekend_candidates` must scan to the end of the analysed period,
+    not just to the last flagged entry — the analyzer emits nothing for a
+    weekend, so a Sunday after the final weekday entry falls outside it."""
+
+    def _run(self, analysis):
+        from unittest import mock
+
+        from lib.commands.reasons import _add_weekend_candidates
+
+        seen = {}
+
+        def fake_detect(start, end, authors, *, repos=None, **kw):
+            seen["span"] = (start, end)
+            return []
+
+        with (
+            mock.patch("lib.reasons.discover_repos", return_value=[]),
+            mock.patch("lib.weekend_ot.detect_candidates", side_effect=fake_detect),
+        ):
+            _add_weekend_candidates(
+                {},
+                analysis,
+                ["a"],
+                roots=(),
+                exclude_repos=(),
+                work_hosts=(),
+            )
+        return seen["span"]
+
+    def test_span_extends_to_analysis_end(self):
+        from datetime import date
+
+        span = self._run(
+            {
+                "analysis_end": "2026/09/08",
+                "overtime": [{"date": "2026/08/26"}],
+                "leave": [{"date": "2026/09/04"}],
+            }
+        )
+        self.assertEqual(span, (date(2026, 8, 26), date(2026, 9, 8)))
+
+    def test_span_falls_back_to_entry_dates_without_analysis_end(self):
+        from datetime import date
+
+        span = self._run(
+            {
+                "overtime": [{"date": "2026/08/26"}],
+                "leave": [{"date": "2026/09/04"}],
+            }
+        )
+        self.assertEqual(span, (date(2026, 8, 26), date(2026, 9, 4)))
+
+    def test_analysis_end_never_shrinks_the_span(self):
+        from datetime import date
+
+        span = self._run(
+            {
+                "analysis_end": "2026/08/01",
+                "overtime": [],
+                "leave": [{"date": "2026/09/04"}],
+            }
+        )
+        self.assertEqual(span, (date(2026, 9, 4), date(2026, 9, 4)))
+
+    def test_no_entries_returns_zero(self):
+        from lib.commands.reasons import _add_weekend_candidates
+
+        self.assertEqual(
+            _add_weekend_candidates(
+                {},
+                {"analysis_end": "2026/09/08", "overtime": [], "leave": []},
+                ["a"],
+                roots=(),
+                exclude_repos=(),
+                work_hosts=(),
+            ),
+            0,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

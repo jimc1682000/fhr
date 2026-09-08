@@ -55,6 +55,8 @@ The analyzer skips Saturdays, Sundays and national holidays outright — no sche
 
 Pair it with `--work-host`; without one, personal weekend hacking gets listed too (the command warns). The suggested span is derived from the first and last commit and capped at 12h — it is a starting point for a human, never an auto-submittable entry.
 
+The span scanned runs from the first flagged entry to the payload's `analysis_end` (what `fhr export --today` recorded), not to the last flagged entry. Those differ whenever the weekend work happened *after* the final weekday issue — the exact case this flag exists for. Payloads exported without `--today` have no `analysis_end` and fall back to the entry dates.
+
 ```bash
 fhr reasons --input tmp/analysis.json --out tmp/reasons-evidence.json \
     --author 'Your Name' \

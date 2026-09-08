@@ -170,13 +170,21 @@ def _add_weekend_candidates(
     if not dates:
         return 0
     parsed = sorted(datetime.strptime(d, "%Y/%m/%d").date() for d in dates)
+    start, end = parsed[0], parsed[-1]
+    # The analyzer emits nothing for a weekend, so the last flagged entry is
+    # usually earlier than the end of the analysed period — a Sunday incident
+    # after the final weekday entry would fall outside the span entirely.
+    # `analysis_end` (the exporter's `--today`) is that real end when present.
+    analysis_end = analysis.get("analysis_end")
+    if analysis_end:
+        end = max(end, datetime.strptime(analysis_end, "%Y/%m/%d").date())
 
     repos = discover_repos(list(roots), exclude=exclude_repos)
     if work_hosts:
         repos = [r for r in repos if is_work_repo(r, work_hosts)]
 
     added = 0
-    for cand in detect_candidates(parsed[0], parsed[-1], authors, repos=repos):
+    for cand in detect_candidates(start, end, authors, repos=repos):
         entry = evidence.setdefault(cand["date"], {"date": cand["date"]})
         entry["overtime"] = {
             "git": cand["evidence"]["git"],

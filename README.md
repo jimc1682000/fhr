@@ -111,6 +111,9 @@ hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure`，辨識非 dry-run、�
 這類會影響薪資的判斷一律停下來問,不自行推定。skill 定義在
 [`.claude/skills/fhr-attendance-run/`](.claude/skills/fhr-attendance-run/SKILL.md)。
 
+要排程的話,`tools/weekly-prep.sh` 會把 Phase 0–2(抓資料、同步、export、git 證據)先跑完擺好,
+判斷與送單仍留在 session 裡 — 見 [`docs/weekly-prep.md`](docs/weekly-prep.md)。
+
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。過去的設計決定記在 [`docs/adr/`](docs/adr/README.md)。
 
 ### 🖥️ 系統管理員 (Web 服務 + Docker)

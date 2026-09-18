@@ -74,7 +74,19 @@ fhr portal-fetch --user "$FHR_USER" --date-s "$DATE_S" --date-e "$DATE_E" \
     --out "$ATTENDANCE" --base-url "$BASE_URL"
 fhr portal-sync --user "$FHR_USER" --base-url "$BASE_URL"
 fhr export --to=analysis-v1 "$ATTENDANCE" --out "$OUT_DIR/analysis.json" --today "$TODAY"
-fhr reasons --input "$OUT_DIR/analysis.json" --out "$OUT_DIR/reasons-evidence.json" \
-    --author "$(git config user.name)" --weekend
+# Authors and the company git host identify a workplace, so they live in the
+# environment, not in this repo. FHR_AUTHORS is comma-separated.
+reasons_args=()
+IFS=',' read -ra _authors <<< "${FHR_AUTHORS:-}"
+for a in "${_authors[@]}"; do
+    [ -n "$a" ] && reasons_args+=(--author "$a")
+done
+if [ ${#reasons_args[@]} -eq 0 ]; then
+    notify "設定缺漏" "FHR_AUTHORS 未設定，跳過 git 證據收集"
+else
+    [ -n "${FHR_WORK_HOST:-}" ] && reasons_args+=(--work-host "$FHR_WORK_HOST")
+    fhr reasons --input "$OUT_DIR/analysis.json" \
+        --out "$OUT_DIR/reasons-evidence.json" "${reasons_args[@]}" --weekend
+fi
 
 notify "資料備好" "$OUT_DIR — 開 Claude Code 跑 /fhr-attendance-run 接 Phase 3"

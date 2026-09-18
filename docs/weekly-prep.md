@@ -36,6 +36,21 @@ It also never logs in for you. The first `portal-*` call opens a headed Chromium
 |---|---|
 | `EHR_URL` | read from `./.env` if unset; the `/LoginFOrginal.asp` suffix is stripped |
 | `FHR_USER` | `JimmyChen` |
+| `FHR_AUTHORS` | none — comma-separated `git --author` strings. Empty skips evidence collection |
+| `FHR_WORK_HOST` | none — company git host, so commits get tagged `work: true/false` |
+
+Authors and the company git host name a workplace, so they stay in the environment rather than in this repo.
+
+## Submitting (`tools/apply-wave.sh`)
+
+`portal-apply` takes enough flags that the one-liner soft-wraps in a terminal, and copying wrapped text turns the wrap points into real newlines. This wrapper keeps the command short:
+
+```bash
+tools/apply-wave.sh tmp/203306/analysis-wave2.json --dry-run
+tools/apply-wave.sh tmp/203306/analysis-wave2.json
+```
+
+`FHR_PROXY` supplies the 職務代理人 (a colleague's name, so not in the repo); WFH leave types skip that field anyway. Everything after the analysis path passes through to `portal-apply`.
 
 ## Scheduling it (macOS launchd)
 

@@ -25,6 +25,8 @@ import json
 import logging
 import os
 import sys
+import tempfile
+import uuid
 from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime
@@ -265,9 +267,24 @@ def _load_completed(path: Path) -> set[str]:
 
 
 def _save_results(path: Path, results: dict) -> None:
-    path.write_text(
-        json.dumps(results, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
-    )
+    # 同目錄暫存再替換，讀者只會看見完整的一版結果。
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", delete=False
+    ) as temporary:
+        temporary_path = Path(temporary.name)
+        try:
+            json.dump(results, temporary, ensure_ascii=False, indent=2, default=str)
+            temporary.flush()
+            os.replace(temporary_path, path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+
+def _finish_results(path: Path, results: dict) -> None:
+    results["completed"] = True
+    _save_results(path, results)
+    # 固定格式 stdout 收據，供 PostToolUse 比對；不可改走帶前綴的 logger。
+    print(f"結果寫入：{path.resolve()}（run_id={results['run_id']}）", flush=True)
 
 
 # ---------- dedup against state cache ----------
@@ -792,7 +809,12 @@ def _run_locked(args: argparse.Namespace) -> None:
             return
 
     # Step 5 — submit
-    results: dict[str, list[dict]] = {"overtime": [], "leave": []}
+    results: dict = {
+        "run_id": str(uuid.uuid4()),
+        "completed": False,
+        "overtime": [],
+        "leave": [],
+    }
 
     def _persist_ot(plan_entry, status):
         ok = status in af.OK_STATUSES
@@ -867,7 +889,7 @@ def _run_locked(args: argparse.Namespace) -> None:
                 "ℹ️ DRY RUN 已跳過『確定送出』+ 未寫入 applied_forms cache "
                 "(Portal 上不會出現任何單據)"
             )
-        logger.info("✅ 結果寫入 %s", result_path)
+        _finish_results(result_path, results)
     except AgentBrowserMissing as e:
         logger.error("❌ %s", e)
         sys.exit(3)
@@ -875,6 +897,7 @@ def _run_locked(args: argparse.Namespace) -> None:
         logger.error("❌ %s", e)
         sys.exit(4)
     except af.SubmissionInterrupted as error:
+        _finish_results(result_path, results)
         logger.error("❌ %s，結果已寫入 %s", error, result_path)
         sys.exit(5)
 

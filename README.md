@@ -95,11 +95,13 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
 | `failed`／`blocked` | 送出前無法判斷或前置條件不符，未送出 |
 | `dry_run` | 只預覽，不代表 Portal 有單據 |
 
-送單後 hook 以本次 `portal-apply` 結果檔每筆的 `confirmed`／`already_pending` 為主要確認依據。`portal-check` 報告只補充需要注意的單，已核准的單不會列出；沒出現在報告裡不代表沒送出，查詢失敗也不推翻已確認的結果。沒有本次確認結果的單仍須回報未確認，不可直接重送；已確認有效單也不代表目前仍在簽核中。
+送單結果頂層新增 `run_id` 與 `completed`。逐筆保存時為 `completed: false`，批次結束或送出中斷完成收尾後才寫成 `true`；每次都以同目錄暫存檔加 rename 原子替換。完成後 stdout 印出固定格式 `結果寫入：<絕對路徑>（run_id=<UUID>）`。`completed` 只表示結果已收尾，不代表每筆成功，仍須讀每筆 `status`。
 
-hook 啟動查詢前會以 non-blocking 方式試取同一把 apply lock，被占用時跳過並提醒稍後再對帳。`portal-check` 本身也會取同一把鎖，持有到瀏覽器查詢結束，避免手動查詢或試鎖後的競爭干擾送單；取不到鎖時在接觸瀏覽器前回傳 `5`。
+hook 先從本次 Bash `tool_response.stdout` 取完成標記，再持有 apply lock 讀檔，核對路徑、`run_id`、`completed: true` 與逐筆格式。核對成功後以讀到的快照回報，避免固定路徑被下一次執行覆寫；只有 `confirmed`／`already_pending` 代表送單時已確認有效單。先前已確認、這次跳過的單不會列出，**沒出現在結果檔，不代表未確認**，應另查先前證據，不可直接重送。
 
-`portal-check` 查詢正常且沒有待處理事項時回傳 `0`，發現退件或簽核中單據時回傳 `1`；查詢失敗回傳 `6`，hook 會標示沒有補充對帳結果，錯誤輸出不可當成清單證據。參數、瀏覽器缺失與登入逾時分別回傳 `2`、`3`、`4`。
+缺少完成標記、檔案不存在、格式錯誤、半成品或 run_id 不同時，hook 明確回報「目前沒有對帳結果，不可說任何單已送出或已確認」，也不啟動查詢。參數／瀏覽器錯誤、沒有送出項目或使用者取消，都不會把舊檔當成本次結果。拿不到 apply lock 時不讀寫結果檔、不接觸瀏覽器；本次 apply 未送單時明確回報「本次沒有送單，目前沒有對帳結果」。
+
+`portal-check` 只補充需要注意的單，已核准的單不會列出；報告缺單或查詢失敗不推翻已核對的本次結果。它會持有同一把鎖直到查詢結束；查詢正常且無待處理事項回傳 `0`，有退件、抽單或簽核中單據回傳 `1`，參數、瀏覽器缺失、登入逾時分別回傳 `2`、`3`、`4`，鎖被占用回傳 `5`，查詢失敗回傳 `6`。
 
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。

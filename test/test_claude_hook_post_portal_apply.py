@@ -39,7 +39,31 @@ class TestPostPortalApplyHook(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _run(self, tool_input, *, tool_name="Bash", check_rc=1, timeout=None):
+        self.result_path = self.dir / "apply_result.json"
+        self.run_id = "12345678-1234-4234-8234-123456789abc"
+        self.result_path.write_text(
+            json.dumps(
+                {
+                    "run_id": self.run_id,
+                    "completed": True,
+                    "overtime": [],
+                    "leave": [
+                        {
+                            "entry": {
+                                "date": "2026/10/08",
+                                "start_time": "1200",
+                                "end_time": "1900",
+                            },
+                            "status": "confirmed",
+                            "submitted": True,
+                            "dry_run": False,
+                        }
+                    ],
+                }
+            )
+        )
+
+    def _run(self, tool_input, *, tool_name="Bash", check_rc=1, timeout=None, receipt=True):
         env = dict(
             os.environ,
             HOME=str(self.dir),
@@ -48,7 +72,19 @@ class TestPostPortalApplyHook(unittest.TestCase):
         )
         if timeout:
             env["FHR_PORTAL_CHECK_TIMEOUT"] = str(timeout)
-        payload = {"tool_name": tool_name, "tool_input": tool_input, "cwd": str(self.dir)}
+        payload = {
+            "tool_name": tool_name,
+            "tool_input": tool_input,
+            "cwd": str(self.dir),
+            "tool_response": {
+                "stdout": f"結果寫入：{self.result_path}（run_id={self.run_id}）\n"
+                if receipt
+                else "",
+                "stderr": "",
+                "interrupted": False,
+                "isImage": False,
+            },
+        }
         proc = subprocess.run(
             [sys.executable, str(HOOK)],
             input=json.dumps(payload),
@@ -175,10 +211,13 @@ class TestPostPortalApplyHook(unittest.TestCase):
 
     def test_busy_apply_lock_skips_check_without_touching_browser(self):
         with mock.patch.dict(os.environ, {"HOME": str(self.dir)}), _apply_lock():
-            context, calls = self._run({"command": "fhr portal-apply --input analysis.json"})
+            context, calls = self._run(
+                {"command": "fhr portal-apply --input analysis.json"}, receipt=False
+            )
         self.assertEqual(calls, [])
         self.assertIn("另一個 portal-apply 或 portal-check 正在執行，稍後再對帳", context)
-        self.assertIn("confirmed / already_pending", context)
+        self.assertIn("本次沒有送單，目前沒有對帳結果", context)
+        self.assertNotIn("confirmed / already_pending", context)
 
     def test_check_lock_race_requests_later_reconciliation(self):
         context, calls = self._run({"command": "fhr portal-apply"}, check_rc=5)

@@ -152,21 +152,41 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 送單後 hook 用 shell token 辨識真正的指令，支援加引號的指令名稱與
 `--input=檔案`，並將 `--base-url`、`--session` 傳給 `portal-check`。
 `--dry-run-pause-secs` 不會被誤當成 `--dry-run`；背景執行只提醒稍後對帳。
-`2>&1`、`&>`、`>&` 重新導向仍會執行對帳，獨立的 `&` 才視為背景。
+`2>&1`、`&>`、`>&` 不會被誤判為背景，獨立的 `&` 才視為背景。
+但完成標記若被重新導向而不在本次 stdout，hook 不會讀結果檔或執行對帳。
 支援 `uv run fhr ...`、`timeout N fhr ...`、`python3 -m attendance_analyzer ...`；
 不解析 `bash -c "..."` 內層命令。
 `FHR_PORTAL_CHECK_TIMEOUT` 不是正整數時回到預設 150 秒。
 
-hook 以本次 `portal-apply` 結果檔每筆的 `status` 為主要依據，只有
-`confirmed`／`already_pending` 代表送單時已確認有有效單，不代表目前仍在簽核中。
-`portal-check` 報告只補充需要注意的單；已核准的單不會列出，沒出現在報告裡
-不代表沒送出。補充查詢失敗時也保留已確認的結果；其他狀態或沒有本次結果的單
-仍回報未確認，不可直接重送。
+結果檔保留 `overtime`／`leave` 陣列，頂層新增 `run_id`（每次送單唯一的 UUID）
+與 `completed`。逐筆進度保存為 `false`；正常批次或送出中斷完成收尾後保存為
+`true`，再於 stdout 印出獨立一行 `結果寫入：<絕對路徑>（run_id=<UUID>）`。
+每次保存都先寫同目錄暫存檔，再以 rename 原子替換，讀者不會讀到半份 JSON。
+`completed: true` 表示已完成結果收尾，**不表示每筆都成功或全部項目都已處理**；
+中斷時只包含已取得結果的項目，仍以 exit 5 停止。
+既有結果的 `overtime`／`leave` 仍可用於重跑去重，但沒有新格式收據的舊檔不能
+作為本次確認依據。
 
-hook 啟動查詢前先以 non-blocking 方式試取同一把 apply lock，被占用時跳過查詢，
-提醒「另一個 portal-apply 或 portal-check 正在執行，稍後再對帳」。試鎖釋放後，
-`portal-check` 會重新取鎖並持有到查詢結束；若中間有其他程序先取得鎖，回傳 `5`，
-hook 同樣提醒稍後再對帳，不會誤報為登入失敗。
+hook 按 [官方 Bash output schema](https://code.claude.com/docs/en/hooks#posttooluse-decision-control)
+讀取 `tool_response.stdout`；Bash 回傳物件包含 `stdout`、`stderr`、
+`interrupted`、`isImage`，不是任意字串，也不假設有 `exit_code`。
+只有一個前景 apply 與唯一完成標記才能歸屬；中斷工具回應、缺少標記或多個 apply
+都停止自動對帳。hook 持有 apply lock 時讀檔，核對輸入推得的路徑、run_id、
+completed 與逐筆資料格式。檔案不存在、格式錯誤、半成品或 run_id 不符時，
+明確回報「目前沒有對帳結果，不可說任何單已送出或已確認」。
+exit 2／3／4、無需送出或取消時不會信任舊結果；鎖被占用時不讀寫任何結果檔，
+本次 apply 未送單時明確回報「本次沒有送單，目前沒有對帳結果」。
+
+核對成功後，hook 提供鎖內讀到的本次結果快照，避免下一個程序替換固定路徑後
+讀到別次結果。只有 `confirmed`／`already_pending` 代表送單時已確認有效單，
+不代表目前仍在簽核中。先前已確認、這次跳過的單不會列出；
+**沒出現在結果檔，不代表未確認**，請另查先前證據，不可據此重送或聲稱本次確認。
+`portal-check` 報告只補充需要注意的單；已核准的單不會列出，
+報告缺單或補充查詢失敗不推翻已核對的本次結果。
+
+hook 釋放讀檔鎖後，`portal-check` 重新取鎖並持有到查詢結束；
+若其他程序先取得鎖，回傳 `5`，hook 提醒稍後補充查詢，保留已核對的快照，
+不會誤報為登入失敗。
 
 下表的待處理項目亦包含抽單，與駁回、簽核中項目同樣回傳 `1`。
 

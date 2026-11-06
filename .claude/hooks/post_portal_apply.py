@@ -27,9 +27,70 @@ MAX_LINES = 60
 RESULT_GUIDANCE = (
     "以本次 portal-apply 結果檔每筆的 status 為主要依據；"
     "confirmed / already_pending 代表送單時已確認 Portal 上有有效單，未必仍在簽核中。"
-    "其他狀態或沒有本次結果的單請回報為「未確認」，不要直接重送。"
+    "其他狀態請回報為「未確認」，不要直接重送。"
+    "先前已確認、這次跳過的單不會列出；沒出現在結果檔，不代表未確認，"
+    "也不可據此聲稱本次已送出或已確認，請另查先前證據。"
 )
 LOCK_BUSY = "[fhr hook] 另一個 portal-apply 或 portal-check 正在執行，稍後再對帳。"
+NO_RESULT = (
+    "本次 portal-apply 沒有產生可核對的結果（或沒有送任何單），目前沒有對帳結果，"
+    "不可說任何單已送出或已確認。不要直接重送，先確認執行狀態。"
+)
+RECEIPT = re.compile(r"^結果寫入：(.+)（run_id=([0-9a-f-]{36})）$", re.MULTILINE)
+
+
+def _receipt(payload: dict) -> tuple[Path, str] | None:
+    # 官方 Bash tool_response 是物件，含 stdout／stderr／interrupted／isImage。
+    # https://code.claude.com/docs/en/hooks#posttooluse-decision-control
+    response = payload.get("tool_response")
+    if not isinstance(response, dict) or response.get("interrupted"):
+        return None
+    stdout = response.get("stdout")
+    if not isinstance(stdout, str):
+        return None
+    matches = RECEIPT.findall(stdout)
+    if len(matches) != 1:
+        return None
+    path, run_id = matches[0]
+    return (Path(path), run_id) if Path(path).is_absolute() else None
+
+
+def _current_result(receipt: tuple[Path, str], args: list[str], cwd: Path) -> dict | None:
+    path, run_id = receipt
+    input_path = _option(args, "--input")
+    if input_path:
+        source = cwd / input_path
+        expected = source.with_name(source.stem.replace("analysis", "apply_result") + ".json")
+        if path.resolve() != expected.resolve():
+            return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (
+        not isinstance(data, dict)
+        or data.get("run_id") != run_id
+        or data.get("completed") is not True
+    ):
+        return None
+    for kind in ("overtime", "leave"):
+        entries = data.get(kind)
+        if not isinstance(entries, list):
+            return None
+        for entry in entries:
+            if (
+                not isinstance(entry, dict)
+                or not isinstance(entry.get("entry"), dict)
+                or not all(
+                    isinstance(entry["entry"].get(k), str)
+                    for k in ("date", "start_time", "end_time")
+                )
+                or not isinstance(entry.get("status"), str)
+                or not isinstance(entry.get("submitted"), bool)
+                or entry.get("dry_run") is not False
+            ):
+                return None
+    return data
 
 
 def _option(args: list[str], name: str) -> str | None:
@@ -130,9 +191,12 @@ def main() -> int:
     if tool_input.get("run_in_background") or any(bg for _, bg in invocations):
         _emit(
             "[fhr hook] portal-apply 在背景執行，送單還沒結束。完成後"
-            + RESULT_GUIDANCE
+            + "須另行核對該次結果；目前不可說任何單已送出或已確認。"
             + "再跑 `fhr portal-check --since <最早日期>` 補充查詢需注意的單。"
         )
+        return 0
+    if len(invocations) != 1:
+        _emit("[fhr hook] 同一工具呼叫包含多次 portal-apply，無法唯一歸屬結果。" + NO_RESULT)
         return 0
     for args, _ in invocations:
         _check(payload, args)
@@ -144,14 +208,26 @@ def _check(payload: dict, args: list[str]) -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from lib.commands.portal_apply import ApplyInProgress, _apply_lock
 
+    receipt = _receipt(payload)
+    cwd = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
     try:
         with _apply_lock():
-            pass
+            if receipt is None:
+                _emit("[fhr hook] " + NO_RESULT)
+                return
+            results = _current_result(receipt, args, cwd)
+            if results is None:
+                _emit("[fhr hook] " + NO_RESULT)
+                return
     except ApplyInProgress:
-        _emit(LOCK_BUSY + RESULT_GUIDANCE)
+        message = "本次沒有送單，目前沒有對帳結果。" if receipt is None else "尚未核對本次結果。"
+        _emit(LOCK_BUSY + message + "不可說任何單已送出或已確認。")
         return
+    # 用鎖內讀到的快照回報，避免後續程序替換固定路徑造成錯誤歸屬。
+    guidance = (
+        RESULT_GUIDANCE + "已核對的本次結果快照：" + json.dumps(results, ensure_ascii=False) + "\n"
+    )
     # portal-check 會重新取鎖並持有到查詢結束，涵蓋此處釋放後的競爭。
-    cwd = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
     since = _since(args, cwd)
     override = os.environ.get("FHR_PORTAL_CHECK_CMD")
     cmd = (
@@ -183,18 +259,18 @@ def _check(payload: dict, args: list[str]) -> None:
     if rc in (0, 1):  # 1 表示查詢成功但有待處理事項；查詢失敗為 6
         _emit(
             f"[fhr hook] portal-apply 之後自動跑了 portal-check --since {since}（exit {rc}）。"
-            + RESULT_GUIDANCE
+            + guidance
             + "以下報告只列出需要注意的單，作為補充；已核准的單不會列出，"
             f"沒出現在報告裡不代表沒送出。\n{report}"
         )
     elif rc == 5:
-        _emit(LOCK_BUSY + RESULT_GUIDANCE)
+        _emit(LOCK_BUSY + guidance)
     else:
         if rc == 6:
             report = "Portal 清單查詢失敗，以下錯誤輸出不可當成對帳證據。\n" + report
         _emit(
             f"[fhr hook] portal-apply 之後的 portal-check 沒有成功（exit {rc}），目前沒有對帳結果。"
-            + RESULT_GUIDANCE
+            + guidance
             + "請先處理登入或錯誤後再跑 portal-check 補充查詢。\n"
             + report
         )

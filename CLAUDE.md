@@ -428,8 +428,15 @@ Project improvement and development task management:
 送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
 `portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，hook 不把
 錯誤輸出當成清單證據。
-hook 以本次結果檔每筆的 `confirmed`／`already_pending` 為主要確認依據，
-`portal-check` 只補充需要注意的單；已核准的單不列出，報告缺單或查詢失敗不推翻
-已確認結果。沒有本次確認結果的單仍回報未確認，不可直接重送。
-hook 啟動查詢前先試取同一把 apply lock，被占用時跳過並提醒稍後再對帳。
-`portal-check` 本身也持有同一把鎖直到查詢結束，取不到鎖時在接觸瀏覽器前以 `5` 結束。
+結果檔頂層有每次送單唯一的 `run_id` 與 `completed`，每次保存以同目錄暫存檔
+加 rename 原子替換。逐筆保存時 completed 為 false，批次或中斷收尾完成後為 true，
+再於 stdout 印出 `結果寫入：<絕對路徑>（run_id=<UUID>）`。completed 不代表每筆成功。
+hook 必須從本次 Bash `tool_response.stdout` 取得唯一完成標記，持有 apply lock
+讀檔核對路徑、run_id、completed 與逐筆格式，才可使用結果；回報採用讀到的快照，
+避免下一次執行覆寫固定路徑。無標記、缺檔、半成品或不符時，明確說
+「目前沒有對帳結果，不可說任何單已送出或已確認」，不自動查詢。
+鎖被占用時不讀寫結果檔；本次 apply 未送單時說「本次沒有送單，目前沒有對帳結果」。
+`confirmed`／`already_pending` 為主要確認依據，`portal-check` 只補充需要注意的單；
+報告缺單或查詢失敗不推翻已核對結果。先前已確認、這次跳過的單不會列出，
+沒出現在結果檔，不代表未確認；請另查先前證據，不可據此重送或宣稱本次確認。
+`portal-check` 持有同一把鎖直到查詢結束，取不到鎖時在接觸瀏覽器前以 `5` 結束。

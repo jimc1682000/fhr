@@ -85,33 +85,50 @@ class TestCommitsOn(unittest.TestCase):
             sentinel = Path(d) / "sentinel"
             _make_repo(sentinel)
             _commit(sentinel, "sentinel", "2026-04-20T18:00:00")
-            env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+            env = _git_env()
+            worktree = Path(d) / "wt"
+            subprocess.run(
+                ["git", "worktree", "add", "-q", "-b", "wt", str(worktree)],
+                cwd=sentinel,
+                env=env,
+                check=True,
+            )
+            git_dir = sentinel / ".git" / "worktrees" / "wt"
+            self.assertTrue(git_dir.is_dir())
 
             def snapshot():
-                return (
-                    (sentinel / ".git" / "config").read_bytes(),
-                    subprocess.check_output(
+                return {
+                    "config": (sentinel / ".git" / "config").read_bytes(),
+                    "core.bare": subprocess.check_output(
+                        ["git", "config", "--get", "core.bare"], cwd=sentinel, env=env
+                    ).strip(),
+                    "refs": subprocess.check_output(
                         ["git", "for-each-ref", "--format=%(refname) %(objectname)"],
                         cwd=sentinel,
                         env=env,
                     ),
-                )
+                    "commit_count": subprocess.check_output(
+                        ["git", "rev-list", "--all", "--count"], cwd=sentinel, env=env
+                    ).strip(),
+                }
 
             before = snapshot()
+            self.assertEqual(before["core.bare"], b"false")
+            self.assertEqual(before["commit_count"], b"1")
             repo = Path(d) / "fixture"
             try:
+                # linked worktree 的 GIT_DIR 才能重現主 repo 被改成 bare 的事故。
                 with mock.patch.dict(
                     os.environ,
-                    {
-                        "GIT_DIR": str(sentinel / ".git"),
-                        "GIT_WORK_TREE": str(repo),
-                        "GIT_INDEX_FILE": str(sentinel / ".git" / "index"),
-                    },
+                    {"GIT_DIR": str(git_dir)},
                 ):
                     _make_repo(repo)
                     _commit(repo, "fixture", "2026-04-20T18:50:00")
             finally:
-                self.assertEqual(snapshot(), before)
+                after = snapshot()
+                for key in before:
+                    with self.subTest(invariant=key):
+                        self.assertEqual(after[key], before[key])
             rows = commits_on(repo, date(2026, 4, 20), authors=["Tester McTest"])
             self.assertEqual([r["subject"] for r in rows], ["fixture"])
 
@@ -148,6 +165,18 @@ class TestCommitsOn(unittest.TestCase):
         # Empty authors → empty result, no git invocation
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(commits_on(Path(d), date(2026, 4, 20), authors=[]), [])
+
+
+class TestCommitsOnEnvironment(unittest.TestCase):
+    def test_setup_isolates_queries_and_restores_inherited_environment(self):
+        with tempfile.TemporaryDirectory() as d:
+            inherited = {"GIT_DIR": str(Path(d) / "outer.git")}
+            with mock.patch.dict(os.environ, inherited):
+                case = TestCommitsOn("test_returns_matching_author_only")
+                result = unittest.TestResult()
+                case.run(result)
+                self.assertTrue(result.wasSuccessful(), result.failures + result.errors)
+                self.assertEqual(os.environ["GIT_DIR"], inherited["GIT_DIR"])
 
 
 class TestCommitMinutesLocal(unittest.TestCase):

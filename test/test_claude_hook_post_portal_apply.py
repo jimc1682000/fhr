@@ -11,6 +11,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from lib.commands.portal_apply import _apply_lock
 
 HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "post_portal_apply.py"
 
@@ -39,6 +42,7 @@ class TestPostPortalApplyHook(unittest.TestCase):
     def _run(self, tool_input, *, tool_name="Bash", check_rc=1, timeout=None):
         env = dict(
             os.environ,
+            HOME=str(self.dir),
             CLAUDE_PROJECT_DIR=str(self.dir),
             FHR_PORTAL_CHECK_CMD=f"{sys.executable} {self.fake} --since {{since}} {check_rc}",
         )
@@ -93,11 +97,24 @@ class TestPostPortalApplyHook(unittest.TestCase):
         self.assertIn("背景", context)
         self.assertIn("portal-check", context)
 
-    def test_failed_check_says_nothing_is_reconciled(self):
+    def test_attention_report_preserves_confirmed_results_when_approved_forms_are_absent(self):
+        self.fake.write_text("print('乾淨：沒有待處理項目')\n", encoding="utf-8")
+        context, _ = self._run({"command": "fhr portal-apply --input analysis.json"}, check_rc=0)
+        self.assertIn("以本次 portal-apply 結果檔每筆的 status 為主要依據", context)
+        self.assertIn("confirmed / already_pending", context)
+        self.assertIn("報告只列出需要注意的單", context)
+        self.assertIn("已核准的單不會列出", context)
+        self.assertIn("沒出現在報告裡不代表沒送出", context)
+        self.assertNotIn("必須在這份清單裡逐筆找到", context)
+        self.assertNotIn("找不到的請回報為「未確認」", context)
+
+    def test_failed_check_preserves_per_entry_confirmation(self):
         cmd = "fhr portal-apply --input analysis.json"
         context, _ = self._run({"command": cmd}, check_rc=4)
         self.assertIn("沒有成功", context)
-        self.assertIn("不可說任何單已送出", context)
+        self.assertIn("以本次 portal-apply 結果檔每筆的 status 為主要依據", context)
+        self.assertIn("confirmed / already_pending", context)
+        self.assertNotIn("不可說任何單已送出", context)
 
     def test_command_tokens_do_not_confuse_echo_or_pause_with_dry_run(self):
         context, calls = self._run({"command": 'echo "fhr portal-apply"'})
@@ -155,6 +172,19 @@ class TestPostPortalApplyHook(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertRegex(calls[0], r"^--since \d{4}/\d{2}/\d{2} 1$")
         self.assertIsNotNone(context)
+
+    def test_busy_apply_lock_skips_check_without_touching_browser(self):
+        with mock.patch.dict(os.environ, {"HOME": str(self.dir)}), _apply_lock():
+            context, calls = self._run({"command": "fhr portal-apply --input analysis.json"})
+        self.assertEqual(calls, [])
+        self.assertIn("另一個 portal-apply 或 portal-check 正在執行，稍後再對帳", context)
+        self.assertIn("confirmed / already_pending", context)
+
+    def test_check_lock_race_requests_later_reconciliation(self):
+        context, calls = self._run({"command": "fhr portal-apply"}, check_rc=5)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("稍後再對帳", context)
+        self.assertNotIn("請先處理登入", context)
 
 
 if __name__ == "__main__":

@@ -95,7 +95,11 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
 | `failed`／`blocked` | 送出前無法判斷或前置條件不符，未送出 |
 | `dry_run` | 只預覽，不代表 Portal 有單據 |
 
-`portal-check` 查詢正常且沒有待處理事項時回傳 `0`，發現退件或簽核中單據時回傳 `1`；查詢失敗回傳 `6`，hook 會標示沒有對帳結果，錯誤輸出不可當成清單證據。參數、瀏覽器缺失與登入逾時分別回傳 `2`、`3`、`4`。
+送單後 hook 以本次 `portal-apply` 結果檔每筆的 `confirmed`／`already_pending` 為主要確認依據。`portal-check` 報告只補充需要注意的單，已核准的單不會列出；沒出現在報告裡不代表沒送出，查詢失敗也不推翻已確認的結果。沒有本次確認結果的單仍須回報未確認，不可直接重送；已確認有效單也不代表目前仍在簽核中。
+
+hook 啟動查詢前會以 non-blocking 方式試取同一把 apply lock，被占用時跳過並提醒稍後再對帳。`portal-check` 本身也會取同一把鎖，持有到瀏覽器查詢結束，避免手動查詢或試鎖後的競爭干擾送單；取不到鎖時在接觸瀏覽器前回傳 `5`。
+
+`portal-check` 查詢正常且沒有待處理事項時回傳 `0`，發現退件或簽核中單據時回傳 `1`；查詢失敗回傳 `6`，hook 會標示沒有補充對帳結果，錯誤輸出不可當成清單證據。參數、瀏覽器缺失與登入逾時分別回傳 `2`、`3`、`4`。
 
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。

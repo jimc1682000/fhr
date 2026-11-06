@@ -1,10 +1,12 @@
 """Tests for `lib/commands/portal_check.py`."""
 
 import argparse
+import os
+import tempfile
 import unittest
 from unittest import mock
 
-from lib.commands import portal_check
+from lib.commands import portal_apply, portal_check
 
 
 def _entry(date, **kw):
@@ -89,6 +91,13 @@ class TestResolveBaseUrl(unittest.TestCase):
 
 
 class TestRun(unittest.TestCase):
+    def setUp(self):
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        patch = mock.patch.dict(os.environ, {"HOME": home.name})
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def _args(self, **kw):
         base = dict(
             since=None,
@@ -162,6 +171,43 @@ class TestRun(unittest.TestCase):
         self.assertIsNone(code)
         # queried 已駁回 + 未處理 + 全部（抽單）
         self.assertEqual(fetch.call_count, 3)
+
+    def test_busy_apply_lock_prevents_browser_session(self):
+        with (
+            portal_apply._apply_lock(),
+            mock.patch("lib.portal.client.PortalSession") as session,
+            mock.patch("lib.portal.client.ensure_login"),
+            mock.patch("lib.portal.approvals.fetch_all_applied_forms", return_value={}),
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                portal_check.run(self._args())
+        self.assertEqual(cm.exception.code, 5)
+        session.assert_not_called()
+
+    def test_check_holds_apply_lock_through_browser_cleanup(self):
+        blocked = []
+
+        def assert_apply_blocked(*args, **kwargs):
+            try:
+                with portal_apply._apply_lock():
+                    blocked.append(False)
+            except portal_apply.ApplyInProgress:
+                blocked.append(True)
+            return {}
+
+        with (
+            mock.patch("lib.portal.client.PortalSession") as session,
+            mock.patch("lib.portal.client.ensure_login", side_effect=assert_apply_blocked),
+            mock.patch(
+                "lib.portal.approvals.fetch_all_applied_forms", side_effect=assert_apply_blocked
+            ),
+            mock.patch("lib.env.load"),
+        ):
+            session.return_value.__exit__.side_effect = assert_apply_blocked
+            portal_check.run(self._args())
+        self.assertEqual(blocked, [True] * 5)
+        with portal_apply._apply_lock():
+            pass
 
     def test_run_reports_rejected(self):
         joined, _, code = self._run_capture(

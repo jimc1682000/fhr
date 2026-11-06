@@ -140,6 +140,19 @@ def format_report(
 
 
 def run(args: argparse.Namespace) -> None:
+    from lib.commands.portal_apply import ApplyInProgress, _apply_lock
+
+    try:
+        with _apply_lock():
+            _run_locked(args)
+    except ApplyInProgress:
+        logging.getLogger(__name__).error(
+            "另一個 portal-apply 或 portal-check 正在執行，稍後再對帳"
+        )
+        sys.exit(5)
+
+
+def _run_locked(args: argparse.Namespace) -> None:
     from attendance_analyzer import logger
     from lib.env import load as load_env
     from lib.portal import approvals

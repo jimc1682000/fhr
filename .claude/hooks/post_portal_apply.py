@@ -2,9 +2,9 @@
 """Claude Code PostToolUse hook: reconcile with the Portal after `portal-apply`.
 
 When a Bash call ran `portal-apply` (not a dry run), run `portal-check` and hand
-its report back to the model as additional context, so "已送出" claims are made
-against the Portal's actual list rather than the tool's own message. For a
-background run the form submission hasn't finished yet, so we only remind.
+its attention-only report back as supplemental context. Per-entry results from
+this apply remain the primary confirmation evidence, including approved forms
+absent from that report. Background submissions only receive a reminder.
 
 Env:
   FHR_PORTAL_CHECK_CMD  override the check command (tests); `{since}` is replaced
@@ -24,6 +24,12 @@ from pathlib import Path
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 MAX_LINES = 60
+RESULT_GUIDANCE = (
+    "以本次 portal-apply 結果檔每筆的 status 為主要依據；"
+    "confirmed / already_pending 代表送單時已確認 Portal 上有有效單，未必仍在簽核中。"
+    "其他狀態或沒有本次結果的單請回報為「未確認」，不要直接重送。"
+)
+LOCK_BUSY = "[fhr hook] 另一個 portal-apply 或 portal-check 正在執行，稍後再對帳。"
 
 
 def _option(args: list[str], name: str) -> str | None:
@@ -123,9 +129,9 @@ def main() -> int:
         return 0
     if tool_input.get("run_in_background") or any(bg for _, bg in invocations):
         _emit(
-            "[fhr hook] portal-apply 在背景執行，送單還沒結束。完成後以結果檔每筆的 status 為準"
-            "（只有 confirmed / already_pending 代表單子在 Portal 上），回報前再跑 "
-            "`fhr portal-check --since <最早日期>` 對帳；對帳前不可說任何單已送出或簽核中。"
+            "[fhr hook] portal-apply 在背景執行，送單還沒結束。完成後"
+            + RESULT_GUIDANCE
+            + "再跑 `fhr portal-check --since <最早日期>` 補充查詢需注意的單。"
         )
         return 0
     for args, _ in invocations:
@@ -134,6 +140,17 @@ def main() -> int:
 
 
 def _check(payload: dict, args: list[str]) -> None:
+    # Hook 可從其他 cwd 啟動；鎖的來源必須與此 checkout 的 portal-apply 相同。
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from lib.commands.portal_apply import ApplyInProgress, _apply_lock
+
+    try:
+        with _apply_lock():
+            pass
+    except ApplyInProgress:
+        _emit(LOCK_BUSY + RESULT_GUIDANCE)
+        return
+    # portal-check 會重新取鎖並持有到查詢結束，涵蓋此處釋放後的競爭。
     cwd = Path(payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or ".")
     since = _since(args, cwd)
     override = os.environ.get("FHR_PORTAL_CHECK_CMD")
@@ -166,15 +183,20 @@ def _check(payload: dict, args: list[str]) -> None:
     if rc in (0, 1):  # 1 表示查詢成功但有待處理事項；查詢失敗為 6
         _emit(
             f"[fhr hook] portal-apply 之後自動跑了 portal-check --since {since}（exit {rc}）。"
-            "以下是 Portal 的實際清單。回報任何單「已送出／簽核中」前，必須在這份清單裡逐筆找到；"
-            f"找不到的請回報為「未確認」，不要直接重送。\n{report}"
+            + RESULT_GUIDANCE
+            + "以下報告只列出需要注意的單，作為補充；已核准的單不會列出，"
+            f"沒出現在報告裡不代表沒送出。\n{report}"
         )
+    elif rc == 5:
+        _emit(LOCK_BUSY + RESULT_GUIDANCE)
     else:
         if rc == 6:
             report = "Portal 清單查詢失敗，以下錯誤輸出不可當成對帳證據。\n" + report
         _emit(
             f"[fhr hook] portal-apply 之後的 portal-check 沒有成功（exit {rc}），目前沒有對帳結果。"
-            "不可說任何單已送出或簽核中；請先處理登入或錯誤後再跑 portal-check。\n" + report
+            + RESULT_GUIDANCE
+            + "請先處理登入或錯誤後再跑 portal-check 補充查詢。\n"
+            + report
         )
 
 

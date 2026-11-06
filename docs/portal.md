@@ -82,7 +82,7 @@ fhr portal-check --since 2026/05 # only work-dates >= 2026/05
 ```
 
 Exits `0` only when the report is clean; rejected / in-flow findings exit `1`,
-and query failures exit `6`,
+lock contention exits `5`, and query failures exit `6`,
 so scripted gating works: `fhr portal-check --since 2026/05 && fhr portal-apply …`.
 
 ## State cache
@@ -142,8 +142,9 @@ For every entry (dry runs skip the list lookups):
 The result file records `status` per entry next to `submitted`. `portal-apply`
 exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 
-同一使用者的本機執行會共用 lock，第二個 `portal-apply` 在接觸 Portal 前以 `5`
-結束。此鎖僅涵蓋同一台機器、同一作業系統使用者；不協調其他機器或人工送單。
+同一使用者的本機 `portal-apply` 與 `portal-check` 共用 apply lock，取不到鎖的程序
+在接觸 Portal 前以 `5` 結束。`portal-check` 從登入到瀏覽器查詢結束都持有此鎖。
+此鎖僅涵蓋同一台機器、同一作業系統使用者；不協調其他機器或人工送單。
 按「確定送出」拋出 `AgentBrowserError` 時，先對帳並將該筆 `confirmed` 或
 `unconfirmed` 寫入結果檔，再以 `5` 結束，不繼續批次。即使回傳 `confirmed`，
 這次執行仍以 `5` 表示曾中斷，重跑前須先讀結果檔。
@@ -156,6 +157,17 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 不解析 `bash -c "..."` 內層命令。
 `FHR_PORTAL_CHECK_TIMEOUT` 不是正整數時回到預設 150 秒。
 
+hook 以本次 `portal-apply` 結果檔每筆的 `status` 為主要依據，只有
+`confirmed`／`already_pending` 代表送單時已確認有有效單，不代表目前仍在簽核中。
+`portal-check` 報告只補充需要注意的單；已核准的單不會列出，沒出現在報告裡
+不代表沒送出。補充查詢失敗時也保留已確認的結果；其他狀態或沒有本次結果的單
+仍回報未確認，不可直接重送。
+
+hook 啟動查詢前先以 non-blocking 方式試取同一把 apply lock，被占用時跳過查詢，
+提醒「另一個 portal-apply 或 portal-check 正在執行，稍後再對帳」。試鎖釋放後，
+`portal-check` 會重新取鎖並持有到查詢結束；若中間有其他程序先取得鎖，回傳 `5`，
+hook 同樣提醒稍後再對帳，不會誤報為登入失敗。
+
 下表的待處理項目亦包含抽單，與駁回、簽核中項目同樣回傳 `1`。
 
 | 指令 | 結束碼 | 說明 |
@@ -164,6 +176,7 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 | `portal-apply` | `5` | 有未完成項目、送出中斷，或本機已有另一個程序執行 |
 | `portal-check` | `0` | 查詢成功且沒有退件／簽核中項目 |
 | `portal-check` | `1` | 查詢成功，有退件／簽核中項目 |
+| `portal-check` | `5` | apply lock 被占用，未接觸瀏覽器，稍後再對帳 |
 | `portal-check` | `6` | 查詢失敗，hook 不把錯誤輸出當成對帳證據 |
 | 兩者 | `2`／`3`／`4` | 參數錯誤／瀏覽器缺失／登入逾時 |
 

@@ -428,3 +428,8 @@ Project improvement and development task management:
 送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
 `portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，hook 不把
 錯誤輸出當成清單證據。
+hook 以本次結果檔每筆的 `confirmed`／`already_pending` 為主要確認依據，
+`portal-check` 只補充需要注意的單；已核准的單不列出，報告缺單或查詢失敗不推翻
+已確認結果。沒有本次確認結果的單仍回報未確認，不可直接重送。
+hook 啟動查詢前先試取同一把 apply lock，被占用時跳過並提醒稍後再對帳。
+`portal-check` 本身也持有同一把鎖直到查詢結束，取不到鎖時在接觸瀏覽器前以 `5` 結束。

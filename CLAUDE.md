@@ -418,3 +418,10 @@ Project improvement and development task management:
 - **`README.md`** - Task management index and usage guide
 
 **Usage**: Check `todos/` for actionable improvement items and development priorities.
+
+### Portal 送單可靠性
+
+`portal-apply` 預查與送出後對帳皆讀全部狀態，排除退件與撤回；比對起訖日期、時間
+與假別，包含已核准的單。清單解析或分頁不完整時不送單。本機 lock 阻擋並行執行。
+送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
+`portal-check` 目前有待處理事項或查詢失敗皆回傳 exit 1，需看錯誤訊息區分。

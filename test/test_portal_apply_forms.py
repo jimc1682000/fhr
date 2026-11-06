@@ -433,16 +433,20 @@ class TestPortalListVerification(unittest.TestCase):
             )
         self.assertEqual(status, UNCONFIRMED)
 
-    def test_find_matches_date_and_time_window_in_pending_list(self):
+    def test_find_matches_date_time_and_leave_type_in_all_statuses(self):
         rows = [
             {"date": "2026/10/08", "start_time": "0900", "end_time": "1200"},
             {"date": "2026/10/08", "start_time": "1200", "end_time": "1900"},
         ]
+        rows = [{**row, "leave_type": "補休假", "status": "已核准"} for row in rows]
+        entry = {**self.ENTRY, "leave_type": "補休假"}
         with mock.patch("lib.portal.approvals.fetch_form_entries", return_value=rows) as fetch:
-            self.assertTrue(_find_in_portal(mock.Mock(), "http://x", "請假單", self.ENTRY))
-            other = {**self.ENTRY, "end_time": "1800"}
-            self.assertFalse(_find_in_portal(mock.Mock(), "http://x", "請假單", other))
-        self.assertEqual(fetch.call_args[0][2:], ("請假單", "未處理"))
+            self.assertTrue(_find_in_portal(mock.Mock(), "http://x", "請假單", entry))
+            for change in ({"end_time": "1800"}, {"leave_type": "特休假"}):
+                self.assertFalse(
+                    _find_in_portal(mock.Mock(), "http://x", "請假單", {**entry, **change})
+                )
+        self.assertEqual(fetch.call_args[0][2:], ("請假單", "全部"))
 
     def test_batch_counts_only_confirmed(self):
         plans = [

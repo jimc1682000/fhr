@@ -108,8 +108,8 @@ Per-user data persists in `attendance_state.json` (or wherever `FHR_STATE_FILE` 
 
 ## Submission confirmation (`portal-apply`)
 
-A form only counts as submitted once it shows up in the Portal's **未處理**
-list. The Portal gives no reliable signal on the form page itself: a non-WFH
+A form only counts as submitted once it shows up in the Portal's **全部**
+list, excluding rejected and withdrawn forms. The Portal gives no reliable signal on the form page itself: a non-WFH
 leave without a 職務代理人 is dropped silently, the page stays at
 `目前狀態：新增`, and that page contains disabled widgets, which the old
 snapshot heuristic took as success.
@@ -118,16 +118,16 @@ For every entry (dry runs skip the list lookups):
 
 1. **Precondition**: non-WFH leave without `--proxy` → `blocked`. The CLI checks
    this for the whole batch first and exits `2` before submitting anything.
-2. **Duplicate check**: already in the 未處理 list → `already_pending`, not
-   re-submitted. If the list can't be read, the entry is skipped as `failed`
-   rather than risk a duplicate (e.g. when re-running after a timeout).
+2. **預查**：查全部狀態，只排除退件與撤回。起訖日期、時間及假別皆相同才回傳
+   `already_pending`，包含已核准的單。假別無法辨識、資料列無法解析、分頁重複
+   或不完整時回傳 `failed`，不送單。
 3. **Confirmation**: after 確定送出, the entry is `confirmed` only if the list
    now has it; otherwise `unconfirmed`.
 
 | Status | On the Portal? | Counts as submitted |
 |---|---|---|
 | `confirmed` | yes | yes |
-| `already_pending` | yes (from an earlier run) | yes |
+| `already_pending` | yes（預查已存在，含已核准） | yes |
 | `unconfirmed` | not found after clicking submit | no — check before re-submitting |
 | `failed` | submit not clicked (leave type mismatch, list unreadable) | no |
 | `blocked` | form never opened (missing proxy) | no |
@@ -135,6 +135,26 @@ For every entry (dry runs skip the list lookups):
 
 The result file records `status` per entry next to `submitted`. `portal-apply`
 exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
+
+同一使用者的本機執行會共用 lock，第二個 `portal-apply` 在接觸 Portal 前以 `5`
+結束。此鎖僅涵蓋同一台機器、同一作業系統使用者；不協調其他機器或人工送單。
+按「確定送出」拋出 `AgentBrowserError` 時，先對帳並將該筆 `confirmed` 或
+`unconfirmed` 寫入結果檔，再以 `5` 結束，不繼續批次。即使回傳 `confirmed`，
+這次執行仍以 `5` 表示曾中斷，重跑前須先讀結果檔。
+
+送單後 hook 用 shell token 辨識真正的指令，支援加引號的指令名稱與
+`--input=檔案`，並將 `--base-url`、`--session` 傳給 `portal-check`。
+`--dry-run-pause-secs` 不會被誤當成 `--dry-run`；背景執行只提醒稍後對帳。
+`FHR_PORTAL_CHECK_TIMEOUT` 不是正整數時回到預設 150 秒。
+
+| 指令 | 結束碼 | 說明 |
+|---|---|---|
+| `portal-apply` | `0` | 全部完成或預覽完成；仍須讀每筆狀態 |
+| `portal-apply` | `5` | 有未完成項目、送出中斷，或本機已有另一個程序執行 |
+| `portal-check` | `0` | 查詢成功且沒有退件／簽核中項目 |
+| `portal-check` | `1` | 有退件／簽核中項目，或查詢失敗；需看錯誤訊息 |
+| 兩者 | `2`／`3`／`4` | 參數錯誤／瀏覽器缺失／登入逾時 |
+
 
 ## Security
 

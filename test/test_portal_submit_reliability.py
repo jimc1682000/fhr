@@ -1,8 +1,7 @@
 """Invariant tests for form submission against a stateful fake Portal.
 
 The fake replaces only `PortalSession._run` (the agent-browser boundary), so
-the real `submit_leave` / `batch_submit` code runs. `_find_in_portal` reads
-the fake's ground truth. Invariants, whatever the Portal does:
+the real submission and approvals parser code runs against raw list rows. Invariants, whatever the Portal does:
 
   - a status in OK_STATUSES ⇔ the form exists on the Portal (no false success)
   - re-running after a timeout never creates a duplicate form
@@ -36,14 +35,21 @@ class FakePortal(PortalSession):
         self.reject_all = reject_all
         self.timeout_after_commit = timeout_after_commit
         self.draft = {}
+        self.list_page = False
+        self.status_filter = "全部"
 
     def _run(self, args, *, timeout=None, capture=True):  # noqa: ARG002
         cmd = args[0]
         if cmd == "open":
+            self.list_page = "Search/Default.aspx" in args[1]
             self.draft = {}
             return ""
         if cmd == "dialog":
             raise AgentBrowserError("no dialog open")
+        if cmd == "select" and args[1] == "@s":
+            self.status_filter = args[2]
+        if cmd == "snapshot" and self.list_page:
+            return '- combobox [ref=s]\n- combobox [ref=f]\n- button "提交" [ref=q]'
         if cmd == "snapshot":
             return "請假單 目前狀態：新增\n- combobox [expanded=false, disabled, ref=e35]: 請選擇"
         if cmd == "eval":
@@ -51,6 +57,26 @@ class FakePortal(PortalSession):
         return ""
 
     def _eval(self, js):
+        if "tbWorkSheetDataList_" in js:
+            rows = []
+            for i, form in enumerate(self.forms):
+                if (
+                    self.status_filter != "全部"
+                    and form.get("status", "未處理") != self.status_filter
+                ):
+                    continue
+                start = f"{form['start_time'][:2]}:{form['start_time'][2:]}"
+                end = f"{form['end_time'][:2]}:{form['end_time'][2:]}"
+                text = (
+                    f"(開始時間 StartDate) {form['date']} {start}"
+                    f"(結束時間 EndDate) {form.get('end_date', form['date'])} {end}\n"
+                )
+                if form.get("leave_type"):
+                    text += f"可申請假勤項目：{form['leave_type']}\n"
+                rows.append(
+                    {"id": str(i), "wsdinfotext": text, "status_cell": form.get("status", "未處理")}
+                )
+            return json.dumps({"totalPages": 1, "page": 0, "rows": rows})
         if "AGENT_ID_ddlDelegate" in js:
             self.draft["proxy"] = re.search(r"includes\('(.+?)'\)", js).group(1)
             return "true"
@@ -59,8 +85,8 @@ class FakePortal(PortalSession):
             self.draft["leave_type"] = name
             return json.dumps({"matched": 1, "matches": [{"index": 0, "text": name}]})
         if "StartDate" in js:
-            self.draft["date"], self.draft["start"], _, self.draft["end"] = re.findall(
-                r"\[(?:sd|st|ed|et),'(.*?)'\]", js
+            self.draft["date"], self.draft["start"], self.draft["end_date"], self.draft["end"] = (
+                re.findall(r"\[(?:sd|st|ed|et),'(.*?)'\]", js)
             )
             return '{"ok": true}'
         if "確定送出" in js:
@@ -72,7 +98,15 @@ class FakePortal(PortalSession):
     def _submit(self):
         if self.reject_all:
             return "true"
-        self.forms.append((self.draft["date"], self.draft["start"], self.draft["end"]))
+        self.forms.append(
+            {
+                "date": self.draft["date"],
+                "start_time": self.draft["start"],
+                "end_date": self.draft["end_date"],
+                "end_time": self.draft["end"],
+                "leave_type": self.draft["leave_type"],
+            }
+        )
         if self.timeout_after_commit:
             self.timeout_after_commit = False
             raise AgentBrowserError("agent-browser timed out after 30s")
@@ -80,11 +114,7 @@ class FakePortal(PortalSession):
 
 
 def _submit(portal, leave_type="補休假", proxy="P"):
-    def find(_portal, _base, _form, entry):
-        return (entry["date"], entry["start_time"], entry["end_time"]) in portal.forms
-
-    with mock.patch.object(af, "_find_in_portal", side_effect=find):
-        return af.submit_leave(portal, "http://x", ENTRY, leave_type, "個人事務", proxy)
+    return af.submit_leave(portal, "http://fake.invalid", ENTRY, leave_type, "個人事務", proxy)
 
 
 class TestSubmitInvariants(unittest.TestCase):
@@ -100,6 +130,58 @@ class TestSubmitInvariants(unittest.TestCase):
                         self.assertEqual(status in af.OK_STATUSES, len(forms) == 1, status)
                         self.assertLessEqual(len(forms), 1)
 
+    def test_other_leave_type_or_end_date_is_not_existing_success(self):
+        for other in ({"leave_type": "特休假"}, {"end_date": "2026/10/09"}, {"leave_type": None}):
+            with self.subTest(other=other):
+                forms = [{**ENTRY, "leave_type": "補休假", **other}]
+                status = _submit(FakePortal(forms, reject_all=True))
+                self.assertNotIn(status, af.OK_STATUSES)
+                self.assertEqual(len(forms), 1)
+
+    def test_approved_form_is_not_resubmitted(self):
+        forms = [{**ENTRY, "leave_type": "補休假", "status": "已核准"}]
+        self.assertEqual(_submit(FakePortal(forms)), af.ALREADY_PENDING)
+        self.assertEqual(len(forms), 1)
+
+    def test_rejected_and_withdrawn_forms_allow_new_submission(self):
+        for status in ("已駁回", "退件", "已撤回", "流程結束(駁回)"):
+            forms = [{**ENTRY, "leave_type": "補休假", "status": status}]
+            self.assertEqual(_submit(FakePortal(forms)), af.CONFIRMED)
+            self.assertEqual(len(forms), 2)
+
+    def test_unreadable_or_repeated_list_never_submits(self):
+        row = {
+            "id": "r0",
+            "wsdinfotext": "(開始時間 StartDate) 2026/10/01 12:00"
+            "(結束時間 EndDate) 2026/10/01 19:00\n可申請假勤項目：補休假",
+            "status_cell": "未處理",
+        }
+        for pages in (
+            [{"totalPages": 1, "page": 0, "rows": [{"id": "bad", "wsdinfotext": "?"}]}],
+            [
+                {
+                    "totalPages": 1,
+                    "page": 0,
+                    "rows": [{"id": "bad", "wsdinfotext": "(開始時間 StartDate) 2026/10/01 12:00"}],
+                }
+            ],
+            [{"totalPages": 2, "page": i, "rows": [row]} for i in range(2)],
+            [{"totalPages": 2, "page": 0, "rows": [row]}] * 2,
+        ):
+            with self.subTest(pages=pages):
+                portal = FakePortal([])
+                with mock.patch.object(portal, "eval_json", side_effect=pages):
+                    self.assertEqual(_submit(portal), af.FAILED)
+                self.assertEqual(portal.forms, [])
+
+    def test_timeout_without_form_reconciles_as_unconfirmed(self):
+        portal = FakePortal([])
+        with mock.patch.object(portal, "_submit", side_effect=AgentBrowserError("timeout")):
+            with self.assertRaises(AgentBrowserError) as cm:
+                _submit(portal)
+        self.assertEqual(cm.exception.status, af.UNCONFIRMED)
+        self.assertEqual(portal.forms, [])
+
     def test_unknown_silent_rejection_is_unconfirmed_not_success(self):
         forms = []
         self.assertEqual(_submit(FakePortal(forms, reject_all=True)), af.UNCONFIRMED)
@@ -107,8 +189,9 @@ class TestSubmitInvariants(unittest.TestCase):
 
     def test_rerun_after_timeout_does_not_duplicate(self):
         forms = []
-        with self.assertRaises(AgentBrowserError):
+        with self.assertRaises(AgentBrowserError) as cm:
             _submit(FakePortal(forms, timeout_after_commit=True))
+        self.assertEqual(cm.exception.status, af.CONFIRMED)
         self.assertEqual(len(forms), 1)
         # The caller retries (e.g. the user re-runs portal-apply)
         self.assertEqual(_submit(FakePortal(forms)), af.ALREADY_PENDING)

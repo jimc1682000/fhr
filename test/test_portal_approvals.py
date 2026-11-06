@@ -89,12 +89,9 @@ class TestFetchFormEntries(unittest.TestCase):
         portal._run.return_value = FILTER_SNAPSHOT
         portal.eval_json.return_value = {
             "totalPages": 1,
+            "page": 0,
             "rows": [
                 {"id": "tbWorkSheetDataList_1", "wsdinfotext": SAMPLE_WSD_OT},
-                {
-                    "id": "tbWorkSheetDataList_2",
-                    "wsdinfotext": "",
-                },  # malformed → skipped
             ],
         }
         entries = fetch_form_entries(portal, "http://x", "加班單")
@@ -122,14 +119,13 @@ class TestFetchFormEntries(unittest.TestCase):
                 "page": 2,
                 "rows": [
                     {"id": "r2", "wsdinfotext": SAMPLE_WSD_OT},
-                    {"id": "r1", "wsdinfotext": SAMPLE_WSD_OT},
                 ],
-            },  # 重複 id 去重
+            },
         ]
         portal.eval_json.side_effect = pages
         entries = fetch_form_entries(portal, "http://x", "加班單")
         self.assertEqual(portal.eval_json.call_count, 3)
-        self.assertEqual(len(entries), 3)  # r0,r1,r2（重複的 r1 去重）
+        self.assertEqual(len(entries), 3)  # r0,r1,r2
 
     def test_eval_error_raises(self):
         portal = mock.Mock()
@@ -185,6 +181,7 @@ class TestStatusCellCapture(unittest.TestCase):
         portal._run.return_value = FILTER_SNAPSHOT
         portal.eval_json.return_value = {
             "totalPages": 1,
+            "page": 0,
             "rows": [
                 {
                     "id": "tbWorkSheetDataList_1",
@@ -202,6 +199,7 @@ class TestStatusCellCapture(unittest.TestCase):
         portal._run.return_value = FILTER_SNAPSHOT
         portal.eval_json.return_value = {
             "totalPages": 1,
+            "page": 0,
             "rows": [{"id": "r1", "wsdinfotext": SAMPLE_WSD_OT}],  # no status_cell
         }
         entries = fetch_form_entries(portal, "http://x", "加班單")
@@ -213,8 +211,8 @@ class TestFetchAllAppliedForms(unittest.TestCase):
         portal = mock.Mock()
         portal._run.return_value = FILTER_SNAPSHOT
         seq = [
-            {"totalPages": 1, "rows": [{"id": "a", "wsdinfotext": SAMPLE_WSD_OT}]},
-            {"totalPages": 1, "rows": [{"id": "b", "wsdinfotext": SAMPLE_WSD_LEAVE}]},
+            {"totalPages": 1, "page": 0, "rows": [{"id": "a", "wsdinfotext": SAMPLE_WSD_OT}]},
+            {"totalPages": 1, "page": 0, "rows": [{"id": "b", "wsdinfotext": SAMPLE_WSD_LEAVE}]},
         ]
         portal.eval_json.side_effect = seq
         out = fetch_all_applied_forms(portal, "http://x")
@@ -230,7 +228,7 @@ class TestFetchAllAppliedForms(unittest.TestCase):
     def test_threads_status_zh(self):
         portal = mock.Mock()
         portal._run.return_value = FILTER_SNAPSHOT
-        portal.eval_json.return_value = {"totalPages": 1, "rows": []}
+        portal.eval_json.return_value = {"totalPages": 1, "page": 0, "rows": []}
         fetch_all_applied_forms(portal, "http://x", kinds=("overtime",), status_zh="未處理")
         portal.select_ref.assert_any_call("@e4", "未處理")
 

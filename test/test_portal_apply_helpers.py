@@ -464,6 +464,61 @@ class TestRunAutoMode(unittest.TestCase):
             run(args)
         return batch
 
+    def test_submit_timeout_persists_reconciliation_and_exits_five(self):
+        from lib.portal import apply_forms as af
+        from test.test_portal_submit_reliability import ENTRY, FakePortal
+
+        for committed in (False, True):
+            with self.subTest(committed=committed):
+                self.analysis_path.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": "attendance-analysis/v1",
+                            "overtime": [],
+                            "leave": [{**ENTRY, "reason": "personal"}],
+                        }
+                    )
+                )
+                portal = FakePortal([], timeout_after_commit=committed)
+                if not committed:
+                    portal._submit = mock.Mock(side_effect=af.AgentBrowserError("timeout"))
+                real_submit = af.batch_submit
+
+                def invoke(_portal, base, ot, lv, portal=portal, real_submit=real_submit, **kwargs):
+                    return real_submit(portal, base, ot, lv, **kwargs)
+
+                with self.assertRaises(SystemExit) as cm:
+                    self._run_patched(self._args(), invoke)
+                self.assertEqual(cm.exception.code, 5)
+                result = json.loads(
+                    self.analysis_path.with_name(
+                        "hr_personal_apply_result_20260519.json"
+                    ).read_text()
+                )
+                self.assertEqual(
+                    result["leave"][0]["status"], "confirmed" if committed else "unconfirmed"
+                )
+                self.assertEqual(result["leave"][0]["submitted"], committed)
+                self.assertEqual(len(portal.forms), int(committed))
+
+    def test_lock_blocks_second_process_before_any_portal_access(self):
+        import subprocess
+        import sys
+
+        from lib.commands import portal_apply
+
+        with mock.patch.object(Path, "home", return_value=Path(self.tmp.name)):
+            with portal_apply._apply_lock():
+                code = "from pathlib import Path; from unittest.mock import patch; from lib.commands import portal_apply; "
+                code += "from argparse import Namespace; "
+                code += f"p=patch.object(Path, 'home', return_value=Path({self.tmp.name!r})); p.start(); "
+                code += "portal_apply.run(Namespace())"
+                proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 5, proc.stderr)
+                self.assertIn("執行中", proc.stderr)
+            with portal_apply._apply_lock():
+                pass
+
     def test_unconfirmed_submission_exits_nonzero_and_is_not_recorded(self):
         with self.assertRaises(SystemExit) as cm:
             self._run_patched(self._args(), self._fake_batch_submit("unconfirmed"))

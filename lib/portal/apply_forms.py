@@ -7,7 +7,7 @@ same as the version that submitted 28 forms successfully during the
 session.
 
 Each `submit_*` returns a status string (see the constants below). A form
-only counts as submitted once it shows up in the Portal's 未處理 list:
+only counts as submitted once it shows up in the Portal's non-rejected, non-withdrawn list:
 the old snapshot heuristic (`disabled` / 主管簽核 in the page) reported
 success even when the Portal silently rejected the form, because the
 rejected form page itself contains disabled widgets."""
@@ -20,13 +20,13 @@ from pathlib import Path
 
 from lib.portal import approvals
 from lib.portal.balances import FORM_QUEUES_URL_PATH
-from lib.portal.client import PortalSession, js_escape
+from lib.portal.client import AgentBrowserError, PortalSession, js_escape
 
 logger = logging.getLogger(__name__)
 
 # Per-entry outcome. Only CONFIRMED / ALREADY_PENDING mean the form exists on
 # the Portal; DRY_RUN counts as done for plan bookkeeping only.
-CONFIRMED = "confirmed"  # 送出後在 Portal「未處理」清單查到
+CONFIRMED = "confirmed"  # 送出後在 Portal 有效單據清單查到
 ALREADY_PENDING = "already_pending"  # 送出前就已在清單上，未重送
 UNCONFIRMED = "unconfirmed"  # 已按送出，但清單查不到；不可直接重送
 FAILED = "failed"  # 沒有按送出（假別比對失敗、送出前查不到清單等）
@@ -34,7 +34,13 @@ BLOCKED = "blocked"  # 前置條件不符（非 WFH 假單缺職務代理人）�
 DRY_RUN = "dry_run"
 OK_STATUSES = frozenset({CONFIRMED, ALREADY_PENDING, DRY_RUN})
 
-PENDING_STATUS_ZH = "未處理"
+
+class SubmissionInterrupted(AgentBrowserError):
+    """送出中斷後的對帳結果，由批次層持久化再停止。"""
+
+    def __init__(self, status: str):
+        super().__init__("送出中斷，已嘗試對帳；請先確認結果再重跑")
+        self.status = status
 
 
 def _snap_filename(form_type: str, entry: dict, seq: int) -> str:
@@ -159,10 +165,33 @@ def _click_submit(portal: PortalSession) -> None:
 
 
 def _find_in_portal(portal: PortalSession, base_url: str, form_name_zh: str, entry: dict) -> bool:
-    """True when the Portal's 未處理 list has a form for this date/time window."""
-    rows = approvals.fetch_form_entries(portal, base_url, form_name_zh, PENDING_STATUS_ZH)
-    key = (entry["date"], entry["start_time"], entry["end_time"])
-    return any((r.get("date"), r.get("start_time"), r.get("end_time")) == key for r in rows)
+    """比對全部狀態的有效單據，排除退件與撤回。"""
+    rows = approvals.fetch_form_entries(portal, base_url, form_name_zh, "全部")
+
+    def key(row):
+        return (
+            row.get("date"),
+            row.get("start_time"),
+            row.get("end_date") or row.get("date"),
+            row.get("end_time"),
+        )
+
+    for row in rows:
+        if any(word in row.get("status", "") for word in ("駁回", "退件", "撤回")):
+            continue
+        if key(row) != key(entry):
+            continue
+        if form_name_zh == "請假單":
+            leave_type = row.get("leave_type")
+            if not leave_type:
+                parsed = approvals.parse_wsdinfotext(row.get("wsdinfotext", ""))
+                leave_type = parsed.get("leave_type") if parsed else None
+            if not leave_type:
+                raise RuntimeError("清單缺少可辨識的假別")
+            if leave_type != entry.get("leave_type"):
+                continue
+        return True
+    return False
 
 
 def _precheck(portal: PortalSession, base_url: str, form_name_zh: str, entry: dict) -> str | None:
@@ -173,7 +202,7 @@ def _precheck(portal: PortalSession, base_url: str, form_name_zh: str, entry: di
     can't create a duplicate."""
     try:
         if _find_in_portal(portal, base_url, form_name_zh, entry):
-            logger.info("    ⏭  Portal 上已有這張單（未處理），不重送")
+            logger.info("    ⏭  Portal 上已有這張單（含已核准），不重送")
             return ALREADY_PENDING
     except RuntimeError as e:
         logger.error("    ❌ 送出前無法讀取 Portal 清單（%s），為避免重複送出，跳過此單", e)
@@ -189,13 +218,24 @@ def _confirm(portal: PortalSession, base_url: str, form_name_zh: str, entry: dic
         logger.warning("    ⚠️ 送出後無法讀取 Portal 清單：%s", e)
         found = False
     if found:
-        logger.info("    ✅ 提交成功（Portal 未處理清單已查到）")
+        logger.info("    ✅ 提交成功（Portal 有效單據清單已查到）")
         return CONFIRMED
     logger.warning(
-        "    ⚠️ 已按送出，但 Portal 未處理清單查不到這張單。"
+        "    ⚠️ 已按送出，但 Portal 有效單據清單查不到這張單。"
         "請勿直接重送，先跑 fhr portal-check 或到 Portal 確認"
     )
     return UNCONFIRMED
+
+
+def _submit_and_confirm(
+    portal: PortalSession, base_url: str, form_name_zh: str, entry: dict
+) -> str:
+    try:
+        _click_submit(portal)
+    except AgentBrowserError as error:
+        status = _confirm(portal, base_url, form_name_zh, entry)
+        raise SubmissionInterrupted(status) from error
+    return _confirm(portal, base_url, form_name_zh, entry)
 
 
 def submit_overtime(
@@ -284,8 +324,7 @@ def submit_overtime(
         )
         portal.wait(dry_run_pause_secs * 1000)
         return DRY_RUN
-    _click_submit(portal)
-    return _confirm(portal, base_url, "加班單", entry)
+    return _submit_and_confirm(portal, base_url, "加班單", entry)
 
 
 def submit_leave(
@@ -326,6 +365,7 @@ def submit_leave(
         leave_type_name,
     )
 
+    entry = {**entry, "leave_type": leave_type_name}
     is_wfh = "異地辦公" in leave_type_name
     if not is_wfh and not proxy_employee:
         logger.error("    ❌ 非 WFH 假單必須指定職務代理人（--proxy），否則 Portal 會靜默擋下")
@@ -423,8 +463,7 @@ def submit_leave(
         )
         portal.wait(dry_run_pause_secs * 1000)
         return DRY_RUN
-    _click_submit(portal)
-    return _confirm(portal, base_url, "請假單", entry)
+    return _submit_and_confirm(portal, base_url, "請假單", entry)
 
 
 def batch_submit(
@@ -454,16 +493,21 @@ def batch_submit(
         if plan.get("action") != "submit":
             continue
         ot_total += 1
-        status = submit_overtime(
-            portal,
-            base_url,
-            plan["entry"],
-            plan["reason"],
-            dry_run=dry_run,
-            dry_run_pause_secs=dry_run_pause_secs,
-            screenshot_dir=screenshot_dir,
-            screenshot_seq=ot_total,
-        )
+        try:
+            status = submit_overtime(
+                portal,
+                base_url,
+                plan["entry"],
+                plan["reason"],
+                dry_run=dry_run,
+                dry_run_pause_secs=dry_run_pause_secs,
+                screenshot_dir=screenshot_dir,
+                screenshot_seq=ot_total,
+            )
+        except SubmissionInterrupted as error:
+            if on_overtime_done:
+                on_overtime_done(plan, error.status)
+            raise
         if status in OK_STATUSES:
             ot_ok += 1
         if on_overtime_done:
@@ -474,18 +518,23 @@ def batch_submit(
         if plan.get("action") != "submit":
             continue
         lv_total += 1
-        status = submit_leave(
-            portal,
-            base_url,
-            plan["entry"],
-            plan["leave_type"],
-            plan["reason"],
-            plan.get("proxy"),
-            dry_run=dry_run,
-            dry_run_pause_secs=dry_run_pause_secs,
-            screenshot_dir=screenshot_dir,
-            screenshot_seq=ot_total + lv_total,
-        )
+        try:
+            status = submit_leave(
+                portal,
+                base_url,
+                plan["entry"],
+                plan["leave_type"],
+                plan["reason"],
+                plan.get("proxy"),
+                dry_run=dry_run,
+                dry_run_pause_secs=dry_run_pause_secs,
+                screenshot_dir=screenshot_dir,
+                screenshot_seq=ot_total + lv_total,
+            )
+        except SubmissionInterrupted as error:
+            if on_leave_done:
+                on_leave_done(plan, error.status)
+            raise
         if status in OK_STATUSES:
             lv_ok += 1
         if on_leave_done:

@@ -78,12 +78,25 @@ python attendance_analyzer.py reasons --input tmp/analysis.json \
     --author "Jimmy Chen" --out tmp/reasons-evidence.json
 
 # 互動式批次送加班 + 請假單 (cascade 自動分配 + 早到日提示 + 實際打卡顯示)
-# 送出後到 Portal「未處理」清單對帳，查到才算成功；非 WFH 假單必須帶 --proxy
+# 送出後到 Portal 全部狀態清單對帳（排除退件與撤回），查到才算成功；非 WFH 假單必須帶 --proxy
 python attendance_analyzer.py portal-apply --user JimmyChen \
     --input tmp/analysis.json --proxy 賴菁甫
 ```
 
 `portal-apply` 每筆單都會在結果檔記錄 `status`：只有 `confirmed`、`already_pending` 代表單子已在 Portal 上。有 `unconfirmed`、`failed`、`blocked` 時以結束碼 `5` 結束；非 WFH 假單缺 `--proxy` 則在送出前以 `2` 結束。細節見 [`docs/portal.md`](docs/portal.md#submission-confirmation-portal-apply)。
+
+預查會比對起訖日期、時間與假別，包含已核准的單；無法辨識假別或完整讀取清單時停止送單。同一使用者的本機 `portal-apply` 以 lock 序列執行，第二個程序以 `5` 結束。送出中斷會先對帳、保存結果，再以 `5` 結束，即使該筆已確認成立也不繼續送下一筆。
+
+| 結果狀態 | 判定 |
+|---|---|
+| `confirmed` | 送出後找到相同的有效單據 |
+| `already_pending` | 預查找到相同的有效單據，含已核准，不重送 |
+| `unconfirmed` | 已嘗試送出，對帳未能確認，需人工確認後再重跑 |
+| `failed`／`blocked` | 送出前無法判斷或前置條件不符，未送出 |
+| `dry_run` | 只預覽，不代表 Portal 有單據 |
+
+`portal-check` 查詢正常且沒有待處理事項時回傳 `0`，發現退件或簽核中單據時回傳 `1`；目前查詢失敗也回傳 `1`，需一起檢查錯誤訊息。參數、瀏覽器缺失與登入逾時分別回傳 `2`、`3`、`4`。
+
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。
 

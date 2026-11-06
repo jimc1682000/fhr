@@ -27,7 +27,7 @@ class TestPostPortalApplyHook(unittest.TestCase):
             f"open({str(self.calls)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
             "print('\\x1b[32m✅ 請假單: 1 筆\\x1b[0m')\n"
             "print('- 2026/10/08 12:00-19:00 補休假 [未處理]')\n"
-            "sys.exit(int(sys.argv[-1]))\n",
+            "sys.exit(int(sys.argv[3]))\n",
             encoding="utf-8",
         )
         analysis = self.dir / "analysis.json"
@@ -98,6 +98,35 @@ class TestPostPortalApplyHook(unittest.TestCase):
         context, _ = self._run({"command": cmd}, check_rc=4)
         self.assertIn("沒有成功", context)
         self.assertIn("不可說任何單已送出", context)
+
+    def test_command_tokens_do_not_confuse_echo_or_pause_with_dry_run(self):
+        context, calls = self._run({"command": 'echo "fhr portal-apply"'})
+        self.assertIsNone(context)
+        self.assertEqual(calls, [])
+        context, calls = self._run({"command": '"fhr" "portal-apply" --dry-run-pause-secs 3'})
+        self.assertIsNotNone(context)
+        self.assertEqual(len(calls), 1)
+
+    def test_shell_background_does_not_start_check(self):
+        context, calls = self._run({"command": "fhr portal-apply --input analysis.json & wait"})
+        self.assertEqual(calls, [])
+        self.assertIn("背景", context)
+
+    def test_forwards_context_and_reads_equals_input(self):
+        context, calls = self._run(
+            {
+                "command": '"fhr" portal-apply --input=analysis.json --base-url "https://fake.invalid/portal" --session=test'
+            }
+        )
+        self.assertIn("2026/10/08", context)
+        self.assertEqual(
+            calls, ["--since 2026/10/08 1 --base-url https://fake.invalid/portal --session test"]
+        )
+
+    def test_invalid_timeout_uses_default(self):
+        context, calls = self._run({"command": "fhr portal-apply"}, timeout="not-a-number")
+        self.assertIsNotNone(context)
+        self.assertEqual(len(calls), 1)
 
     def test_missing_input_falls_back_to_recent_window(self):
         context, calls = self._run({"command": "fhr portal-apply --auto"})

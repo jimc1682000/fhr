@@ -26,6 +26,7 @@ import logging
 import os
 import sys
 from collections.abc import Iterable
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -554,7 +555,37 @@ LEAVE_TYPE_MAP: dict[str, str] = {
 }
 
 
+class ApplyInProgress(RuntimeError):
+    pass
+
+
+@contextmanager
+def _apply_lock():
+    import fcntl
+
+    directory = Path.home() / ".cache" / "fhr" / "portal"
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / "portal-apply.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ApplyInProgress("另一個 portal-apply 執行中，請等候結束後再試") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def run(args: argparse.Namespace) -> None:
+    try:
+        with _apply_lock():
+            _run_locked(args)
+    except ApplyInProgress as error:
+        logging.getLogger(__name__).error("%s", error)
+        sys.exit(5)
+
+
+def _run_locked(args: argparse.Namespace) -> None:
     from attendance_analyzer import logger
     from lib.cascade import DEFAULT_CASCADES, allocate
     from lib.config import AttendanceConfig
@@ -843,6 +874,9 @@ def run(args: argparse.Namespace) -> None:
     except LoginTimeout as e:
         logger.error("❌ %s", e)
         sys.exit(4)
+    except af.SubmissionInterrupted as error:
+        logger.error("❌ %s，結果已寫入 %s", error, result_path)
+        sys.exit(5)
 
     not_done = [
         (kind, r)

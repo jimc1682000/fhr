@@ -159,6 +159,20 @@ class TestRun(unittest.TestCase):
         self.assertIn("乾淨", joined)
         self.assertIsNone(code)
 
+    def test_query_failure_exits_six(self):
+        for error in (RuntimeError("清單分頁重複"), ValueError("清單格式錯誤")):
+            with self.subTest(error=type(error).__name__):
+                _, _, code = self._run_capture(self._args(), error, {})
+                self.assertEqual(code, 6)
+
+    def test_pending_forms_still_exit_one(self):
+        _, _, code = self._run_capture(
+            self._args(),
+            {"overtime": [], "leave": []},
+            {"overtime": [], "leave": [_entry("2026/10/08", status="未處理")]},
+        )
+        self.assertEqual(code, 1)
+
     def test_run_missing_base_url_exits(self):
         args = self._args(base_url=None)
         with (

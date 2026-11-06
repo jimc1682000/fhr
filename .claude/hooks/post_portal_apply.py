@@ -145,13 +145,15 @@ def _check(payload: dict, args: list[str]) -> None:
 
     lines = output.strip().splitlines()[-MAX_LINES:]
     report = "\n".join(lines) or "(沒有輸出)"
-    if rc in (0, 1):  # 1 = has pending / rejected forms, expected right after submitting
+    if rc in (0, 1):  # 1 表示查詢成功但有待處理事項；查詢失敗為 6
         _emit(
             f"[fhr hook] portal-apply 之後自動跑了 portal-check --since {since}（exit {rc}）。"
             "以下是 Portal 的實際清單。回報任何單「已送出／簽核中」前，必須在這份清單裡逐筆找到；"
             f"找不到的請回報為「未確認」，不要直接重送。\n{report}"
         )
     else:
+        if rc == 6:
+            report = "Portal 清單查詢失敗，以下錯誤輸出不可當成對帳證據。\n" + report
         _emit(
             f"[fhr hook] portal-apply 之後的 portal-check 沒有成功（exit {rc}），目前沒有對帳結果。"
             "不可說任何單已送出或簽核中；請先處理登入或錯誤後再跑 portal-check。\n" + report

@@ -82,6 +82,7 @@ fhr portal-check --since 2026/05 # only work-dates >= 2026/05
 ```
 
 Exits `0` only when the report is clean; rejected / in-flow findings exit `1`,
+and query failures exit `6`,
 so scripted gating works: `fhr portal-check --since 2026/05 && fhr portal-apply …`.
 
 ## State cache
@@ -152,7 +153,8 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 | `portal-apply` | `0` | 全部完成或預覽完成；仍須讀每筆狀態 |
 | `portal-apply` | `5` | 有未完成項目、送出中斷，或本機已有另一個程序執行 |
 | `portal-check` | `0` | 查詢成功且沒有退件／簽核中項目 |
-| `portal-check` | `1` | 有退件／簽核中項目，或查詢失敗；需看錯誤訊息 |
+| `portal-check` | `1` | 查詢成功，有退件／簽核中項目 |
+| `portal-check` | `6` | 查詢失敗，hook 不把錯誤輸出當成對帳證據 |
 | 兩者 | `2`／`3`／`4` | 參數錯誤／瀏覽器缺失／登入逾時 |
 
 

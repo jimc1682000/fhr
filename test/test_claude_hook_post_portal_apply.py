@@ -128,6 +128,13 @@ class TestPostPortalApplyHook(unittest.TestCase):
         self.assertIsNotNone(context)
         self.assertEqual(len(calls), 1)
 
+    def test_query_failure_is_not_a_portal_list(self):
+        context, calls = self._run({"command": "fhr portal-apply"}, check_rc=6)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("exit 6", context)
+        self.assertIn("不可當成對帳證據", context)
+        self.assertNotIn("以下是 Portal 的實際清單", context)
+
     def test_missing_input_falls_back_to_recent_window(self):
         context, calls = self._run({"command": "fhr portal-apply --auto"})
         self.assertEqual(len(calls), 1)

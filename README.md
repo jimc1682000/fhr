@@ -95,7 +95,7 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
 | `failed`／`blocked` | 送出前無法判斷或前置條件不符，未送出 |
 | `dry_run` | 只預覽，不代表 Portal 有單據 |
 
-`portal-check` 查詢正常且沒有待處理事項時回傳 `0`，發現退件或簽核中單據時回傳 `1`；目前查詢失敗也回傳 `1`，需一起檢查錯誤訊息。參數、瀏覽器缺失與登入逾時分別回傳 `2`、`3`、`4`。
+`portal-check` 查詢正常且沒有待處理事項時回傳 `0`，發現退件或簽核中單據時回傳 `1`；查詢失敗回傳 `6`，hook 會標示沒有對帳結果，錯誤輸出不可當成清單證據。參數、瀏覽器缺失與登入逾時分別回傳 `2`、`3`、`4`。
 
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。

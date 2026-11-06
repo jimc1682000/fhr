@@ -171,7 +171,7 @@ def run(args: argparse.Namespace) -> None:
         sys.exit(4)
     except Exception as e:
         logger.error("❌ Portal check 失敗: %s", e)
-        sys.exit(1)
+        sys.exit(6)
 
     rejected = {k: filter_since(v, args.since) for k, v in rejected_raw.items()}
     pending = {k: filter_since(v, args.since) for k, v in pending_raw.items()}

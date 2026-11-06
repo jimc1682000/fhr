@@ -6,10 +6,11 @@ match the original byte-for-byte so the Portal-side behavior is the
 same as the version that submitted 28 forms successfully during the
 session.
 
-Each `submit_*` returns True / False — the Portal doesn't expose a clean
-post-submit confirmation other than the form becoming `disabled` + a
-form ID showing up in the snapshot, so we use the same heuristic from
-the original implementation."""
+Each `submit_*` returns a status string (see the constants below). A form
+only counts as submitted once it shows up in the Portal's 未處理 list:
+the old snapshot heuristic (`disabled` / 主管簽核 in the page) reported
+success even when the Portal silently rejected the form, because the
+rejected form page itself contains disabled widgets."""
 
 from __future__ import annotations
 
@@ -17,10 +18,23 @@ import logging
 from collections.abc import Iterable
 from pathlib import Path
 
+from lib.portal import approvals
 from lib.portal.balances import FORM_QUEUES_URL_PATH
 from lib.portal.client import PortalSession, js_escape
 
 logger = logging.getLogger(__name__)
+
+# Per-entry outcome. Only CONFIRMED / ALREADY_PENDING mean the form exists on
+# the Portal; DRY_RUN counts as done for plan bookkeeping only.
+CONFIRMED = "confirmed"  # 送出後在 Portal「未處理」清單查到
+ALREADY_PENDING = "already_pending"  # 送出前就已在清單上，未重送
+UNCONFIRMED = "unconfirmed"  # 已按送出，但清單查不到；不可直接重送
+FAILED = "failed"  # 沒有按送出（假別比對失敗、送出前查不到清單等）
+BLOCKED = "blocked"  # 前置條件不符（非 WFH 假單缺職務代理人），未開表單
+DRY_RUN = "dry_run"
+OK_STATUSES = frozenset({CONFIRMED, ALREADY_PENDING, DRY_RUN})
+
+PENDING_STATUS_ZH = "未處理"
 
 
 def _snap_filename(form_type: str, entry: dict, seq: int) -> str:
@@ -144,12 +158,44 @@ def _click_submit(portal: PortalSession) -> None:
     portal.wait(2000)
 
 
-def _verify_submission(portal: PortalSession, form_name_zh: str) -> bool:
-    """Heuristic: after submit, the form is disabled or a 主管簽核 panel appears."""
-    snap = portal._run(["snapshot"])  # noqa: SLF001
-    if not snap:
-        return False
-    return form_name_zh in snap and ("主管簽核" in snap or "disabled" in snap.lower())
+def _find_in_portal(portal: PortalSession, base_url: str, form_name_zh: str, entry: dict) -> bool:
+    """True when the Portal's 未處理 list has a form for this date/time window."""
+    rows = approvals.fetch_form_entries(portal, base_url, form_name_zh, PENDING_STATUS_ZH)
+    key = (entry["date"], entry["start_time"], entry["end_time"])
+    return any((r.get("date"), r.get("start_time"), r.get("end_time")) == key for r in rows)
+
+
+def _precheck(portal: PortalSession, base_url: str, form_name_zh: str, entry: dict) -> str | None:
+    """Stop before submitting when the form already exists or we can't tell.
+
+    Returns ALREADY_PENDING / FAILED to stop, None to go ahead. Not being able
+    to read the list is treated as "don't submit" so a retry after a timeout
+    can't create a duplicate."""
+    try:
+        if _find_in_portal(portal, base_url, form_name_zh, entry):
+            logger.info("    ⏭  Portal 上已有這張單（未處理），不重送")
+            return ALREADY_PENDING
+    except RuntimeError as e:
+        logger.error("    ❌ 送出前無法讀取 Portal 清單（%s），為避免重複送出，跳過此單", e)
+        return FAILED
+    return None
+
+
+def _confirm(portal: PortalSession, base_url: str, form_name_zh: str, entry: dict) -> str:
+    """After clicking 確定送出: CONFIRMED only if the form is on the Portal list."""
+    try:
+        found = _find_in_portal(portal, base_url, form_name_zh, entry)
+    except RuntimeError as e:
+        logger.warning("    ⚠️ 送出後無法讀取 Portal 清單：%s", e)
+        found = False
+    if found:
+        logger.info("    ✅ 提交成功（Portal 未處理清單已查到）")
+        return CONFIRMED
+    logger.warning(
+        "    ⚠️ 已按送出，但 Portal 未處理清單查不到這張單。"
+        "請勿直接重送，先跑 fhr portal-check 或到 Portal 確認"
+    )
+    return UNCONFIRMED
 
 
 def submit_overtime(
@@ -162,13 +208,13 @@ def submit_overtime(
     dry_run_pause_secs: int = 5,
     screenshot_dir: Path | None = None,
     screenshot_seq: int = 0,
-) -> bool:
-    """Open 加班單 and submit one entry. Returns True on confirmed success.
+) -> str:
+    """Open 加班單 and submit one entry. Returns one of the status constants.
 
     When `dry_run=True`, fill every field but skip the final 確定送出 click
-    and the post-submit verification. The form is left on screen for the
-    configured pause so the user can eyeball the values. Returns True so the
-    caller treats the entry as "completed for this run", but nothing is
+    and the Portal list checks. The form is left on screen for the
+    configured pause so the user can eyeball the values. Returns DRY_RUN so
+    the caller treats the entry as "completed for this run", but nothing is
     written to Portal and no `applied_forms` cache mutation should happen.
     """
     date = entry["date"]
@@ -184,6 +230,8 @@ def submit_overtime(
         end[2:],
         entry.get("hours", 0),
     )
+    if not dry_run and (stop := _precheck(portal, base_url, "加班單", entry)):
+        return stop
 
     _open_form(portal, base_url, "加班單")
     _fill_datetime(portal, date, start, end)
@@ -235,11 +283,9 @@ def submit_overtime(
             dry_run_pause_secs,
         )
         portal.wait(dry_run_pause_secs * 1000)
-        return True
+        return DRY_RUN
     _click_submit(portal)
-    ok = _verify_submission(portal, "加班單")
-    logger.info("    %s", "✅ 提交成功" if ok else "⚠️ 提交結果不確定，請手動確認")
-    return ok
+    return _confirm(portal, base_url, "加班單", entry)
 
 
 def submit_leave(
@@ -254,14 +300,16 @@ def submit_leave(
     dry_run_pause_secs: int = 5,
     screenshot_dir: Path | None = None,
     screenshot_seq: int = 0,
-) -> bool:
-    """Open 請假單 and submit one entry. Returns True on confirmed success.
+) -> str:
+    """Open 請假單 and submit one entry. Returns one of the status constants.
 
     WFH-type leaves (異地辦公 / WFH) skip the proxy field per company policy.
+    Any other leave type needs a proxy: without one the Portal silently drops
+    the form, so we return BLOCKED before opening it (dry runs included).
 
     `dry_run=True` behaves the same way as for `submit_overtime`: fills the
     form fully and leaves it on screen for `dry_run_pause_secs`, without
-    clicking 確定送出. Returns True so the run treats the entry as done.
+    clicking 確定送出. Returns DRY_RUN so the run treats the entry as done.
     """
     date = entry["date"]
     start = entry["start_time"]
@@ -278,9 +326,15 @@ def submit_leave(
         leave_type_name,
     )
 
+    is_wfh = "異地辦公" in leave_type_name
+    if not is_wfh and not proxy_employee:
+        logger.error("    ❌ 非 WFH 假單必須指定職務代理人（--proxy），否則 Portal 會靜默擋下")
+        return BLOCKED
+    if not dry_run and (stop := _precheck(portal, base_url, "請假單", entry)):
+        return stop
+
     _open_form(portal, base_url, "請假單")
 
-    is_wfh = "異地辦公" in leave_type_name
     if not is_wfh and proxy_employee:
         escaped_proxy = js_escape(proxy_employee)
         portal.eval_json(
@@ -328,11 +382,11 @@ def submit_leave(
         matched = match.get("matched", 0)
         if matched == 0:
             logger.error("    ❌ 找不到假別 %s，跳過此單", leave_type_name)
-            return False
+            return FAILED
         if matched > 1:
             options = [m.get("text") for m in match.get("matches", [])]
             logger.error("    ❌ 假別 %s 匹配多個 %s，跳過此單", leave_type_name, options)
-            return False
+            return FAILED
     portal.wait(3000)
 
     _fill_datetime(portal, date, start, end)
@@ -368,11 +422,9 @@ def submit_leave(
             dry_run_pause_secs,
         )
         portal.wait(dry_run_pause_secs * 1000)
-        return True
+        return DRY_RUN
     _click_submit(portal)
-    ok = _verify_submission(portal, "請假單")
-    logger.info("    %s", "✅ 提交成功" if ok else "⚠️ 提交結果不確定，請手動確認")
-    return ok
+    return _confirm(portal, base_url, "請假單", entry)
 
 
 def batch_submit(
@@ -387,8 +439,9 @@ def batch_submit(
     dry_run_pause_secs: int = 5,
     screenshot_dir: Path | None = None,
 ) -> tuple[int, int, int, int]:
-    """Submit every plan entry. Callbacks fire after each submission so the
-    caller can persist progress (`fhr portal-apply` writes a result file).
+    """Submit every plan entry. Callbacks fire after each submission with
+    `(plan, status)` so the caller can persist progress (`fhr portal-apply`
+    writes a result file). The ok counts include OK_STATUSES only.
 
     `dry_run=True` propagates to every submit_*() call: forms are opened and
     filled but never actually submitted. Callers should NOT update their
@@ -401,7 +454,7 @@ def batch_submit(
         if plan.get("action") != "submit":
             continue
         ot_total += 1
-        ok = submit_overtime(
+        status = submit_overtime(
             portal,
             base_url,
             plan["entry"],
@@ -411,17 +464,17 @@ def batch_submit(
             screenshot_dir=screenshot_dir,
             screenshot_seq=ot_total,
         )
-        if ok:
+        if status in OK_STATUSES:
             ot_ok += 1
         if on_overtime_done:
-            on_overtime_done(plan, ok)
+            on_overtime_done(plan, status)
 
     lv_total = lv_ok = 0
     for plan in leave_plan:
         if plan.get("action") != "submit":
             continue
         lv_total += 1
-        ok = submit_leave(
+        status = submit_leave(
             portal,
             base_url,
             plan["entry"],
@@ -433,9 +486,9 @@ def batch_submit(
             screenshot_dir=screenshot_dir,
             screenshot_seq=ot_total + lv_total,
         )
-        if ok:
+        if status in OK_STATUSES:
             lv_ok += 1
         if on_leave_done:
-            on_leave_done(plan, ok)
+            on_leave_done(plan, status)
 
     return ot_ok, ot_total, lv_ok, lv_total

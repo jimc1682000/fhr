@@ -710,6 +710,16 @@ def run(args: argparse.Namespace) -> None:
 
     submit_ot = [p for p in plan["overtime"] if p["action"] == "submit"]
     submit_lv = [p for p in plan["leave"] if p["action"] == "submit"]
+    # Portal silently drops non-WFH leave without a 職務代理人 — stop before
+    # anything is submitted rather than leave a half-done batch.
+    missing_proxy = [
+        p for p in submit_lv if "異地辦公" not in p["leave_type"] and not p.get("proxy")
+    ]
+    if missing_proxy:
+        logger.error("❌ %d 筆非 WFH 假單沒有職務代理人，請加 --proxy 後重跑：", len(missing_proxy))
+        for p in missing_proxy:
+            logger.error("  %s [%s]", p["entry"].get("date"), p["leave_type"])
+        sys.exit(2)
     logger.info("\n%s\n📋 送出確認\n%s", "=" * 50, "=" * 50)
     for p in submit_ot:
         logger.info(
@@ -753,11 +763,13 @@ def run(args: argparse.Namespace) -> None:
     # Step 5 — submit
     results: dict[str, list[dict]] = {"overtime": [], "leave": []}
 
-    def _persist_ot(plan_entry, ok):
+    def _persist_ot(plan_entry, status):
+        ok = status in af.OK_STATUSES
         results["overtime"].append(
             {
                 "entry": plan_entry["entry"],
                 "submitted": ok,
+                "status": status,
                 "dry_run": args.dry_run,
                 "reason": plan_entry["reason"],
             }
@@ -777,11 +789,13 @@ def run(args: argparse.Namespace) -> None:
             )
             sm.save_state()
 
-    def _persist_lv(plan_entry, ok):
+    def _persist_lv(plan_entry, status):
+        ok = status in af.OK_STATUSES
         results["leave"].append(
             {
                 "entry": plan_entry["entry"],
                 "submitted": ok,
+                "status": status,
                 "dry_run": args.dry_run,
                 "leave_type": plan_entry["leave_type"],
                 "reason": plan_entry["reason"],
@@ -829,6 +843,19 @@ def run(args: argparse.Namespace) -> None:
     except LoginTimeout as e:
         logger.error("❌ %s", e)
         sys.exit(4)
+
+    not_done = [
+        (kind, r)
+        for kind in ("overtime", "leave")
+        for r in results[kind]
+        if r["status"] not in af.OK_STATUSES
+    ]
+    if not_done:
+        logger.warning("⚠️ %d 筆沒有在 Portal 上確認成立：", len(not_done))
+        for kind, r in not_done:
+            logger.warning("  %s %s → %s", kind, r["entry"].get("date"), r["status"])
+        logger.warning("unconfirmed 的單請勿直接重送，先跑 fhr portal-check 或到 Portal 確認")
+        sys.exit(5)
 
 
 def _resolve_screenshot_dir(args) -> Path | None:

@@ -106,6 +106,36 @@ Per-user data persists in `attendance_state.json` (or wherever `FHR_STATE_FILE` 
 
 `portal-apply` consults `applied_forms` to skip dates already submitted. It auto-runs `portal-sync` if `last_full_sync` is older than `--sync-max-age-hours` (default 4).
 
+## Submission confirmation (`portal-apply`)
+
+A form only counts as submitted once it shows up in the Portal's **未處理**
+list. The Portal gives no reliable signal on the form page itself: a non-WFH
+leave without a 職務代理人 is dropped silently, the page stays at
+`目前狀態：新增`, and that page contains disabled widgets, which the old
+snapshot heuristic took as success.
+
+For every entry (dry runs skip the list lookups):
+
+1. **Precondition**: non-WFH leave without `--proxy` → `blocked`. The CLI checks
+   this for the whole batch first and exits `2` before submitting anything.
+2. **Duplicate check**: already in the 未處理 list → `already_pending`, not
+   re-submitted. If the list can't be read, the entry is skipped as `failed`
+   rather than risk a duplicate (e.g. when re-running after a timeout).
+3. **Confirmation**: after 確定送出, the entry is `confirmed` only if the list
+   now has it; otherwise `unconfirmed`.
+
+| Status | On the Portal? | Counts as submitted |
+|---|---|---|
+| `confirmed` | yes | yes |
+| `already_pending` | yes (from an earlier run) | yes |
+| `unconfirmed` | not found after clicking submit | no — check before re-submitting |
+| `failed` | submit not clicked (leave type mismatch, list unreadable) | no |
+| `blocked` | form never opened (missing proxy) | no |
+| `dry_run` | no (preview only) | bookkeeping only |
+
+The result file records `status` per entry next to `submitted`. `portal-apply`
+exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
+
 ## Security
 
 - **Never** put a password in `.env` (loader will accept it, but the Portal flow doesn't need it). The login flow always goes through a real browser window.

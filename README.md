@@ -78,9 +78,12 @@ python attendance_analyzer.py reasons --input tmp/analysis.json \
     --author "Jimmy Chen" --out tmp/reasons-evidence.json
 
 # 互動式批次送加班 + 請假單 (cascade 自動分配 + 早到日提示 + 實際打卡顯示)
+# 送出後到 Portal「未處理」清單對帳，查到才算成功；非 WFH 假單必須帶 --proxy
 python attendance_analyzer.py portal-apply --user JimmyChen \
     --input tmp/analysis.json --proxy 賴菁甫
 ```
+
+`portal-apply` 每筆單都會在結果檔記錄 `status`：只有 `confirmed`、`already_pending` 代表單子已在 Portal 上。有 `unconfirmed`、`failed`、`blocked` 時以結束碼 `5` 結束；非 WFH 假單缺 `--proxy` 則在送出前以 `2` 結束。細節見 [`docs/portal.md`](docs/portal.md#submission-confirmation-portal-apply)。
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。
 

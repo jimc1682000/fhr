@@ -16,11 +16,15 @@ from lib.reasons import (
 )
 
 
+def _git_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def _make_repo(path: Path) -> None:
     """Init a minimal git repo. Author is supplied per-commit via env vars
     so pre-commit's stashed environment can't shadow it via global gitconfig."""
     path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=path, env=_git_env(), check=True)
 
 
 def _commit(
@@ -33,9 +37,9 @@ def _commit(
 ) -> None:
     f = path / "x"
     f.write_text(subject)
-    subprocess.run(["git", "add", "x"], cwd=path, check=True)
+    subprocess.run(["git", "add", "x"], cwd=path, env=_git_env(), check=True)
     env = {
-        **os.environ,
+        **_git_env(),
         "GIT_AUTHOR_NAME": author_name,
         "GIT_AUTHOR_EMAIL": author_email,
         "GIT_COMMITTER_NAME": author_name,
@@ -71,6 +75,63 @@ class TestDiscoverRepos(unittest.TestCase):
 
 
 class TestCommitsOn(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, _git_env(), clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_fixture_git_does_not_modify_inherited_repo(self):
+        with tempfile.TemporaryDirectory() as d:
+            sentinel = Path(d) / "sentinel"
+            _make_repo(sentinel)
+            _commit(sentinel, "sentinel", "2026-04-20T18:00:00")
+            env = _git_env()
+            worktree = Path(d) / "wt"
+            subprocess.run(
+                ["git", "worktree", "add", "-q", "-b", "wt", str(worktree)],
+                cwd=sentinel,
+                env=env,
+                check=True,
+            )
+            git_dir = sentinel / ".git" / "worktrees" / "wt"
+            self.assertTrue(git_dir.is_dir())
+
+            def snapshot():
+                return {
+                    "config": (sentinel / ".git" / "config").read_bytes(),
+                    "core.bare": subprocess.check_output(
+                        ["git", "config", "--get", "core.bare"], cwd=sentinel, env=env
+                    ).strip(),
+                    "refs": subprocess.check_output(
+                        ["git", "for-each-ref", "--format=%(refname) %(objectname)"],
+                        cwd=sentinel,
+                        env=env,
+                    ),
+                    "commit_count": subprocess.check_output(
+                        ["git", "rev-list", "--all", "--count"], cwd=sentinel, env=env
+                    ).strip(),
+                }
+
+            before = snapshot()
+            self.assertEqual(before["core.bare"], b"false")
+            self.assertEqual(before["commit_count"], b"1")
+            repo = Path(d) / "fixture"
+            try:
+                # linked worktree 的 GIT_DIR 才能重現主 repo 被改成 bare 的事故。
+                with mock.patch.dict(
+                    os.environ,
+                    {"GIT_DIR": str(git_dir)},
+                ):
+                    _make_repo(repo)
+                    _commit(repo, "fixture", "2026-04-20T18:50:00")
+            finally:
+                after = snapshot()
+                for key in before:
+                    with self.subTest(invariant=key):
+                        self.assertEqual(after[key], before[key])
+            rows = commits_on(repo, date(2026, 4, 20), authors=["Tester McTest"])
+            self.assertEqual([r["subject"] for r in rows], ["fixture"])
+
     def test_returns_matching_author_only(self):
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d) / "r"
@@ -104,6 +165,18 @@ class TestCommitsOn(unittest.TestCase):
         # Empty authors → empty result, no git invocation
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(commits_on(Path(d), date(2026, 4, 20), authors=[]), [])
+
+
+class TestCommitsOnEnvironment(unittest.TestCase):
+    def test_setup_isolates_queries_and_restores_inherited_environment(self):
+        with tempfile.TemporaryDirectory() as d:
+            inherited = {"GIT_DIR": str(Path(d) / "outer.git")}
+            with mock.patch.dict(os.environ, inherited):
+                case = TestCommitsOn("test_returns_matching_author_only")
+                result = unittest.TestResult()
+                case.run(result)
+                self.assertTrue(result.wasSuccessful(), result.failures + result.errors)
+                self.assertEqual(os.environ["GIT_DIR"], inherited["GIT_DIR"])
 
 
 class TestCommitMinutesLocal(unittest.TestCase):

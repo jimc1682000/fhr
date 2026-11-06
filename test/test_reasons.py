@@ -16,11 +16,15 @@ from lib.reasons import (
 )
 
 
+def _git_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def _make_repo(path: Path) -> None:
     """Init a minimal git repo. Author is supplied per-commit via env vars
     so pre-commit's stashed environment can't shadow it via global gitconfig."""
     path.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=path, env=_git_env(), check=True)
 
 
 def _commit(
@@ -33,9 +37,9 @@ def _commit(
 ) -> None:
     f = path / "x"
     f.write_text(subject)
-    subprocess.run(["git", "add", "x"], cwd=path, check=True)
+    subprocess.run(["git", "add", "x"], cwd=path, env=_git_env(), check=True)
     env = {
-        **os.environ,
+        **_git_env(),
         "GIT_AUTHOR_NAME": author_name,
         "GIT_AUTHOR_EMAIL": author_email,
         "GIT_COMMITTER_NAME": author_name,
@@ -71,6 +75,46 @@ class TestDiscoverRepos(unittest.TestCase):
 
 
 class TestCommitsOn(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, _git_env(), clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_fixture_git_does_not_modify_inherited_repo(self):
+        with tempfile.TemporaryDirectory() as d:
+            sentinel = Path(d) / "sentinel"
+            _make_repo(sentinel)
+            _commit(sentinel, "sentinel", "2026-04-20T18:00:00")
+            env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+            def snapshot():
+                return (
+                    (sentinel / ".git" / "config").read_bytes(),
+                    subprocess.check_output(
+                        ["git", "for-each-ref", "--format=%(refname) %(objectname)"],
+                        cwd=sentinel,
+                        env=env,
+                    ),
+                )
+
+            before = snapshot()
+            repo = Path(d) / "fixture"
+            try:
+                with mock.patch.dict(
+                    os.environ,
+                    {
+                        "GIT_DIR": str(sentinel / ".git"),
+                        "GIT_WORK_TREE": str(repo),
+                        "GIT_INDEX_FILE": str(sentinel / ".git" / "index"),
+                    },
+                ):
+                    _make_repo(repo)
+                    _commit(repo, "fixture", "2026-04-20T18:50:00")
+            finally:
+                self.assertEqual(snapshot(), before)
+            rows = commits_on(repo, date(2026, 4, 20), authors=["Tester McTest"])
+            self.assertEqual([r["subject"] for r in rows], ["fixture"])
+
     def test_returns_matching_author_only(self):
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d) / "r"

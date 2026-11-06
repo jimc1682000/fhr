@@ -29,6 +29,17 @@ class TestReviewSubmission(unittest.TestCase):
         self.assertEqual(submit(FakePortal(forms)), af.CONFIRMED)
         self.assertEqual(len(forms), 2)
 
+    def test_unknown_status_in_other_slot_does_not_block(self):
+        other = {
+            **ENTRY,
+            "date": "2026/10/09",
+            "leave_type": "補休假",
+            "status": "主管簽核 - 二階主管",
+        }
+        forms = [other]
+        self.assertEqual(submit(FakePortal(forms)), af.CONFIRMED)
+        self.assertEqual(len(forms), 2)
+
     def test_unknown_status_never_submits(self):
         for status in ("", "新狀態", "流程停止(未知原因)", "駁回後待確認"):
             with self.subTest(status=status):
@@ -119,6 +130,17 @@ class TestReviewHook(unittest.TestCase):
                 invocations = hook._invocations("fhr portal-apply --auto " + suffix)
                 self.assertEqual(len(invocations), 1)
                 self.assertFalse(invocations[0][1])
+
+    def test_newline_separated_commands(self):
+        cases = {
+            "cd /tmp\nfhr portal-apply --input a.json": [(["--input", "a.json"], False)],
+            "cd /tmp &&\\\n  fhr portal-apply --auto": [(["--auto"], False)],
+            "sleep 1 &\nfhr portal-apply --auto": [(["--auto"], False)],
+            "cd /tmp\nfhr portal-apply --auto &": [(["--auto"], True)],
+        }
+        for command, expected in cases.items():
+            with self.subTest(command=command):
+                self.assertEqual(hook._invocations(command), expected)
 
     def test_background_operators(self):
         for suffix in ("&", "& wait", "> log.txt 2>&1 &"):

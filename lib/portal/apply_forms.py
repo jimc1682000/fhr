@@ -183,13 +183,14 @@ def _find_in_portal(portal: PortalSession, base_url: str, form_name_zh: str, ent
         )
 
     for row in rows:
+        # 只判斷同一時段的單；其他時段的陌生狀態與這張單無關，不應擋下整批。
+        if key(row) != key(entry):
+            continue
         status = row.get("status", "")
         if status in INACTIVE_FORM_STATUSES:
             continue
         if status not in ACTIVE_FORM_STATUSES:
-            raise RuntimeError(f"清單出現無法判斷的狀態：{status!r}")
-        if key(row) != key(entry):
-            continue
+            raise RuntimeError(f"同一時段的單據狀態無法判斷：{status!r}")
         if form_name_zh == "請假單":
             leave_type = row.get("leave_type")
             if not leave_type:
@@ -211,7 +212,7 @@ def _precheck(portal: PortalSession, base_url: str, form_name_zh: str, entry: di
             logger.info("    ⏭  Portal 上已有這張單（含已核准），不重送")
             return ALREADY_PENDING
     except RuntimeError as e:
-        logger.error("    ❌ 送出前無法讀取 Portal 清單（%s），為避免重複送出，跳過此單", e)
+        logger.error("    ❌ 送出前無法確認 Portal 上的單據狀態（%s），為避免重複送出，跳過此單", e)
         return FAILED
     return None
 

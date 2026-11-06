@@ -37,6 +37,9 @@ def _option(args: list[str], name: str) -> str | None:
 
 def _invocations(command: str) -> list[tuple[list[str], bool]]:
     """辨識簡單命令的位置，避免把 echo 等指令的參數誤當成執行。"""
+    # 換行在 shell 裡等同命令分隔；先接回續行，再把換行換成前後有空白的 `;`，
+    # 避免和 `&` 等標點黏成同一個 token。
+    command = command.replace("\\\n", " ").replace("\n", " ; ")
     lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True

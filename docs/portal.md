@@ -8,7 +8,7 @@ End-to-end Portal integration via the optional [`agent-browser`](https://github.
 |---------|---------|
 | `fhr portal-fetch`     | Scrape 全部刷卡資料 → fhr-native 9-column `.txt` |
 | `fhr portal-sync`      | Mirror Portal's already-submitted 加班 / 請假單 into the state cache |
-| `fhr portal-check`     | Pre-flight: list 已駁回 (rejected) + 未處理 (still in-flow) forms before a new batch |
+| `fhr portal-check`     | Pre-flight: list 已駁回、流程停止(抽單) and 未處理 forms before a new batch |
 | `fhr portal-balances`  | Print 假別餘額 table (補休 / 特休 / 事假 / 病假 / 異地辦公) |
 | `fhr portal-apply`     | Interactive (or `--auto`) batch submission of OT + leave forms |
 
@@ -59,13 +59,13 @@ fhr portal-apply --user JimmyChen --input tmp/analysis.json --proxy 賴菁甫
 ## Pre-flight check (`portal-check`)
 
 Run this **before** submitting a new wave of forms. It queries the eWorkFlow
-Search page's 狀態 dropdown for the two buckets that need attention and skips
-the terminal ones:
+Search page for rejected, withdrawn and in-flow forms:
 
 - **已駁回** — a form was rejected; decide whether to re-submit.
+- **流程停止(抽單)** — listed from the 全部 query; decide whether a replacement is needed.
 - **未處理** — still waiting on an approver (in-flow); avoid stacking new forms.
 
-Anything 已核准 or withdrawn is terminal and not surfaced. `--since YYYY/MM`
+Approved forms are not surfaced. Withdrawn findings also exit `1`. `--since YYYY/MM`
 scopes the report to a work-date window (lexical prefix match on `YYYY/MM/DD`);
 omit it to scan all history. Read-only — no Portal writes, no cache mutation.
 
@@ -110,7 +110,7 @@ Per-user data persists in `attendance_state.json` (or wherever `FHR_STATE_FILE` 
 ## Submission confirmation (`portal-apply`)
 
 A form only counts as submitted once it shows up in the Portal's **全部**
-list, excluding rejected and withdrawn forms. The Portal gives no reliable signal on the form page itself: a non-WFH
+list with an explicitly recognized active status. The Portal gives no reliable signal on the form page itself: a non-WFH
 leave without a 職務代理人 is dropped silently, the page stays at
 `目前狀態：新增`, and that page contains disabled widgets, which the old
 snapshot heuristic took as success.
@@ -119,9 +119,14 @@ For every entry (dry runs skip the list lookups):
 
 1. **Precondition**: non-WFH leave without `--proxy` → `blocked`. The CLI checks
    this for the whole batch first and exits `2` before submitting anything.
-2. **預查**：查全部狀態，只排除退件與撤回。起訖日期、時間及假別皆相同才回傳
-   `already_pending`，包含已核准的單。假別無法辨識、資料列無法解析、分頁重複
-   或不完整時回傳 `failed`，不送單。
+2. **預查**：先開請假表單，依下拉選單「完全相同優先、子字串次之」解析唯一
+   假別全名；例如 `事假` 解析為 `事假(含家庭照顧假)`。沒有匹配或匹配多個選項時
+   回傳 `failed`。查全部狀態，比對起訖日期、時間與實際假別全名；相同有效單回傳
+   `already_pending`。允許的有效狀態為「主管簽核 - 一階主管」、「流程結束(完成)」，
+   以及既有別名「未處理」、「簽核中」、「已核准」。
+   「流程停止(抽單)」與「流程結束(駁回)」不算既有有效單，並保留舊版失效狀態
+   別名的辨識。其他未知狀態、假別無法辨識、資料列無法解析、分頁重複或不完整時
+   回傳 `failed`，不送單。預查後重新開表單並確認假別全名未變，再填寫送出。
 3. **Confirmation**: after 確定送出, the entry is `confirmed` only if the list
    now has it; otherwise `unconfirmed`.
 
@@ -146,7 +151,12 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 送單後 hook 用 shell token 辨識真正的指令，支援加引號的指令名稱與
 `--input=檔案`，並將 `--base-url`、`--session` 傳給 `portal-check`。
 `--dry-run-pause-secs` 不會被誤當成 `--dry-run`；背景執行只提醒稍後對帳。
+`2>&1`、`&>`、`>&` 重新導向仍會執行對帳，獨立的 `&` 才視為背景。
+支援 `uv run fhr ...`、`timeout N fhr ...`、`python3 -m attendance_analyzer ...`；
+不解析 `bash -c "..."` 內層命令。
 `FHR_PORTAL_CHECK_TIMEOUT` 不是正整數時回到預設 150 秒。
+
+下表的待處理項目亦包含抽單，與駁回、簽核中項目同樣回傳 `1`。
 
 | 指令 | 結束碼 | 說明 |
 |---|---|---|

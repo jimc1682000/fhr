@@ -62,7 +62,7 @@ python attendance_analyzer.py portal-fetch --user JimmyChen
 # 從 Portal 同步「已申請的加班/請假單」進本地 state cache (dedup)
 python attendance_analyzer.py portal-sync --user JimmyChen
 
-# 送單前先行確認:列出被駁回 / 仍在簽核中的單 (--since 可限縮月份)
+# 送單前先行確認:列出被駁回 / 抽單 / 仍在簽核中的單 (--since 可限縮月份)
 python attendance_analyzer.py portal-check --since 2026/05
 
 # 顯示假別餘額 (補休/特休/事假/有薪病假/半薪病假/異地辦公)
@@ -78,14 +78,14 @@ python attendance_analyzer.py reasons --input tmp/analysis.json \
     --author "Jimmy Chen" --out tmp/reasons-evidence.json
 
 # 互動式批次送加班 + 請假單 (cascade 自動分配 + 早到日提示 + 實際打卡顯示)
-# 送出後到 Portal 全部狀態清單對帳（排除退件與撤回），查到才算成功；非 WFH 假單必須帶 --proxy
+# 送出後到 Portal 全部狀態清單對帳（只接受有效狀態，排除流程停止(抽單)及駁回），查到才算成功；非 WFH 假單必須帶 --proxy
 python attendance_analyzer.py portal-apply --user JimmyChen \
     --input tmp/analysis.json --proxy 賴菁甫
 ```
 
 `portal-apply` 每筆單都會在結果檔記錄 `status`：只有 `confirmed`、`already_pending` 代表單子已在 Portal 上。有 `unconfirmed`、`failed`、`blocked` 時以結束碼 `5` 結束；非 WFH 假單缺 `--proxy` 則在送出前以 `2` 結束。細節見 [`docs/portal.md`](docs/portal.md#submission-confirmation-portal-apply)。
 
-預查會比對起訖日期、時間與假別，包含已核准的單；無法辨識假別或完整讀取清單時停止送單。同一使用者的本機 `portal-apply` 以 lock 序列執行，第二個程序以 `5` 結束。送出中斷會先對帳、保存結果，再以 `5` 結束，即使該筆已確認成立也不繼續送下一筆。
+預查與對帳會比對起訖日期、時間與下拉選單的實際假別全名，包含已核准的單。短名先以完全相同優先、子字串次之解析；無匹配、多個匹配、未知狀態或清單不完整時停止送單。有效狀態允許清單見 `docs/portal.md`。`portal-check` 也列出「流程停止(抽單)」，有抽單項目時回傳 `1`。同一使用者的本機 `portal-apply` 以 lock 序列執行，第二個程序以 `5` 結束。送出中斷會先對帳、保存結果，再以 `5` 結束，即使該筆已確認成立也不繼續送下一筆。
 
 | 結果狀態 | 判定 |
 |---|---|

@@ -115,7 +115,7 @@ class TestRun(unittest.TestCase):
         with (
             mock.patch(
                 "lib.portal.approvals.fetch_all_applied_forms",
-                side_effect=[rejected, pending],
+                side_effect=[rejected, pending, {}],
             ) as fetch,
             mock.patch("lib.portal.client.PortalSession", return_value=session_cm),
             mock.patch("lib.portal.client.ensure_login"),
@@ -128,6 +128,30 @@ class TestRun(unittest.TestCase):
                 exit_code = e.code
         return "\n".join(logs), fetch, exit_code
 
+    def test_run_reports_withdrawn_from_all_statuses(self):
+        withdrawn = _entry("2026/10/08", status="流程停止(抽單)")
+        old = _entry("2024/01/01", status="流程停止(抽單)")
+        with (
+            mock.patch(
+                "lib.portal.approvals.fetch_all_applied_forms",
+                side_effect=lambda *a, **kw: (
+                    {"leave": [withdrawn, old]} if kw["status_zh"] == "全部" else {}
+                ),
+            ) as fetch,
+            mock.patch("lib.portal.client.PortalSession"),
+            mock.patch("lib.portal.client.ensure_login"),
+            mock.patch("lib.env.load"),
+            mock.patch("attendance_analyzer.logger") as logger,
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                portal_check.run(self._args(since="2026/05"))
+        self.assertEqual(cm.exception.code, 1)
+        text = "\n".join(c.args[1] for c in logger.info.call_args_list)
+        self.assertIn("抽單 1 筆", text)
+        self.assertIn("流程停止(抽單)", text)
+        self.assertNotIn("2024/01/01", text)
+        self.assertIn("全部", [c.kwargs["status_zh"] for c in fetch.call_args_list])
+
     def test_run_clean(self):
         joined, fetch, code = self._run_capture(
             self._args(),
@@ -136,8 +160,8 @@ class TestRun(unittest.TestCase):
         )
         self.assertIn("乾淨", joined)
         self.assertIsNone(code)
-        # queried both 已駁回 + 未處理
-        self.assertEqual(fetch.call_count, 2)
+        # queried 已駁回 + 未處理 + 全部（抽單）
+        self.assertEqual(fetch.call_count, 3)
 
     def test_run_reports_rejected(self):
         joined, _, code = self._run_capture(

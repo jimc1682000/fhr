@@ -79,6 +79,8 @@ class TestSubmitLeave(unittest.TestCase):
     def test_wfh_skips_proxy(self):
         portal = mock.Mock()
         portal.eval_json.side_effect = [
+            {"success": True},  # open to resolve actual leave name
+            {"matched": 1, "matches": [{"index": 0, "text": "異地辦公(8hr一週)"}]},
             {"success": True},  # open form
             {"matched": 1, "matches": [{"index": 27, "text": "異地辦公(8hr一週)"}]},
             {"ok": True},  # fill datetime
@@ -109,6 +111,8 @@ class TestSubmitLeave(unittest.TestCase):
     def test_non_wfh_selects_proxy(self):
         portal = mock.Mock()
         portal.eval_json.side_effect = [
+            {"success": True},  # open to resolve actual leave name
+            {"matched": 1, "matches": [{"index": 0, "text": "補休假"}]},
             {"success": True},  # open form
             {"ok": True},  # proxy select
             {"matched": 1, "matches": [{"index": 30, "text": "補休假"}]},
@@ -141,7 +145,6 @@ class TestSubmitLeave(unittest.TestCase):
         portal = mock.Mock()
         portal.eval_json.side_effect = [
             {"success": True},
-            True,  # proxy select
             {"matched": 0, "matches": []},
         ]
         portal._run.return_value = "請假單"
@@ -166,7 +169,6 @@ class TestSubmitLeave(unittest.TestCase):
         portal = mock.Mock()
         portal.eval_json.side_effect = [
             {"success": True},
-            True,  # proxy select
             {
                 "matched": 2,
                 "matches": [
@@ -374,19 +376,11 @@ class TestPortalListVerification(unittest.TestCase):
     ENTRY = {"date": "2026/10/08", "start_time": "1200", "end_time": "1900", "hours": 6}
 
     def _leave_portal(self):
-        portal = mock.Mock()
-        portal.eval_json.side_effect = [
-            {"success": True},  # open form
-            True,  # proxy select
-            {"matched": 1, "matches": [{"index": 30, "text": "補休假"}]},
-            {"ok": True},  # fill datetime
-            None,  # trigger
-            {"ok": True},  # reason
-            None,  # submit
-        ]
-        # The page a silently-rejected form leaves behind
-        portal._run.return_value = (
-            "請假單 目前狀態：新增\n- combobox [expanded=false, disabled, ref=e35]: 請選擇"
+        portal = _make_portal("請假單 目前狀態：新增 disabled")
+        portal.eval_json.side_effect = lambda js: (
+            {"matched": 1, "matches": [{"index": 0, "text": "補休假"}]}
+            if "LEAVE_CLASS_DropDownList1" in js
+            else {"success": True}
         )
         return portal
 
@@ -410,13 +404,13 @@ class TestPortalListVerification(unittest.TestCase):
             self.assertEqual(portal.method_calls, [])
 
     def test_already_pending_form_is_not_resubmitted(self):
-        portal = mock.Mock()
+        portal = self._leave_portal()
         with mock.patch(FIND, return_value=True):
             status = submit_leave(
                 portal, "http://x", self.ENTRY, "補休假", "個人事務", proxy_employee="P"
             )
         self.assertEqual(status, ALREADY_PENDING)
-        portal.eval_json.assert_not_called()
+        self.assertFalse(any("確定送出" in c.args[0] for c in portal.eval_json.call_args_list))
 
     def test_unreadable_list_before_submit_skips_entry(self):
         portal = mock.Mock()

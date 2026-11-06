@@ -123,6 +123,21 @@ class TestPostPortalApplyHook(unittest.TestCase):
             calls, ["--since 2026/10/08 1 --base-url https://fake.invalid/portal --session test"]
         )
 
+    def test_foreground_redirections_and_wrappers_run_check(self):
+        commands = (
+            "fhr portal-apply --auto > log.txt 2>&1",
+            "fhr portal-apply --auto &> log",
+            "fhr portal-apply --auto >& log",
+            "uv run fhr portal-apply --auto",
+            "timeout 30 fhr portal-apply --auto",
+            "python3 -m attendance_analyzer portal-apply --auto",
+        )
+        for count, command in enumerate(commands, 1):
+            with self.subTest(command=command):
+                context, calls = self._run({"command": command})
+                self.assertEqual(len(calls), count)
+                self.assertIn("自動跑了 portal-check", context)
+
     def test_invalid_timeout_uses_default(self):
         context, calls = self._run({"command": "fhr portal-apply"}, timeout="not-a-number")
         self.assertIsNotNone(context)

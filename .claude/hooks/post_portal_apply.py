@@ -37,7 +37,7 @@ def _option(args: list[str], name: str) -> str | None:
 
 def _invocations(command: str) -> list[tuple[list[str], bool]]:
     """辨識簡單命令的位置，避免把 echo 等指令的參數誤當成執行。"""
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     try:
@@ -56,12 +56,27 @@ def _invocations(command: str) -> list[tuple[list[str], bool]]:
             args = args[1:]
         if not args:
             continue
+        while args:
+            executable = Path(args[0]).name
+            if executable == "uv" and len(args) > 2 and args[1] == "run":
+                args = args[2:]
+            elif (
+                executable == "timeout"
+                and len(args) > 2
+                and re.fullmatch(r"\d+(?:\.\d+)?[smhd]?", args[1])
+            ):
+                args = args[2:]
+            else:
+                break
         executable = Path(args[0]).name
         start = 1
         if executable.startswith("python"):
-            if len(args) < 2 or Path(args[1]).name != "attendance_analyzer.py":
+            if len(args) >= 3 and args[1:3] == ["-m", "attendance_analyzer"]:
+                start = 3
+            elif len(args) >= 2 and Path(args[1]).name == "attendance_analyzer.py":
+                start = 2
+            else:
                 continue
-            start = 2
         elif executable not in ("fhr", "attendance_analyzer.py"):
             continue
         if len(args) > start and args[start] in ("portal-apply", "portal_apply"):

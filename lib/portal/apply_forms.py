@@ -7,7 +7,7 @@ same as the version that submitted 28 forms successfully during the
 session.
 
 Each `submit_*` returns a status string (see the constants below). A form
-only counts as submitted once it shows up in the Portal's non-rejected, non-withdrawn list:
+only counts as submitted once it shows up with an explicitly recognized active status:
 the old snapshot heuristic (`disabled` / 主管簽核 in the page) reported
 success even when the Portal silently rejected the form, because the
 rejected form page itself contains disabled widgets."""
@@ -33,6 +33,12 @@ FAILED = "failed"  # 沒有按送出（假別比對失敗、送出前查不到�
 BLOCKED = "blocked"  # 前置條件不符（非 WFH 假單缺職務代理人），未開表單
 DRY_RUN = "dry_run"
 OK_STATUSES = frozenset({CONFIRMED, ALREADY_PENDING, DRY_RUN})
+
+# 實際清單狀態與既有 Portal 狀態別名；未知狀態不可推定單據有效或失效。
+ACTIVE_FORM_STATUSES = frozenset(
+    {"未處理", "簽核中", "已核准", "主管簽核 - 一階主管", "流程結束(完成)"}
+)
+INACTIVE_FORM_STATUSES = frozenset({"已駁回", "退件", "已撤回", "流程結束(駁回)", "流程停止(抽單)"})
 
 
 class SubmissionInterrupted(AgentBrowserError):
@@ -165,7 +171,7 @@ def _click_submit(portal: PortalSession) -> None:
 
 
 def _find_in_portal(portal: PortalSession, base_url: str, form_name_zh: str, entry: dict) -> bool:
-    """比對全部狀態的有效單據，排除退件與撤回。"""
+    """比對全部狀態，只接受明確有效的單據；未知狀態停止送單。"""
     rows = approvals.fetch_form_entries(portal, base_url, form_name_zh, "全部")
 
     def key(row):
@@ -177,15 +183,15 @@ def _find_in_portal(portal: PortalSession, base_url: str, form_name_zh: str, ent
         )
 
     for row in rows:
-        if any(word in row.get("status", "") for word in ("駁回", "退件", "撤回")):
+        status = row.get("status", "")
+        if status in INACTIVE_FORM_STATUSES:
             continue
+        if status not in ACTIVE_FORM_STATUSES:
+            raise RuntimeError(f"清單出現無法判斷的狀態：{status!r}")
         if key(row) != key(entry):
             continue
         if form_name_zh == "請假單":
             leave_type = row.get("leave_type")
-            if not leave_type:
-                parsed = approvals.parse_wsdinfotext(row.get("wsdinfotext", ""))
-                leave_type = parsed.get("leave_type") if parsed else None
             if not leave_type:
                 raise RuntimeError("清單缺少可辨識的假別")
             if leave_type != entry.get("leave_type"):
@@ -327,6 +333,39 @@ def submit_overtime(
     return _submit_and_confirm(portal, base_url, "加班單", entry)
 
 
+def _select_leave_type(portal: PortalSession, leave_type_name: str) -> str:
+    """依完全相同優先、子字串次之選取唯一假別，回傳實際全名。"""
+    escaped_leave = js_escape(leave_type_name)
+    match = portal.eval_json(
+        f"""
+    (function() {{
+        const sel = document.getElementById('LEAVE_CLASS_DropDownList1');
+        if (!sel) return {{error: 'select not found', matched: 0}};
+        const name = '{escaped_leave}';
+        const exact = [], partial = [];
+        for (let i = 0; i < sel.options.length; i++) {{
+            const text = sel.options[i].text;
+            if (text === name) exact.push({{index: i, text: text}});
+            else if (text.includes(name)) partial.push({{index: i, text: text}});
+        }}
+        const matches = exact.length > 0 ? exact : partial;
+        if (matches.length === 1) {{
+            sel.selectedIndex = matches[0].index;
+            sel.dispatchEvent(new Event('change', {{bubbles: true}}));
+        }}
+        return {{matched: matches.length, matches: matches}};
+    }})()
+    """
+    )
+    matches = match.get("matches") if isinstance(match, dict) else None
+    if not isinstance(matches, list) or len(matches) != 1 or match.get("matched") != 1:
+        raise RuntimeError(f"假別 {leave_type_name} 無法匹配唯一選項")
+    name = matches[0].get("text") if isinstance(matches[0], dict) else None
+    if not isinstance(name, str) or not name:
+        raise RuntimeError("假別選項缺少名稱")
+    return name
+
+
 def submit_leave(
     portal: PortalSession,
     base_url: str,
@@ -370,8 +409,17 @@ def submit_leave(
     if not is_wfh and not proxy_employee:
         logger.error("    ❌ 非 WFH 假單必須指定職務代理人（--proxy），否則 Portal 會靜默擋下")
         return BLOCKED
-    if not dry_run and (stop := _precheck(portal, base_url, "請假單", entry)):
-        return stop
+    if not dry_run:
+        # 預查會離開表單；先解析全名，確認沒有既有單後再開表單填寫。
+        _open_form(portal, base_url, "請假單")
+        try:
+            leave_type_name = _select_leave_type(portal, leave_type_name)
+        except RuntimeError as error:
+            logger.error("    ❌ %s，跳過此單", error)
+            return FAILED
+        entry = {**entry, "leave_type": leave_type_name}
+        if stop := _precheck(portal, base_url, "請假單", entry):
+            return stop
 
     _open_form(portal, base_url, "請假單")
 
@@ -396,37 +444,15 @@ def submit_leave(
         )
         portal.wait(1000)
 
-    escaped_leave = js_escape(leave_type_name)
-    match = portal.eval_json(
-        f"""
-    (function() {{
-        const sel = document.getElementById('LEAVE_CLASS_DropDownList1');
-        if (!sel) return {{error: 'select not found', matched: 0}};
-        const name = '{escaped_leave}';
-        const exact = [], partial = [];
-        for (let i = 0; i < sel.options.length; i++) {{
-            const text = sel.options[i].text;
-            if (text === name) exact.push({{index: i, text: text}});
-            else if (text.includes(name)) partial.push({{index: i, text: text}});
-        }}
-        const matches = exact.length > 0 ? exact : partial;
-        if (matches.length === 1) {{
-            sel.selectedIndex = matches[0].index;
-            sel.dispatchEvent(new Event('change', {{bubbles: true}}));
-        }}
-        return {{matched: matches.length, matches: matches}};
-    }})()
-    """
-    )
-    if isinstance(match, dict):
-        matched = match.get("matched", 0)
-        if matched == 0:
-            logger.error("    ❌ 找不到假別 %s，跳過此單", leave_type_name)
-            return FAILED
-        if matched > 1:
-            options = [m.get("text") for m in match.get("matches", [])]
-            logger.error("    ❌ 假別 %s 匹配多個 %s，跳過此單", leave_type_name, options)
-            return FAILED
+    try:
+        selected = _select_leave_type(portal, leave_type_name)
+    except RuntimeError as error:
+        logger.error("    ❌ %s，跳過此單", error)
+        return FAILED
+    if selected != entry["leave_type"] and not dry_run:
+        logger.error("    ❌ 假別選項已變更，跳過此單")
+        return FAILED
+    entry = {**entry, "leave_type": selected}
     portal.wait(3000)
 
     _fill_datetime(portal, date, start, end)

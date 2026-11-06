@@ -1,14 +1,14 @@
 """`fhr portal-check` — pre-flight before submitting a new batch of forms.
 
-Queries the Portal's eWorkFlow Search page for two states that need the
+Queries the Portal's eWorkFlow Search page for states that need the
 user's attention **before** applying the next wave of 加班 / 請假 forms:
 
   - 已駁回 (rejected)  → decide whether to re-submit
   - 未處理 (in-flow)   → still waiting on an approver; don't pile new forms on top
 
-Anything else (已核准 / withdrawn) is terminal and irrelevant to the gate,
-so we only surface these two buckets. Read-only against the Portal — it
-never writes forms or mutates the state cache.
+  - 流程停止(抽單) → decide whether a replacement form is needed
+
+Read-only against the Portal; never writes forms or mutates the state cache.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParse
     parser = subparsers.add_parser(
         "portal-check",
         aliases=["portal_check"],
-        help="送單前先行確認:列出被駁回 / 仍在簽核中的加班・請假單 (需 agent-browser)",
+        help="送單前先行確認:列出被駁回 / 抽單 / 仍在簽核中的加班・請假單 (需 agent-browser)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 範例:
@@ -105,21 +105,29 @@ def format_report(
     rejected: dict[str, list[dict]],
     pending: dict[str, list[dict]],
     since: str | None,
+    withdrawn: dict[str, list[dict]] | None = None,
 ) -> tuple[str, bool]:
     """Build the human report. Returns (text, clean) where clean is True
     when nothing needs attention."""
     scope = f"(假勤日 >= {since})" if since else "(全部歷史)"
     n_rej = sum(len(v) for v in rejected.values())
     n_pen = sum(len(v) for v in pending.values())
+    withdrawn = withdrawn or {}
+    n_withdrawn = sum(len(v) for v in withdrawn.values())
     lines = [f"# 🚦 送單前先行確認 {scope}", ""]
 
-    if n_rej == 0 and n_pen == 0:
-        lines.append("✅ 乾淨:沒有被駁回、也沒有仍在簽核中的單。可以進下一波送單。")
+    if n_rej == 0 and n_pen == 0 and n_withdrawn == 0:
+        lines.append("✅ 乾淨:沒有被駁回、抽單或仍在簽核中的單。可以進下一波送單。")
         return "\n".join(lines), True
 
     if n_rej:
         lines.append(f"❌ 被駁回 {n_rej} 筆 — 請評估是否重新申請:")
         for kind, items in rejected.items():
+            lines.extend(_fmt_entry(kind, e) for e in items)
+        lines.append("")
+    if n_withdrawn:
+        lines.append(f"⏹ 抽單 {n_withdrawn} 筆 — 請評估是否重新申請：")
+        for kind, items in withdrawn.items():
             lines.extend(_fmt_entry(kind, e) for e in items)
         lines.append("")
     if n_pen:
@@ -163,6 +171,9 @@ def run(args: argparse.Namespace) -> None:
             pending_raw = approvals.fetch_all_applied_forms(
                 portal, base_url, kinds=kinds, status_zh=PENDING_STATUS
             )
+            all_raw = approvals.fetch_all_applied_forms(
+                portal, base_url, kinds=kinds, status_zh="全部"
+            )
     except AgentBrowserMissing as e:
         logger.error("❌ %s", e)
         sys.exit(3)
@@ -176,7 +187,11 @@ def run(args: argparse.Namespace) -> None:
     rejected = {k: filter_since(v, args.since) for k, v in rejected_raw.items()}
     pending = {k: filter_since(v, args.since) for k, v in pending_raw.items()}
 
-    report, clean = format_report(rejected, pending, args.since)
+    withdrawn = {
+        k: filter_since([e for e in v if e.get("status") == "流程停止(抽單)"], args.since)
+        for k, v in all_raw.items()
+    }
+    report, clean = format_report(rejected, pending, args.since, withdrawn)
     for line in report.splitlines():
         logger.info("%s", line)
     if not clean:

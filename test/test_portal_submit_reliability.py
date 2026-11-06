@@ -15,7 +15,7 @@ from unittest import mock
 from lib.portal import apply_forms as af
 from lib.portal.client import AgentBrowserError, PortalSession
 
-WFH = "異地辦公"
+WFH = "異地辦公(8hr一週)"
 LEAVE_TYPES = ["補休假", "特休假", WFH]
 ENTRY = {"date": "2026/10/08", "start_time": "1200", "end_time": "1900", "hours": 6}
 
@@ -31,6 +31,7 @@ class FakePortal(PortalSession):
 
     def __init__(self, forms, *, reject_all=False, timeout_after_commit=False):
         super().__init__(session="fake", check=False)
+        self.leave_options = ["補休假", "特休假", "事假(含家庭照顧假)", WFH, "異地辦公(12hr一週)"]
         self.forms = forms
         self.reject_all = reject_all
         self.timeout_after_commit = timeout_after_commit
@@ -82,8 +83,16 @@ class FakePortal(PortalSession):
             return "true"
         if "LEAVE_CLASS_DropDownList1" in js:
             name = re.search(r"const name = '(.+?)';", js).group(1)
-            self.draft["leave_type"] = name
-            return json.dumps({"matched": 1, "matches": [{"index": 0, "text": name}]})
+            exact = [o for o in self.leave_options if o == name]
+            names = exact or [o for o in self.leave_options if name in o]
+            if len(names) == 1:
+                self.draft["leave_type"] = names[0]
+            return json.dumps(
+                {
+                    "matched": len(names),
+                    "matches": [{"index": self.leave_options.index(o), "text": o} for o in names],
+                }
+            )
         if "StartDate" in js:
             self.draft["date"], self.draft["start"], self.draft["end_date"], self.draft["end"] = (
                 re.findall(r"\[(?:sd|st|ed|et),'(.*?)'\]", js)
@@ -170,7 +179,15 @@ class TestSubmitInvariants(unittest.TestCase):
         ):
             with self.subTest(pages=pages):
                 portal = FakePortal([])
-                with mock.patch.object(portal, "eval_json", side_effect=pages):
+                original = portal._eval
+                page_iter = iter(pages)
+
+                def evaluate(js, page_iter=page_iter, original=original):
+                    if "tbWorkSheetDataList_" in js:
+                        return json.dumps(next(page_iter))
+                    return original(js)
+
+                with mock.patch.object(portal, "_eval", side_effect=evaluate):
                     self.assertEqual(_submit(portal), af.FAILED)
                 self.assertEqual(portal.forms, [])
 

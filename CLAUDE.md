@@ -421,8 +421,10 @@ Project improvement and development task management:
 
 ### Portal 送單可靠性
 
-`portal-apply` 預查與送出後對帳皆讀全部狀態，排除退件與撤回；比對起訖日期、時間
-與假別，包含已核准的單。清單解析或分頁不完整時不送單。本機 lock 阻擋並行執行。
+`portal-apply` 預查與送出後對帳皆讀全部狀態，以有效狀態允許清單判斷，排除
+「流程停止(抽單)」與駁回；比對起訖日期、時間及下拉選單解析的唯一假別全名。
+未知狀態、假別無匹配或多匹配、清單解析或分頁不完整時不送單。
+`portal-check` 會列出抽單並回傳 exit 1。本機 lock 阻擋並行執行。
 送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
 `portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，hook 不把
 錯誤輸出當成清單證據。

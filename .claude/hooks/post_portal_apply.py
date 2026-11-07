@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code PostToolUse hook: reconcile with the Portal after `portal-apply`.
+"""Claude Code post-tool hook: reconcile with the Portal after `portal-apply`.
 
 When a Bash call ran `portal-apply` (not a dry run), run `portal-check` and hand
 its attention-only report back as supplemental context. Per-entry results from
@@ -14,16 +14,20 @@ Env:
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shlex
 import subprocess
 import sys
+import time
+from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 MAX_LINES = 60
+MAX_CONTEXT = 10000
 RESULT_GUIDANCE = (
     "以本次 portal-apply 結果檔每筆的 status 為主要依據；"
     "confirmed / already_pending 代表送單時已確認 Portal 上有有效單，未必仍在簽核中。"
@@ -33,19 +37,20 @@ RESULT_GUIDANCE = (
 )
 LOCK_BUSY = "[fhr hook] 另一個 portal-apply 或 portal-check 正在執行，稍後再對帳。"
 NO_RESULT = (
-    "本次 portal-apply 沒有產生可核對的結果（或沒有送任何單），目前沒有對帳結果，"
+    "無法確認是否送單或送了哪些單，目前沒有對帳結果，"
     "不可說任何單已送出或已確認。不要直接重送，先確認執行狀態。"
 )
 RECEIPT = re.compile(r"^結果寫入：(.+)（run_id=([0-9a-f-]{36})）$", re.MULTILINE)
 
 
 def _receipt(payload: dict) -> tuple[Path, str] | None:
-    # 官方 Bash tool_response 是物件，含 stdout／stderr／interrupted／isImage。
-    # https://code.claude.com/docs/en/hooks#posttooluse-decision-control
-    response = payload.get("tool_response")
-    if not isinstance(response, dict) or response.get("interrupted"):
-        return None
-    stdout = response.get("stdout")
+    if payload.get("hook_event_name") == "PostToolUseFailure":
+        stdout = payload.get("error")
+    else:
+        response = payload.get("tool_response")
+        if not isinstance(response, dict) or response.get("interrupted"):
+            return None
+        stdout = response.get("stdout")
     if not isinstance(stdout, str):
         return None
     matches = RECEIPT.findall(stdout)
@@ -55,7 +60,9 @@ def _receipt(payload: dict) -> tuple[Path, str] | None:
     return (Path(path), run_id) if Path(path).is_absolute() else None
 
 
-def _current_result(receipt: tuple[Path, str], args: list[str], cwd: Path) -> dict | None:
+def _current_result(
+    receipt: tuple[Path, str], args: list[str], cwd: Path, earliest: float, latest: float
+) -> dict | None:
     path, run_id = receipt
     input_path = _option(args, "--input")
     if input_path:
@@ -64,6 +71,8 @@ def _current_result(receipt: tuple[Path, str], args: list[str], cwd: Path) -> di
         if path.resolve() != expected.resolve():
             return None
     try:
+        if not earliest <= path.stat().st_mtime <= latest:
+            return None
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
@@ -167,8 +176,47 @@ def _since(args: list[str], cwd: Path) -> str:
     return (date.today() - timedelta(days=45)).strftime("%Y/%m/%d")
 
 
-def _emit(text: str) -> None:
-    out = {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": text}}
+def _snapshot(results: dict, path: Path) -> str:
+    entries = [(kind, row) for kind in ("overtime", "leave") for row in results[kind]]
+    counts = Counter(row["status"] for _, row in entries)
+    text = (
+        f"已核對的本次結果快照：run_id={results['run_id']}\n"
+        f"結果檔：{path}（讀取完整內容前須再次核對 run_id）\n"
+        f"總筆數：{len(entries)}；各狀態數量："
+        + "、".join(f"{status}：{count}" for status, count in sorted(counts.items()))
+        + "\nconfirmed／already_pending 只列數量；以下為非 OK 項目：\n"
+    )
+    for kind, row in entries:
+        if row["status"] in ("confirmed", "already_pending"):
+            continue
+        # 保留識別項目需要的欄位；長篇原因留在結果檔，不擠掉其他未確認項目。
+        detail = {
+            "kind": kind,
+            "status": row["status"],
+            **{k: row["entry"][k] for k in ("date", "start_time", "end_time")},
+        }
+        line = json.dumps(detail, ensure_ascii=False) + "\n"
+        if len(text) + len(line) > 6500:
+            text += "其餘非 OK 項目省略，請讀取上述結果檔並核對 run_id。\n"
+            break
+        text += line
+    return text
+
+
+def _emit(payload: dict, text: str) -> None:
+    # 同時符合 JavaScript 的 UTF-16 長度計算，避免 emoji 佔兩個單位而超限。
+    encoded = text.encode("utf-16-le")
+    if len(encoded) > MAX_CONTEXT * 2:
+        suffix = "\n（超長內容省略，請讀取結果檔並核對 run_id。）"
+        text = (
+            encoded[: (MAX_CONTEXT - len(suffix)) * 2].decode("utf-16-le", errors="ignore") + suffix
+        )
+    out = {
+        "hookSpecificOutput": {
+            "hookEventName": payload.get("hook_event_name", "PostToolUse"),
+            "additionalContext": text,
+        }
+    }
     print(json.dumps(out, ensure_ascii=False))
 
 
@@ -188,15 +236,23 @@ def main() -> int:
     ]
     if not invocations:
         return 0
-    if tool_input.get("run_in_background") or any(bg for _, bg in invocations):
+    response = payload.get("tool_response") or {}
+    if (
+        tool_input.get("run_in_background")
+        or (isinstance(response, dict) and response.get("backgroundTaskId"))
+        or any(bg for _, bg in invocations)
+    ):
         _emit(
-            "[fhr hook] portal-apply 在背景執行，送單還沒結束。完成後"
-            + "須另行核對該次結果；目前不可說任何單已送出或已確認。"
-            + "再跑 `fhr portal-check --since <最早日期>` 補充查詢需注意的單。"
+            payload,
+            "[fhr hook] 送單仍在背景執行中，完成後再對帳。"
+            + "目前不可說任何單已送出或已確認，不要直接重送。"
+            + "再跑 `fhr portal-check --since <最早日期>` 補充查詢需注意的單。",
         )
         return 0
     if len(invocations) != 1:
-        _emit("[fhr hook] 同一工具呼叫包含多次 portal-apply，無法唯一歸屬結果。" + NO_RESULT)
+        _emit(
+            payload, "[fhr hook] 同一工具呼叫包含多次 portal-apply，無法唯一歸屬結果。" + NO_RESULT
+        )
         return 0
     for args, _ in invocations:
         _check(payload, args)
@@ -204,6 +260,18 @@ def main() -> int:
 
 
 def _check(payload: dict, args: list[str]) -> None:
+    # duration_ms 是官方選用欄位；舊版本缺少時只接受最近十分鐘。
+    # 容許兩秒 hook 啟動與檔案系統時間精度誤差，不把任意舊收據當成本次。
+    now = time.time()
+    duration = payload.get("duration_ms")
+    seconds = (
+        duration / 1000
+        if isinstance(duration, (int, float))
+        and not isinstance(duration, bool)
+        and math.isfinite(duration)
+        and duration >= 0
+        else 600
+    )
     # Hook 可從其他 cwd 啟動；鎖的來源必須與此 checkout 的 portal-apply 相同。
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from lib.commands.portal_apply import ApplyInProgress, _apply_lock
@@ -213,20 +281,18 @@ def _check(payload: dict, args: list[str]) -> None:
     try:
         with _apply_lock():
             if receipt is None:
-                _emit("[fhr hook] " + NO_RESULT)
+                _emit(payload, "[fhr hook] " + NO_RESULT)
                 return
-            results = _current_result(receipt, args, cwd)
+            results = _current_result(receipt, args, cwd, now - seconds - 2, now)
             if results is None:
-                _emit("[fhr hook] " + NO_RESULT)
+                _emit(payload, "[fhr hook] " + NO_RESULT)
                 return
     except ApplyInProgress:
-        message = "本次沒有送單，目前沒有對帳結果。" if receipt is None else "尚未核對本次結果。"
-        _emit(LOCK_BUSY + message + "不可說任何單已送出或已確認。")
+        message = "無法確認是否送單或送了哪些單，目前沒有對帳結果。"
+        _emit(payload, LOCK_BUSY + message + "不可說任何單已送出或已確認。")
         return
     # 用鎖內讀到的快照回報，避免後續程序替換固定路徑造成錯誤歸屬。
-    guidance = (
-        RESULT_GUIDANCE + "已核對的本次結果快照：" + json.dumps(results, ensure_ascii=False) + "\n"
-    )
+    guidance = RESULT_GUIDANCE + _snapshot(results, receipt[0])
     # portal-check 會重新取鎖並持有到查詢結束，涵蓋此處釋放後的競爭。
     since = _since(args, cwd)
     override = os.environ.get("FHR_PORTAL_CHECK_CMD")
@@ -258,21 +324,23 @@ def _check(payload: dict, args: list[str]) -> None:
     report = "\n".join(lines) or "(沒有輸出)"
     if rc in (0, 1):  # 1 表示查詢成功但有待處理事項；查詢失敗為 6
         _emit(
+            payload,
             f"[fhr hook] portal-apply 之後自動跑了 portal-check --since {since}（exit {rc}）。"
             + guidance
             + "以下報告只列出需要注意的單，作為補充；已核准的單不會列出，"
-            f"沒出現在報告裡不代表沒送出。\n{report}"
+            f"沒出現在報告裡不代表沒送出。\n{report}",
         )
     elif rc == 5:
-        _emit(LOCK_BUSY + guidance)
+        _emit(payload, LOCK_BUSY + guidance)
     else:
         if rc == 6:
             report = "Portal 清單查詢失敗，以下錯誤輸出不可當成對帳證據。\n" + report
         _emit(
+            payload,
             f"[fhr hook] portal-apply 之後的 portal-check 沒有成功（exit {rc}），目前沒有對帳結果。"
             + guidance
             + "請先處理登入或錯誤後再跑 portal-check 補充查詢。\n"
-            + report
+            + report,
         )
 
 

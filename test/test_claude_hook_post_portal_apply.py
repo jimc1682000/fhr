@@ -216,7 +216,7 @@ class TestPostPortalApplyHook(unittest.TestCase):
             )
         self.assertEqual(calls, [])
         self.assertIn("另一個 portal-apply 或 portal-check 正在執行，稍後再對帳", context)
-        self.assertIn("本次沒有送單，目前沒有對帳結果", context)
+        self.assertIn("無法確認是否送單或送了哪些單，目前沒有對帳結果", context)
         self.assertNotIn("confirmed / already_pending", context)
 
     def test_check_lock_race_requests_later_reconciliation(self):

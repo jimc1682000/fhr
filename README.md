@@ -97,9 +97,11 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
 
 送單結果頂層新增 `run_id` 與 `completed`。逐筆保存時為 `completed: false`，批次結束或送出中斷完成收尾後才寫成 `true`；每次都以同目錄暫存檔加 rename 原子替換。完成後 stdout 印出固定格式 `結果寫入：<絕對路徑>（run_id=<UUID>）`。`completed` 只表示結果已收尾，不代表每筆成功，仍須讀每筆 `status`。
 
-hook 先從本次 Bash `tool_response.stdout` 取完成標記，再持有 apply lock 讀檔，核對路徑、`run_id`、`completed: true` 與逐筆格式。核對成功後以讀到的快照回報，避免固定路徑被下一次執行覆寫；只有 `confirmed`／`already_pending` 代表送單時已確認有效單。先前已確認、這次跳過的單不會列出，**沒出現在結果檔，不代表未確認**，應另查先前證據，不可直接重送。
+hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure`：前者從 Bash `tool_response.stdout` 讀完成標記，後者（含 exit 5）從 `error` 讀取，並以相同事件名回傳 `additionalContext`。只處理可辨識的非 dry-run、非 help 的 `portal-apply`。明確背景執行或逾時自動背景化（`backgroundTaskId`）只提醒「送單仍在背景執行中，完成後再對帳」，不啟動查詢。
 
-缺少完成標記、檔案不存在、格式錯誤、半成品或 run_id 不同時，hook 明確回報「目前沒有對帳結果，不可說任何單已送出或已確認」，也不啟動查詢。參數／瀏覽器錯誤、沒有送出項目或使用者取消，都不會把舊檔當成本次結果。拿不到 apply lock 時不讀寫結果檔、不接觸瀏覽器；本次 apply 未送單時明確回報「本次沒有送單，目前沒有對帳結果」。
+只有唯一完成標記才持有 apply lock 讀檔，核對路徑、`run_id`、`completed: true`、逐筆格式與 mtime。mtime 必須落在 hook 當下往前推 `duration_ms` 的範圍內，起點容許 2 秒誤差；缺少或無效時改用 10 分鐘上限。這是時效篩選，無法排除時間範圍內重播的舊收據。核對成功後提供快照摘要：總筆數、各狀態數量、非 OK 項目優先，`confirmed`／`already_pending` 只列數量；整體最多 10,000 字元，保留結果檔路徑與 `run_id`，省略內容須讀檔並再次核對 `run_id`。
+
+缺少標記（含輸出截斷或重新導向）、檔案／格式／時間不符、半成品或拿不到鎖時，只回報「無法確認是否送單或送了哪些單，目前沒有對帳結果」，不可據此推論未送單或直接重送。核對失敗不啟動查詢；拿不到鎖也不讀寫結果檔、不接觸瀏覽器。只有 `confirmed`／`already_pending` 代表送單時已確認有效單。先前已確認、這次跳過的單不會列出，**沒出現在結果檔，不代表未確認**，應另查先前證據。
 
 `portal-check` 只補充需要注意的單，已核准的單不會列出；報告缺單或查詢失敗不推翻已核對的本次結果。它會持有同一把鎖直到查詢結束；查詢正常且無待處理事項回傳 `0`，有退件、抽單或簽核中單據回傳 `1`，參數、瀏覽器缺失、登入逾時分別回傳 `2`、`3`、`4`，鎖被占用回傳 `5`，查詢失敗回傳 `6`。
 

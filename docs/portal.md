@@ -153,7 +153,7 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 `--input=檔案`，並將 `--base-url`、`--session` 傳給 `portal-check`。
 `--dry-run-pause-secs` 不會被誤當成 `--dry-run`；背景執行只提醒稍後對帳。
 `2>&1`、`&>`、`>&` 不會被誤判為背景，獨立的 `&` 才視為背景。
-但完成標記若被重新導向而不在本次 stdout，hook 不會讀結果檔或執行對帳。
+完成標記若被重新導向或截斷而未出現在事件輸出，hook 不會讀結果檔或執行對帳。
 支援 `uv run fhr ...`、`timeout N fhr ...`、`python3 -m attendance_analyzer ...`；
 不解析 `bash -c "..."` 內層命令。
 `FHR_PORTAL_CHECK_TIMEOUT` 不是正整數時回到預設 150 秒。
@@ -167,22 +167,43 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 既有結果的 `overtime`／`leave` 仍可用於重跑去重，但沒有新格式收據的舊檔不能
 作為本次確認依據。
 
-hook 按 [官方 Bash output schema](https://code.claude.com/docs/en/hooks#posttooluse-decision-control)
-讀取 `tool_response.stdout`；Bash 回傳物件包含 `stdout`、`stderr`、
-`interrupted`、`isImage`，不是任意字串，也不假設有 `exit_code`。
-只有一個前景 apply 與唯一完成標記才能歸屬；中斷工具回應、缺少標記或多個 apply
-都停止自動對帳。hook 持有 apply lock 時讀檔，核對輸入推得的路徑、run_id、
-completed 與逐筆資料格式。檔案不存在、格式錯誤、半成品或 run_id 不符時，
-明確回報「目前沒有對帳結果，不可說任何單已送出或已確認」。
-exit 2／3／4、無需送出或取消時不會信任舊結果；鎖被占用時不讀寫任何結果檔，
-本次 apply 未送單時明確回報「本次沒有送單，目前沒有對帳結果」。
+hook 同時註冊兩種 Bash 事件，忽略 `--dry-run`、help 及無關命令：
 
-核對成功後，hook 提供鎖內讀到的本次結果快照，避免下一個程序替換固定路徑後
-讀到別次結果。只有 `confirmed`／`already_pending` 代表送單時已確認有效單，
-不代表目前仍在簽核中。先前已確認、這次跳過的單不會列出；
-**沒出現在結果檔，不代表未確認**，請另查先前證據，不可據此重送或聲稱本次確認。
-`portal-check` 報告只補充需要注意的單；已核准的單不會列出，
-報告缺單或補充查詢失敗不推翻已核對的本次結果。
+- `PostToolUse`：指令成功結束，從 `tool_response.stdout` 讀收據；回應是物件，
+  包含 `stdout`、`stderr`、`interrupted`、`isImage`，不假設有 `exit_code`。
+- `PostToolUseFailure`：指令以非 0 結束（含 exit 2／3／4／5），從頂層 `error`
+  讀收據；`tool_response` 可以是 null。已收尾的 exit 5 結果仍可核對。
+- 兩種事件都用對應的 `hookEventName` 與 `additionalContext` 回報。
+  [官方文件明列失敗事件支援 additionalContext](https://code.claude.com/docs/en/hooks#posttoolusefailure-decision-control)，
+  不需要改用 stderr 或其他替代方式。
+- `run_in_background`、shell 的 `&`，或前景逾時後 `tool_response.backgroundTaskId`
+  存在時，只說「送單仍在背景執行中，完成後再對帳」，不讀檔、不啟動查詢。
+  這不代表背景結束時會自動再觸發一次對帳，完成後須另外核對。
+
+只有一個前景 apply 與唯一完成標記才能歸屬；中斷的成功事件回應、缺少標記
+或多個 apply 都停止自動對帳。hook 持有 apply lock 時讀檔，核對輸入推得的
+路徑、run_id、completed 與逐筆資料格式。另依
+[官方選用欄位 duration_ms](https://code.claude.com/docs/en/hooks#posttoolusefailure-input)
+核對 mtime：上限為 hook 當下，下限為當下減去執行時長再減 2 秒，容許 hook
+啟動與檔案系統時間精度誤差；欄位缺少或無效時使用 10 分鐘上限。
+未來時間或範圍外的舊結果即使 run_id 相同，也不採用。
+此檢查只能排除範圍外的舊結果；時間範圍內重播的舊收據仍無法可靠區分。
+
+無收據（包含 stdout 截斷）、缺檔、格式／時間不符、半成品、run_id 不符或鎖被
+占用時，只說「無法確認是否送單或送了哪些單，目前沒有對帳結果」，
+不可斷言未送單，也不可直接重送。鎖被占用時不讀寫結果檔、不接觸瀏覽器。
+
+核對成功後提供鎖內快照的摘要，避免下一個程序替換固定路徑後讀到別次結果：
+先列結果路徑、run_id、總筆數與各狀態數量，再列非 OK 項目的日期、起訖時間
+與 status。`confirmed`／`already_pending` 只列數量，其他詳細欄位留在結果檔。
+項目明細使用約 6,500 字元的預算，整體 `additionalContext` 不超過
+[10,000 字元](https://code.claude.com/docs/en/hooks#json-output)；過長項目或補充報告會標示省略。
+需要完整內容時讀取提供的結果檔，並再次核對 run_id，避免固定路徑已被覆寫。
+
+只有 `confirmed`／`already_pending` 代表送單時已確認有效單，不代表目前仍在
+簽核中。先前已確認、這次跳過的單不會列出；**沒出現在結果檔，不代表未確認**，
+請另查先前證據，不可據此重送或聲稱本次確認。`portal-check` 報告只補充需要
+注意的單；已核准的單不會列出，報告缺單或補充查詢失敗不推翻已核對的本次結果。
 
 hook 釋放讀檔鎖後，`portal-check` 重新取鎖並持有到查詢結束；
 若其他程序先取得鎖，回傳 `5`，hook 提醒稍後補充查詢，保留已核對的快照，

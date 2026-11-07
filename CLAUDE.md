@@ -426,29 +426,28 @@ Project improvement and development task management:
 未知狀態、假別無匹配或多匹配、清單解析或分頁不完整時不送單。
 `portal-check` 會列出抽單並回傳 exit 1。本機 lock 阻擋並行執行。
 送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
-`portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，hook 不把
-錯誤輸出當成清單證據。
+`portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，
+錯誤輸出不可當成清單證據。
 結果檔頂層有每次送單唯一的 `run_id` 與 `completed`，每次保存以同目錄暫存檔
 加 rename 原子替換。逐筆保存時 completed 為 false，批次或中斷收尾完成後為 true，
 再於 stdout 印出 `結果寫入：<絕對路徑>（run_id=<UUID>）`。completed 不代表每筆成功。
-hook 註冊 `PostToolUse` 與 `PostToolUseFailure`，分別從 `tool_response.stdout`
-與頂層 `error` 取得唯一完成標記；失敗事件的 `tool_response` 可為 null。
-兩者都支援 `additionalContext`，回傳的 `hookEventName` 必須與輸入一致。
-exit 5 有完成收據時仍須對帳。只處理可辨識的非 dry-run、非 help 的 apply。
-明確背景執行或逾時自動背景化（`backgroundTaskId`）只說
-「送單仍在背景執行中，完成後再對帳」，不啟動查詢，也不保證背景結束後自動觸發。
+hook 註冊 `PostToolUse` 與 `PostToolUseFailure`，偵測非 dry-run、非 help 的
+`portal-apply`／`portal_apply` CLI 呼叫，支援 `uv run`、`timeout` 等包裝。
+兩種事件都以相同的 `hookEventName` 回傳固定 `additionalContext` 提醒。
+hook 不讀結果檔、不解析收據、不比對 run_id 或 mtime、不取鎖、不自動查詢，
+也不產生快照；查重、flock、逐筆對帳與原子寫入仍由送單本體負責。
 
-持有 apply lock 讀檔核對路徑、run_id、completed、逐筆格式與 mtime。
-mtime 範圍為 hook 當下往前推 `duration_ms`，起點加 2 秒容差；該選用欄位
-缺少或無效時改用 10 分鐘上限。未來或範圍外的舊結果拒收；時間範圍內的重播
-仍無法可靠區分。無標記（含輸出截斷）、缺檔、半成品、格式／時間不符或鎖被
-占用時，只說「無法確認是否送單或送了哪些單，目前沒有對帳結果」，
-不可聲稱未送單或直接重送。鎖被占用時不讀寫結果檔、不接觸瀏覽器。
+結果以 `portal-apply` 印出的逐筆狀態與 exit code 為準。
+只有 `confirmed`／`already_pending` 代表送單時已確認 Portal 上有有效單，
+未必仍在簽核中；`unconfirmed`、`failed`、`blocked` 都不算。
+exit 5 表示有未確認的單、送出中斷，或另一個 `portal-apply`／`portal-check`
+正在執行。回報前先跑 `fhr portal-check --since <最早日期>` 對帳，不可以直接重送。
+任何一筆沒有確認，就不可以把該筆或整批回報為「已送出」或「簽核中」。
 
-核對成功後回報總筆數、各狀態數量，優先列非 OK 項目，OK 項目只列數量。
-整體 additionalContext 不超過 10,000 字元；保留結果檔路徑與 run_id，
-完整內容須讀檔並再次核對 run_id，避免固定路徑被下一輪覆寫。
-`confirmed`／`already_pending` 為主要確認依據，`portal-check` 只補充需要注意的單；
-報告缺單或查詢失敗不推翻已核對結果。先前已確認、這次跳過的單不會列出，
-沒出現在結果檔，不代表未確認；請另查先前證據，不可據此重送或宣稱本次確認。
+若 `run_in_background`、shell 的 `&` 或 `tool_response.backgroundTaskId`
+表示背景執行，送單可能還在進行，須等它完成、看完輸出再對帳，
+不可以說成「沒有送單」。背景結束後不保證再次觸發 hook。
+`portal-check` 只補充需要注意的單，已核准的單不會列出；
+報告缺單或查詢失敗不推翻已確認的逐筆結果。
+先前已確認、這次跳過的單不會列出，沒出現在結果檔不代表未確認，請另查先前證據。
 `portal-check` 持有同一把鎖直到查詢結束，取不到鎖時在接觸瀏覽器前以 `5` 結束。

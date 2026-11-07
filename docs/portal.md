@@ -149,15 +149,6 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 `unconfirmed` 寫入結果檔，再以 `5` 結束，不繼續批次。即使回傳 `confirmed`，
 這次執行仍以 `5` 表示曾中斷，重跑前須先讀結果檔。
 
-送單後 hook 用 shell token 辨識真正的指令，支援加引號的指令名稱與
-`--input=檔案`，並將 `--base-url`、`--session` 傳給 `portal-check`。
-`--dry-run-pause-secs` 不會被誤當成 `--dry-run`；背景執行只提醒稍後對帳。
-`2>&1`、`&>`、`>&` 不會被誤判為背景，獨立的 `&` 才視為背景。
-完成標記若被重新導向或截斷而未出現在事件輸出，hook 不會讀結果檔或執行對帳。
-支援 `uv run fhr ...`、`timeout N fhr ...`、`python3 -m attendance_analyzer ...`；
-不解析 `bash -c "..."` 內層命令。
-`FHR_PORTAL_CHECK_TIMEOUT` 不是正整數時回到預設 150 秒。
-
 結果檔保留 `overtime`／`leave` 陣列，頂層新增 `run_id`（每次送單唯一的 UUID）
 與 `completed`。逐筆進度保存為 `false`；正常批次或送出中斷完成收尾後保存為
 `true`，再於 stdout 印出獨立一行 `結果寫入：<絕對路徑>（run_id=<UUID>）`。
@@ -167,47 +158,39 @@ exits `5` when any entry ends outside `confirmed / already_pending / dry_run`.
 既有結果的 `overtime`／`leave` 仍可用於重跑去重，但沒有新格式收據的舊檔不能
 作為本次確認依據。
 
-hook 同時註冊兩種 Bash 事件，忽略 `--dry-run`、help 及無關命令：
+### 送單後提醒
 
-- `PostToolUse`：指令成功結束，從 `tool_response.stdout` 讀收據；回應是物件，
-  包含 `stdout`、`stderr`、`interrupted`、`isImage`，不假設有 `exit_code`。
-- `PostToolUseFailure`：指令以非 0 結束（含 exit 2／3／4／5），從頂層 `error`
-  讀收據；`tool_response` 可以是 null。已收尾的 exit 5 結果仍可核對。
-- 兩種事件都用對應的 `hookEventName` 與 `additionalContext` 回報。
-  [官方文件明列失敗事件支援 additionalContext](https://code.claude.com/docs/en/hooks#posttoolusefailure-decision-control)，
-  不需要改用 stderr 或其他替代方式。
-- `run_in_background`、shell 的 `&`，或前景逾時後 `tool_response.backgroundTaskId`
-  存在時，只說「送單仍在背景執行中，完成後再對帳」，不讀檔、不啟動查詢。
-  這不代表背景結束時會自動再觸發一次對帳，完成後須另外核對。
+hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure` 兩種 Bash 事件，
+輸出的 `hookEventName` 與收到的事件一致，以 `additionalContext` 回傳同一段
+固定提醒。成功與非 0 結束碼都會提醒，無須完成標記或結果檔。
 
-只有一個前景 apply 與唯一完成標記才能歸屬；中斷的成功事件回應、缺少標記
-或多個 apply 都停止自動對帳。hook 持有 apply lock 時讀檔，核對輸入推得的
-路徑、run_id、completed 與逐筆資料格式。另依
-[官方選用欄位 duration_ms](https://code.claude.com/docs/en/hooks#posttoolusefailure-input)
-核對 mtime：上限為 hook 當下，下限為當下減去執行時長再減 2 秒，容許 hook
-啟動與檔案系統時間精度誤差；欄位缺少或無效時使用 10 分鐘上限。
-未來時間或範圍外的舊結果即使 run_id 相同，也不採用。
-此檢查只能排除範圍外的舊結果；時間範圍內重播的舊收據仍無法可靠區分。
+偵測以 shell token 辨識 `fhr`、`attendance_analyzer.py` 或
+`python -m attendance_analyzer` 的 `portal-apply`／`portal_apply` 呼叫，
+支援引號、環境變數前綴、`uv run`、`timeout N`、換行與重新導向。
+忽略 `--dry-run`、`-h`、`--help` 與明顯只讀文字的 `echo`、`grep` 等指令；
+`--dry-run-pause-secs` 不會被誤當成 `--dry-run`。
+這是提醒用的簡單偵測，不解析 `bash -c "…"` 等內層 shell。
 
-無收據（包含 stdout 截斷）、缺檔、格式／時間不符、半成品、run_id 不符或鎖被
-占用時，只說「無法確認是否送單或送了哪些單，目前沒有對帳結果」，
-不可斷言未送單，也不可直接重送。鎖被占用時不讀寫結果檔、不接觸瀏覽器。
+提醒內容：
 
-核對成功後提供鎖內快照的摘要，避免下一個程序替換固定路徑後讀到別次結果：
-先列結果路徑、run_id、總筆數與各狀態數量，再列非 OK 項目的日期、起訖時間
-與 status。`confirmed`／`already_pending` 只列數量，其他詳細欄位留在結果檔。
-項目明細使用約 6,500 字元的預算，整體 `additionalContext` 不超過
-[10,000 字元](https://code.claude.com/docs/en/hooks#json-output)；過長項目或補充報告會標示省略。
-需要完整內容時讀取提供的結果檔，並再次核對 run_id，避免固定路徑已被覆寫。
+- 結果以 `portal-apply` 印出的逐筆狀態與 exit code 為準，只有
+  `confirmed`／`already_pending` 代表送單時已確認 Portal 上有有效單，
+  未必仍在簽核中。`unconfirmed`、`failed`、`blocked` 都不算。
+- exit 5 表示有未確認的單、送出中斷，或另一個 `portal-apply`／`portal-check`
+  正在執行。回報前先跑 `fhr portal-check --since <最早日期>` 對帳，
+  **不可以直接重送**。日期應涵蓋本次所有待確認項目。
+- `run_in_background`、shell 的 `&` 或 `tool_response.backgroundTaskId`
+  表示背景執行時，送單可能還在進行，須等它完成、看完輸出再對帳，
+  不可以說成「沒有送單」。背景結束後不保證再次觸發 hook。
+- 任何一筆沒有確認，就不可以把該筆或整批回報為「已送出」或「簽核中」。
 
-只有 `confirmed`／`already_pending` 代表送單時已確認有效單，不代表目前仍在
-簽核中。先前已確認、這次跳過的單不會列出；**沒出現在結果檔，不代表未確認**，
-請另查先前證據，不可據此重送或聲稱本次確認。`portal-check` 報告只補充需要
-注意的單；已核准的單不會列出，報告缺單或補充查詢失敗不推翻已核對的本次結果。
+hook 不讀寫結果檔、不解析收據、不比對 run_id 或 mtime、不取 lock、
+不執行 `portal-check`，也不產生快照。查重、flock、逐筆對帳、exit code、
+run_id 與原子寫入仍由 `portal-apply` 負責；`portal-check` 仍持鎖查詢。
 
-hook 釋放讀檔鎖後，`portal-check` 重新取鎖並持有到查詢結束；
-若其他程序先取得鎖，回傳 `5`，hook 提醒稍後補充查詢，保留已核對的快照，
-不會誤報為登入失敗。
+先前已確認、這次跳過的單不會列出；**沒出現在結果檔，不代表未確認**，
+請另查先前證據，不可據此重送或聲稱本次確認。`portal-check` 報告只補充
+需要注意的單；已核准的單不會列出，報告缺單或查詢失敗不推翻已確認的逐筆結果。
 
 下表的待處理項目亦包含抽單，與駁回、簽核中項目同樣回傳 `1`。
 
@@ -218,7 +201,7 @@ hook 釋放讀檔鎖後，`portal-check` 重新取鎖並持有到查詢結束；
 | `portal-check` | `0` | 查詢成功且沒有退件／簽核中項目 |
 | `portal-check` | `1` | 查詢成功，有退件／簽核中項目 |
 | `portal-check` | `5` | apply lock 被占用，未接觸瀏覽器，稍後再對帳 |
-| `portal-check` | `6` | 查詢失敗，hook 不把錯誤輸出當成對帳證據 |
+| `portal-check` | `6` | 查詢失敗，錯誤輸出不可當成對帳證據 |
 | 兩者 | `2`／`3`／`4` | 參數錯誤／瀏覽器缺失／登入逾時 |
 
 

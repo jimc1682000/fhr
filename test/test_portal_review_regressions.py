@@ -1,17 +1,11 @@
-"""交叉 review 的離線驗收：狀態、假別、分頁與 hook 命令辨識。"""
+"""交叉 review 的離線驗收：狀態、假別與分頁。"""
 
-import importlib.util
 import json
 import unittest
 from unittest import mock
 
 from lib.portal import apply_forms as af, approvals
-from test.test_claude_hook_post_portal_apply import HOOK
 from test.test_portal_submit_reliability import ENTRY, FakePortal
-
-spec = importlib.util.spec_from_file_location("post_portal_apply", HOOK)
-hook = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(hook)
 
 
 def submit(portal, leave_type="補休假"):
@@ -121,49 +115,3 @@ class TestReviewPagination(unittest.TestCase):
                 ],
             ):
                 approvals.fetch_form_entries(portal, "http://fake.invalid", "請假單")
-
-
-class TestReviewHook(unittest.TestCase):
-    def test_redirections_are_foreground(self):
-        for suffix in ("> log.txt 2>&1", "&> log", ">& log", "2>&1", "2>&1 | cat"):
-            with self.subTest(suffix=suffix):
-                invocations = hook._invocations("fhr portal-apply --auto " + suffix)
-                self.assertEqual(len(invocations), 1)
-                self.assertFalse(invocations[0][1])
-
-    def test_newline_separated_commands(self):
-        cases = {
-            "cd /tmp\nfhr portal-apply --input a.json": [(["--input", "a.json"], False)],
-            "cd /tmp &&\\\n  fhr portal-apply --auto": [(["--auto"], False)],
-            "sleep 1 &\nfhr portal-apply --auto": [(["--auto"], False)],
-            "cd /tmp\nfhr portal-apply --auto &": [(["--auto"], True)],
-        }
-        for command, expected in cases.items():
-            with self.subTest(command=command):
-                self.assertEqual(hook._invocations(command), expected)
-
-    def test_background_operators(self):
-        for suffix in ("&", "& wait", "> log.txt 2>&1 &"):
-            with self.subTest(suffix=suffix):
-                self.assertTrue(hook._invocations("fhr portal-apply --auto " + suffix)[0][1])
-
-    def test_wrappers_are_recognized(self):
-        for prefix in (
-            "uv run fhr",
-            "timeout 30 fhr",
-            "timeout 30s uv run fhr",
-            "python3 -m attendance_analyzer",
-        ):
-            with self.subTest(prefix=prefix):
-                self.assertEqual(
-                    hook._invocations(prefix + " portal-apply --auto"), [(["--auto"], False)]
-                )
-
-    def test_wrapper_help_and_echo_do_not_invoke(self):
-        for command in (
-            "echo uv run fhr portal-apply",
-            "uv --help run fhr portal-apply",
-            "timeout --help fhr portal-apply",
-        ):
-            with self.subTest(command=command):
-                self.assertEqual(hook._invocations(command), [])

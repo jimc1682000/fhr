@@ -97,11 +97,11 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
 
 送單結果頂層新增 `run_id` 與 `completed`。逐筆保存時為 `completed: false`，批次結束或送出中斷完成收尾後才寫成 `true`；每次都以同目錄暫存檔加 rename 原子替換。完成後 stdout 印出固定格式 `結果寫入：<絕對路徑>（run_id=<UUID>）`。`completed` 只表示結果已收尾，不代表每筆成功，仍須讀每筆 `status`。
 
-hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure`：前者從 Bash `tool_response.stdout` 讀完成標記，後者（含 exit 5）從 `error` 讀取，並以相同事件名回傳 `additionalContext`。只處理可辨識的非 dry-run、非 help 的 `portal-apply`。明確背景執行或逾時自動背景化（`backgroundTaskId`）只提醒「送單仍在背景執行中，完成後再對帳」，不啟動查詢。
+hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure`，辨識非 dry-run、非 help 的 `portal-apply`／`portal_apply` CLI 呼叫，以相同事件名回傳固定的 `additionalContext` 提醒。hook 只提醒，不讀結果檔、不解析收據、不取鎖，也不自動執行 `portal-check`。
 
-只有唯一完成標記才持有 apply lock 讀檔，核對路徑、`run_id`、`completed: true`、逐筆格式與 mtime。mtime 必須落在 hook 當下往前推 `duration_ms` 的範圍內，起點容許 2 秒誤差；缺少或無效時改用 10 分鐘上限。這是時效篩選，無法排除時間範圍內重播的舊收據。核對成功後提供快照摘要：總筆數、各狀態數量、非 OK 項目優先，`confirmed`／`already_pending` 只列數量；整體最多 10,000 字元，保留結果檔路徑與 `run_id`，省略內容須讀檔並再次核對 `run_id`。
+結果以 `portal-apply` 印出的逐筆狀態與 exit code 為準，只有 `confirmed`／`already_pending` 代表送單時已確認 Portal 上有有效單，未必仍在簽核中。`unconfirmed`、`failed`、`blocked` 都不算。exit 5 表示有未確認的單、送出中斷，或另一個程序正在執行；回報前先跑 `fhr portal-check --since <最早日期>` 對帳，**不可以直接重送**。任何一筆沒有確認，就不可以把該筆或整批回報為「已送出」或「簽核中」。
 
-缺少標記（含輸出截斷或重新導向）、檔案／格式／時間不符、半成品或拿不到鎖時，只回報「無法確認是否送單或送了哪些單，目前沒有對帳結果」，不可據此推論未送單或直接重送。核對失敗不啟動查詢；拿不到鎖也不讀寫結果檔、不接觸瀏覽器。只有 `confirmed`／`already_pending` 代表送單時已確認有效單。先前已確認、這次跳過的單不會列出，**沒出現在結果檔，不代表未確認**，應另查先前證據。
+明確背景執行（`run_in_background`、shell 的 `&`）或逾時自動背景化（`tool_response.backgroundTaskId`）時，送單可能還在進行，須等它完成、看完輸出再對帳，不可以說成「沒有送單」。背景結束後不保證再次觸發 hook。先前已確認、這次跳過的單不會列出；沒出現在結果檔，不代表未確認，應另查先前證據。
 
 `portal-check` 只補充需要注意的單，已核准的單不會列出；報告缺單或查詢失敗不推翻已核對的本次結果。它會持有同一把鎖直到查詢結束；查詢正常且無待處理事項回傳 `0`，有退件、抽單或簽核中單據回傳 `1`，參數、瀏覽器缺失、登入逾時分別回傳 `2`、`3`、`4`，鎖被占用回傳 `5`，查詢失敗回傳 `6`。
 

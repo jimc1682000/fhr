@@ -418,3 +418,36 @@ Project improvement and development task management:
 - **`README.md`** - Task management index and usage guide
 
 **Usage**: Check `todos/` for actionable improvement items and development priorities.
+
+### Portal 送單可靠性
+
+`portal-apply` 預查與送出後對帳皆讀全部狀態，以有效狀態允許清單判斷，排除
+「流程停止(抽單)」與駁回；比對起訖日期、時間及下拉選單解析的唯一假別全名。
+未知狀態、假別無匹配或多匹配、清單解析或分頁不完整時不送單。
+`portal-check` 會列出抽單並回傳 exit 1。本機 lock 阻擋並行執行。
+送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
+`portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，
+錯誤輸出不可當成清單證據。
+結果檔頂層有每次送單唯一的 `run_id` 與 `completed`，每次保存以同目錄暫存檔
+加 rename 原子替換。逐筆保存時 completed 為 false，批次或中斷收尾完成後為 true，
+再於 stdout 印出 `結果寫入：<絕對路徑>（run_id=<UUID>）`。completed 不代表每筆成功。
+hook 註冊 `PostToolUse` 與 `PostToolUseFailure`，偵測非 dry-run、非 help 的
+`portal-apply`／`portal_apply` CLI 呼叫，支援 `uv run`、`timeout` 等包裝。
+兩種事件都以相同的 `hookEventName` 回傳固定 `additionalContext` 提醒。
+hook 不讀結果檔、不解析收據、不比對 run_id 或 mtime、不取鎖、不自動查詢，
+也不產生快照；查重、flock、逐筆對帳與原子寫入仍由送單本體負責。
+
+結果以 `portal-apply` 印出的逐筆狀態與 exit code 為準。
+只有 `confirmed`／`already_pending` 代表送單時已確認 Portal 上有有效單，
+未必仍在簽核中；`unconfirmed`、`failed`、`blocked` 都不算。
+exit 5 表示有未確認的單、送出中斷，或另一個 `portal-apply`／`portal-check`
+正在執行。回報前先跑 `fhr portal-check --since <最早日期>` 對帳，不可以直接重送。
+任何一筆沒有確認，就不可以把該筆或整批回報為「已送出」或「簽核中」。
+
+若 `run_in_background`、shell 的 `&` 或 `tool_response.backgroundTaskId`
+表示背景執行，送單可能還在進行，須等它完成、看完輸出再對帳，
+不可以說成「沒有送單」。背景結束後不保證再次觸發 hook。
+`portal-check` 只補充需要注意的單，已核准的單不會列出；
+報告缺單或查詢失敗不推翻已確認的逐筆結果。
+先前已確認、這次跳過的單不會列出，沒出現在結果檔不代表未確認，請另查先前證據。
+`portal-check` 持有同一把鎖直到查詢結束，取不到鎖時在接觸瀏覽器前以 `5` 結束。

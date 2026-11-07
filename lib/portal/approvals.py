@@ -85,7 +85,8 @@ _READ_PAGE_JS = """
       status_cell: cells[3] || '',
     };
   });
-  return {totalPages, page: target, rows};
+  const current = doc.querySelector('select');
+  return {totalPages, page: current ? current.selectedIndex : 0, rows};
 })()
 """
 
@@ -180,24 +181,32 @@ def fetch_form_entries(
             raise RuntimeError(f"eval 回報錯誤: {result['error']}")
         if not isinstance(result, dict) or "rows" not in result:
             raise RuntimeError(f"eval 失敗或回傳格式異常: {result!r}")
+        if not isinstance(result["rows"], list):
+            raise RuntimeError("清單資料列格式異常")
+        if result.get("page") != idx:
+            raise RuntimeError("清單分頁未到達指定頁次")
         return result
 
     entries: list[dict] = []
     seen: set[str] = set()
 
     first = _read_page(0)
-    total_pages = int(first.get("totalPages", 1) or 1)
+    total_pages = first.get("totalPages")
+    if not isinstance(total_pages, int) or total_pages < 1:
+        raise RuntimeError("清單總頁數格式異常")
 
     def _collect(rows: list[dict]) -> None:
         for row in rows:
+            if not isinstance(row, dict):
+                raise RuntimeError("清單資料列格式異常")
             rid = row.get("id", "")
             if rid and rid in seen:
-                continue
+                raise RuntimeError("清單分頁出現重複資料列")
             if rid:
                 seen.add(rid)
             parsed = parse_wsdinfotext(row.get("wsdinfotext", ""))
-            if parsed is None:
-                continue
+            if parsed is None or not parsed["end_time"]:
+                raise RuntimeError("清單有無法解析的資料列")
             # The visible 狀態 column is the reliable approval status;
             # wsdinfotext rarely carries it. Prefer the cell when present.
             status_cell = row.get("status_cell", "")
@@ -208,7 +217,10 @@ def fetch_form_entries(
 
     _collect(first["rows"])
     for idx in range(1, total_pages):
-        _collect(_read_page(idx)["rows"])
+        page = _read_page(idx)
+        if page.get("totalPages") != total_pages or not page["rows"]:
+            raise RuntimeError("清單分頁內容不完整")
+        _collect(page["rows"])
 
     logger.info("✅ %s: %d 筆 (%d 頁)", form_name_zh, len(entries), total_pages)
     return entries

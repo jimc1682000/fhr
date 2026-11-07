@@ -25,7 +25,10 @@ import json
 import logging
 import os
 import sys
+import tempfile
+import uuid
 from collections.abc import Iterable
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -264,9 +267,24 @@ def _load_completed(path: Path) -> set[str]:
 
 
 def _save_results(path: Path, results: dict) -> None:
-    path.write_text(
-        json.dumps(results, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
-    )
+    # 同目錄暫存再替換，讀者只會看見完整的一版結果。
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", delete=False
+    ) as temporary:
+        temporary_path = Path(temporary.name)
+        try:
+            json.dump(results, temporary, ensure_ascii=False, indent=2, default=str)
+            temporary.flush()
+            os.replace(temporary_path, path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+
+def _finish_results(path: Path, results: dict) -> None:
+    results["completed"] = True
+    _save_results(path, results)
+    # 固定格式 stdout 收據，供 PostToolUse 比對；不可改走帶前綴的 logger。
+    print(f"結果寫入：{path.resolve()}（run_id={results['run_id']}）", flush=True)
 
 
 # ---------- dedup against state cache ----------
@@ -554,7 +572,37 @@ LEAVE_TYPE_MAP: dict[str, str] = {
 }
 
 
+class ApplyInProgress(RuntimeError):
+    pass
+
+
+@contextmanager
+def _apply_lock():
+    import fcntl
+
+    directory = Path.home() / ".cache" / "fhr" / "portal"
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / "portal-apply.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ApplyInProgress("另一個 portal-apply 執行中，請等候結束後再試") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
 def run(args: argparse.Namespace) -> None:
+    try:
+        with _apply_lock():
+            _run_locked(args)
+    except ApplyInProgress as error:
+        logging.getLogger(__name__).error("%s", error)
+        sys.exit(5)
+
+
+def _run_locked(args: argparse.Namespace) -> None:
     from attendance_analyzer import logger
     from lib.cascade import DEFAULT_CASCADES, allocate
     from lib.config import AttendanceConfig
@@ -710,6 +758,16 @@ def run(args: argparse.Namespace) -> None:
 
     submit_ot = [p for p in plan["overtime"] if p["action"] == "submit"]
     submit_lv = [p for p in plan["leave"] if p["action"] == "submit"]
+    # Portal silently drops non-WFH leave without a 職務代理人 — stop before
+    # anything is submitted rather than leave a half-done batch.
+    missing_proxy = [
+        p for p in submit_lv if "異地辦公" not in p["leave_type"] and not p.get("proxy")
+    ]
+    if missing_proxy:
+        logger.error("❌ %d 筆非 WFH 假單沒有職務代理人，請加 --proxy 後重跑：", len(missing_proxy))
+        for p in missing_proxy:
+            logger.error("  %s [%s]", p["entry"].get("date"), p["leave_type"])
+        sys.exit(2)
     logger.info("\n%s\n📋 送出確認\n%s", "=" * 50, "=" * 50)
     for p in submit_ot:
         logger.info(
@@ -751,13 +809,20 @@ def run(args: argparse.Namespace) -> None:
             return
 
     # Step 5 — submit
-    results: dict[str, list[dict]] = {"overtime": [], "leave": []}
+    results: dict = {
+        "run_id": str(uuid.uuid4()),
+        "completed": False,
+        "overtime": [],
+        "leave": [],
+    }
 
-    def _persist_ot(plan_entry, ok):
+    def _persist_ot(plan_entry, status):
+        ok = status in af.OK_STATUSES
         results["overtime"].append(
             {
                 "entry": plan_entry["entry"],
                 "submitted": ok,
+                "status": status,
                 "dry_run": args.dry_run,
                 "reason": plan_entry["reason"],
             }
@@ -777,11 +842,13 @@ def run(args: argparse.Namespace) -> None:
             )
             sm.save_state()
 
-    def _persist_lv(plan_entry, ok):
+    def _persist_lv(plan_entry, status):
+        ok = status in af.OK_STATUSES
         results["leave"].append(
             {
                 "entry": plan_entry["entry"],
                 "submitted": ok,
+                "status": status,
                 "dry_run": args.dry_run,
                 "leave_type": plan_entry["leave_type"],
                 "reason": plan_entry["reason"],
@@ -822,13 +889,30 @@ def run(args: argparse.Namespace) -> None:
                 "ℹ️ DRY RUN 已跳過『確定送出』+ 未寫入 applied_forms cache "
                 "(Portal 上不會出現任何單據)"
             )
-        logger.info("✅ 結果寫入 %s", result_path)
+        _finish_results(result_path, results)
     except AgentBrowserMissing as e:
         logger.error("❌ %s", e)
         sys.exit(3)
     except LoginTimeout as e:
         logger.error("❌ %s", e)
         sys.exit(4)
+    except af.SubmissionInterrupted as error:
+        _finish_results(result_path, results)
+        logger.error("❌ %s，結果已寫入 %s", error, result_path)
+        sys.exit(5)
+
+    not_done = [
+        (kind, r)
+        for kind in ("overtime", "leave")
+        for r in results[kind]
+        if r["status"] not in af.OK_STATUSES
+    ]
+    if not_done:
+        logger.warning("⚠️ %d 筆沒有在 Portal 上確認成立：", len(not_done))
+        for kind, r in not_done:
+            logger.warning("  %s %s → %s", kind, r["entry"].get("date"), r["status"])
+        logger.warning("unconfirmed 的單請勿直接重送，先跑 fhr portal-check 或到 Portal 確認")
+        sys.exit(5)
 
 
 def _resolve_screenshot_dir(args) -> Path | None:

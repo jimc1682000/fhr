@@ -395,7 +395,8 @@ class TestRunAutoMode(unittest.TestCase):
             debug=False,
         )
 
-    def test_auto_mode_fetches_balances_and_records_local_submits(self):
+    @staticmethod
+    def _fake_batch_submit(status):
         def fake_batch_submit(
             portal,
             base_url,
@@ -409,11 +410,16 @@ class TestRunAutoMode(unittest.TestCase):
             overtime = list(overtime_iter)
             leave = list(leave_iter)
             for item in overtime:
-                on_overtime_done(item, True)
+                on_overtime_done(item, status)
             for item in leave:
-                on_leave_done(item, True)
-            return len(overtime), len(overtime), len(leave), len(leave)
+                on_leave_done(item, status)
+            ok = status == "confirmed"
+            return len(overtime) * ok, len(overtime), len(leave) * ok, len(leave)
 
+        return fake_batch_submit
+
+    def test_auto_mode_fetches_balances_and_records_local_submits(self):
+        fake_batch_submit = self._fake_batch_submit("confirmed")
         balances = {
             "items": {
                 "異地辦公(8hr一週)": {"remaining": None},
@@ -442,6 +448,102 @@ class TestRunAutoMode(unittest.TestCase):
         self.assertEqual(recorded_kinds, ["overtime", "leave"])
         self.assertNotIn("last_full_sync", state.applied)
         self.assertEqual(state.saved, 2)
+
+    def _run_patched(self, args, fake_batch_submit):
+        balances = {"items": {"補休假": {"remaining": 8}}, "annual_leave": {"remaining_hours": 80}}
+        with (
+            mock.patch("lib.env.load"),
+            mock.patch("lib.state.AttendanceStateManager", _FakeStateManager),
+            mock.patch("lib.portal.client.PortalSession", _FakePortalSession),
+            mock.patch("lib.portal.client.ensure_login"),
+            mock.patch("lib.portal.balances.fetch_balances", return_value=balances),
+            mock.patch(
+                "lib.portal.apply_forms.batch_submit", side_effect=fake_batch_submit
+            ) as batch,
+        ):
+            run(args)
+        return batch
+
+    def test_submit_timeout_persists_reconciliation_and_exits_five(self):
+        from lib.portal import apply_forms as af
+        from test.test_portal_submit_reliability import ENTRY, FakePortal
+
+        for committed in (False, True):
+            with self.subTest(committed=committed):
+                self.analysis_path.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": "attendance-analysis/v1",
+                            "overtime": [],
+                            "leave": [{**ENTRY, "reason": "personal"}],
+                        }
+                    )
+                )
+                portal = FakePortal([], timeout_after_commit=committed)
+                if not committed:
+                    portal._submit = mock.Mock(side_effect=af.AgentBrowserError("timeout"))
+                real_submit = af.batch_submit
+
+                def invoke(_portal, base, ot, lv, portal=portal, real_submit=real_submit, **kwargs):
+                    return real_submit(portal, base, ot, lv, **kwargs)
+
+                with self.assertRaises(SystemExit) as cm:
+                    self._run_patched(self._args(), invoke)
+                self.assertEqual(cm.exception.code, 5)
+                result = json.loads(
+                    self.analysis_path.with_name(
+                        "hr_personal_apply_result_20260519.json"
+                    ).read_text()
+                )
+                self.assertEqual(
+                    result["leave"][0]["status"], "confirmed" if committed else "unconfirmed"
+                )
+                self.assertEqual(result["leave"][0]["submitted"], committed)
+                self.assertEqual(len(portal.forms), int(committed))
+
+    def test_lock_blocks_second_process_before_any_portal_access(self):
+        import subprocess
+        import sys
+
+        from lib.commands import portal_apply
+
+        with mock.patch.object(Path, "home", return_value=Path(self.tmp.name)):
+            with portal_apply._apply_lock():
+                code = "from pathlib import Path; from unittest.mock import patch; from lib.commands import portal_apply; "
+                code += "from argparse import Namespace; "
+                code += f"p=patch.object(Path, 'home', return_value=Path({self.tmp.name!r})); p.start(); "
+                code += "portal_apply.run(Namespace())"
+                proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 5, proc.stderr)
+                self.assertIn("執行中", proc.stderr)
+            with portal_apply._apply_lock():
+                pass
+
+    def test_unconfirmed_submission_exits_nonzero_and_is_not_recorded(self):
+        with self.assertRaises(SystemExit) as cm:
+            self._run_patched(self._args(), self._fake_batch_submit("unconfirmed"))
+        self.assertEqual(cm.exception.code, 5)
+        state = _FakeStateManager.instances[-1]
+        self.assertEqual(state.recorded, [])
+        result_file = self.analysis_path.with_name("hr_personal_apply_result_20260519.json")
+        results = json.loads(result_file.read_text(encoding="utf-8"))
+        self.assertEqual(
+            [r["status"] for r in results["overtime"] + results["leave"]],
+            ["unconfirmed", "unconfirmed"],
+        )
+        self.assertFalse(any(r["submitted"] for r in results["overtime"] + results["leave"]))
+
+    def test_non_wfh_leave_without_proxy_stops_before_submitting(self):
+        payload = json.loads(self.analysis_path.read_text(encoding="utf-8"))
+        payload["leave"][0].pop("type_hint")
+        self.analysis_path.write_text(json.dumps(payload), encoding="utf-8")
+        args = self._args()
+        args.proxy = None
+        fake = mock.Mock()
+        with self.assertRaises(SystemExit) as cm:
+            self._run_patched(args, fake)
+        self.assertEqual(cm.exception.code, 2)
+        fake.assert_not_called()
 
 
 # -------- _load_analysis --------

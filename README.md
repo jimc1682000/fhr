@@ -62,7 +62,7 @@ python attendance_analyzer.py portal-fetch --user JimmyChen
 # 從 Portal 同步「已申請的加班/請假單」進本地 state cache (dedup)
 python attendance_analyzer.py portal-sync --user JimmyChen
 
-# 送單前先行確認:列出被駁回 / 仍在簽核中的單 (--since 可限縮月份)
+# 送單前先行確認:列出被駁回 / 抽單 / 仍在簽核中的單 (--since 可限縮月份)
 python attendance_analyzer.py portal-check --since 2026/05
 
 # 顯示假別餘額 (補休/特休/事假/有薪病假/半薪病假/異地辦公)
@@ -78,9 +78,33 @@ python attendance_analyzer.py reasons --input tmp/analysis.json \
     --author "Jimmy Chen" --out tmp/reasons-evidence.json
 
 # 互動式批次送加班 + 請假單 (cascade 自動分配 + 早到日提示 + 實際打卡顯示)
+# 送出後到 Portal 全部狀態清單對帳（只接受有效狀態，排除流程停止(抽單)及駁回），查到才算成功；非 WFH 假單必須帶 --proxy
 python attendance_analyzer.py portal-apply --user JimmyChen \
     --input tmp/analysis.json --proxy 賴菁甫
 ```
+
+`portal-apply` 每筆單都會在結果檔記錄 `status`：只有 `confirmed`、`already_pending` 代表單子已在 Portal 上。有 `unconfirmed`、`failed`、`blocked` 時以結束碼 `5` 結束；非 WFH 假單缺 `--proxy` 則在送出前以 `2` 結束。細節見 [`docs/portal.md`](docs/portal.md#submission-confirmation-portal-apply)。
+
+預查與對帳會比對起訖日期、時間與下拉選單的實際假別全名，包含已核准的單。短名先以完全相同優先、子字串次之解析；無匹配、多個匹配、未知狀態或清單不完整時停止送單。有效狀態允許清單見 `docs/portal.md`。`portal-check` 也列出「流程停止(抽單)」，有抽單項目時回傳 `1`。同一使用者的本機 `portal-apply` 以 lock 序列執行，第二個程序以 `5` 結束。送出中斷會先對帳、保存結果，再以 `5` 結束，即使該筆已確認成立也不繼續送下一筆。
+
+| 結果狀態 | 判定 |
+|---|---|
+| `confirmed` | 送出後找到相同的有效單據 |
+| `already_pending` | 預查找到相同的有效單據，含已核准，不重送 |
+| `unconfirmed` | 已嘗試送出，對帳未能確認，需人工確認後再重跑 |
+| `failed`／`blocked` | 送出前無法判斷或前置條件不符，未送出 |
+| `dry_run` | 只預覽，不代表 Portal 有單據 |
+
+送單結果頂層新增 `run_id` 與 `completed`。逐筆保存時為 `completed: false`，批次結束或送出中斷完成收尾後才寫成 `true`；每次都以同目錄暫存檔加 rename 原子替換。完成後 stdout 印出固定格式 `結果寫入：<絕對路徑>（run_id=<UUID>）`。`completed` 只表示結果已收尾，不代表每筆成功，仍須讀每筆 `status`。
+
+hook 同時註冊 `PostToolUse` 與 `PostToolUseFailure`，辨識非 dry-run、非 help 的 `portal-apply`／`portal_apply` CLI 呼叫，以相同事件名回傳固定的 `additionalContext` 提醒。hook 只提醒，不讀結果檔、不解析收據、不取鎖，也不自動執行 `portal-check`。
+
+結果以 `portal-apply` 印出的逐筆狀態與 exit code 為準，只有 `confirmed`／`already_pending` 代表送單時已確認 Portal 上有有效單，未必仍在簽核中。`unconfirmed`、`failed`、`blocked` 都不算。exit 5 表示有未確認的單、送出中斷，或另一個程序正在執行；回報前先跑 `fhr portal-check --since <最早日期>` 對帳，**不可以直接重送**。任何一筆沒有確認，就不可以把該筆或整批回報為「已送出」或「簽核中」。
+
+明確背景執行（`run_in_background`、shell 的 `&`）或逾時自動背景化（`tool_response.backgroundTaskId`）時，送單可能還在進行，須等它完成、看完輸出再對帳，不可以說成「沒有送單」。背景結束後不保證再次觸發 hook。先前已確認、這次跳過的單不會列出；沒出現在結果檔，不代表未確認，應另查先前證據。
+
+`portal-check` 只補充需要注意的單，已核准的單不會列出；報告缺單或查詢失敗不推翻已核對的本次結果。它會持有同一把鎖直到查詢結束；查詢正常且無待處理事項回傳 `0`，有退件、抽單或簽核中單據回傳 `1`，參數、瀏覽器缺失、登入逾時分別回傳 `2`、`3`、`4`，鎖被占用回傳 `5`，查詢失敗回傳 `6`。
+
 
 詳見 [`docs/portal.md`](docs/portal.md) / [`docs/cascade.md`](docs/cascade.md) / [`docs/reasons.md`](docs/reasons.md)。整體路線圖在 [`docs/PLAN.md`](docs/PLAN.md)。
 

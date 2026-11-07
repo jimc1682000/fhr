@@ -1,10 +1,12 @@
 """Tests for `lib/commands/portal_check.py`."""
 
 import argparse
+import os
+import tempfile
 import unittest
 from unittest import mock
 
-from lib.commands import portal_check
+from lib.commands import portal_apply, portal_check
 
 
 def _entry(date, **kw):
@@ -89,6 +91,13 @@ class TestResolveBaseUrl(unittest.TestCase):
 
 
 class TestRun(unittest.TestCase):
+    def setUp(self):
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        patch = mock.patch.dict(os.environ, {"HOME": home.name})
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def _args(self, **kw):
         base = dict(
             since=None,
@@ -115,7 +124,7 @@ class TestRun(unittest.TestCase):
         with (
             mock.patch(
                 "lib.portal.approvals.fetch_all_applied_forms",
-                side_effect=[rejected, pending],
+                side_effect=[rejected, pending, {}],
             ) as fetch,
             mock.patch("lib.portal.client.PortalSession", return_value=session_cm),
             mock.patch("lib.portal.client.ensure_login"),
@@ -128,6 +137,30 @@ class TestRun(unittest.TestCase):
                 exit_code = e.code
         return "\n".join(logs), fetch, exit_code
 
+    def test_run_reports_withdrawn_from_all_statuses(self):
+        withdrawn = _entry("2026/10/08", status="流程停止(抽單)")
+        old = _entry("2024/01/01", status="流程停止(抽單)")
+        with (
+            mock.patch(
+                "lib.portal.approvals.fetch_all_applied_forms",
+                side_effect=lambda *a, **kw: (
+                    {"leave": [withdrawn, old]} if kw["status_zh"] == "全部" else {}
+                ),
+            ) as fetch,
+            mock.patch("lib.portal.client.PortalSession"),
+            mock.patch("lib.portal.client.ensure_login"),
+            mock.patch("lib.env.load"),
+            mock.patch("attendance_analyzer.logger") as logger,
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                portal_check.run(self._args(since="2026/05"))
+        self.assertEqual(cm.exception.code, 1)
+        text = "\n".join(c.args[1] for c in logger.info.call_args_list)
+        self.assertIn("抽單 1 筆", text)
+        self.assertIn("流程停止(抽單)", text)
+        self.assertNotIn("2024/01/01", text)
+        self.assertIn("全部", [c.kwargs["status_zh"] for c in fetch.call_args_list])
+
     def test_run_clean(self):
         joined, fetch, code = self._run_capture(
             self._args(),
@@ -136,8 +169,45 @@ class TestRun(unittest.TestCase):
         )
         self.assertIn("乾淨", joined)
         self.assertIsNone(code)
-        # queried both 已駁回 + 未處理
-        self.assertEqual(fetch.call_count, 2)
+        # queried 已駁回 + 未處理 + 全部（抽單）
+        self.assertEqual(fetch.call_count, 3)
+
+    def test_busy_apply_lock_prevents_browser_session(self):
+        with (
+            portal_apply._apply_lock(),
+            mock.patch("lib.portal.client.PortalSession") as session,
+            mock.patch("lib.portal.client.ensure_login"),
+            mock.patch("lib.portal.approvals.fetch_all_applied_forms", return_value={}),
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                portal_check.run(self._args())
+        self.assertEqual(cm.exception.code, 5)
+        session.assert_not_called()
+
+    def test_check_holds_apply_lock_through_browser_cleanup(self):
+        blocked = []
+
+        def assert_apply_blocked(*args, **kwargs):
+            try:
+                with portal_apply._apply_lock():
+                    blocked.append(False)
+            except portal_apply.ApplyInProgress:
+                blocked.append(True)
+            return {}
+
+        with (
+            mock.patch("lib.portal.client.PortalSession") as session,
+            mock.patch("lib.portal.client.ensure_login", side_effect=assert_apply_blocked),
+            mock.patch(
+                "lib.portal.approvals.fetch_all_applied_forms", side_effect=assert_apply_blocked
+            ),
+            mock.patch("lib.env.load"),
+        ):
+            session.return_value.__exit__.side_effect = assert_apply_blocked
+            portal_check.run(self._args())
+        self.assertEqual(blocked, [True] * 5)
+        with portal_apply._apply_lock():
+            pass
 
     def test_run_reports_rejected(self):
         joined, _, code = self._run_capture(
@@ -158,6 +228,20 @@ class TestRun(unittest.TestCase):
         )
         self.assertIn("乾淨", joined)
         self.assertIsNone(code)
+
+    def test_query_failure_exits_six(self):
+        for error in (RuntimeError("清單分頁重複"), ValueError("清單格式錯誤")):
+            with self.subTest(error=type(error).__name__):
+                _, _, code = self._run_capture(self._args(), error, {})
+                self.assertEqual(code, 6)
+
+    def test_pending_forms_still_exit_one(self):
+        _, _, code = self._run_capture(
+            self._args(),
+            {"overtime": [], "leave": []},
+            {"overtime": [], "leave": [_entry("2026/10/08", status="未處理")]},
+        )
+        self.assertEqual(code, 1)
 
     def test_run_missing_base_url_exits(self):
         args = self._args(base_url=None)

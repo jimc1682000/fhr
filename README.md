@@ -85,6 +85,7 @@ python attendance_analyzer.py portal-apply --user JimmyChen \
 # 週工時 (工時表 TTL/請假/加班):平日 8h − 請假 + 加班,國定假日 0,讀 state cache 的假單
 # 需先完整 portal-sync (加班單、請假單都要);跨日的單依起訖時間分到各天,對不上單據時數就不計並標示不完整
 # 預設週五已過的最近一週;--attendance 會標出沒打卡也沒假單的日子;--json 含 complete/warnings
+# 單張單據的時數必須在 0–1000h 之間,超出範圍 (或無法解析) 時 week-hours 會報錯並以 exit 1 結束
 python attendance_analyzer.py week-hours --user ExampleUser --week 2033/06/20 \
     --attendance tmp/203306-ExampleUser-出勤資料.txt
 ```

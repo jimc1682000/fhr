@@ -12,48 +12,48 @@ The FHR attendance analysis system is designed to integrate seamlessly with ente
 graph TB
     subgraph "Enterprise Systems"
         HRIS[HR Information System]
-        Payroll[Payroll System] 
+        Payroll[Payroll System]
         ERP[ERP System]
         LDAP[Active Directory/LDAP]
         Badge[Badge Access System]
         Biometric[Biometric Readers]
     end
-    
+
     subgraph "Integration Layer"
         ESB[Enterprise Service Bus]
         API_GW[API Gateway]
         Message_Queue[Message Queue]
     end
-    
+
     subgraph "FHR System"
         FHR_API[FHR REST API]
         FHR_DB[(State Database)]
         FHR_Files[(File Storage)]
         FHR_Analytics[Analytics Engine]
     end
-    
+
     subgraph "Downstream Systems"
         BI[Business Intelligence]
         Compliance[Compliance Reports]
         Manager[Manager Dashboard]
         Employee[Employee Portal]
     end
-    
+
     HRIS --> ESB
     Payroll --> ESB
     ERP --> ESB
     LDAP --> ESB
     Badge --> ESB
     Biometric --> ESB
-    
+
     ESB --> API_GW
     API_GW --> FHR_API
     FHR_API --> Message_Queue
-    
+
     FHR_API --> FHR_DB
     FHR_API --> FHR_Files
     FHR_API --> FHR_Analytics
-    
+
     Message_Queue --> BI
     Message_Queue --> Compliance
     Message_Queue --> Manager
@@ -72,12 +72,12 @@ data_ingestion:
       topic: "attendance.badge.events"
       schema_registry: "https://schema-registry.example.com"
       format: "avro"
-      
-    - name: "biometric_events" 
+
+    - name: "biometric_events"
       type: "pulsar"
       topic: "attendance.biometric.events"
       format: "json"
-      
+
     - name: "hr_employee_updates"
       type: "rest_webhook"
       endpoint: "/api/v2/webhooks/employee-updates"
@@ -86,12 +86,12 @@ data_ingestion:
   transformations:
     - name: "normalize_timestamps"
       function: "convert_to_utc"
-      
+
     - name: "employee_lookup"
       function: "enrich_with_employee_data"
       cache_ttl: 3600
-      
-    - name: "attendance_classification" 
+
+    - name: "attendance_classification"
       function: "classify_attendance_event"
       rules_engine: "drools"
 
@@ -131,53 +131,53 @@ class HRISIntegration:
         self.base_url = hris_config["base_url"]
         self.auth_config = hris_config["auth"]
         self.rate_limits = hris_config.get("rate_limits", {})
-        
+
     async def sync_employees(self, last_sync: Optional[datetime] = None) -> List[EmployeeRecord]:
         """
         Synchronize employee data from HRIS system.
-        
+
         Supports incremental sync based on last_sync timestamp.
         Handles pagination and rate limiting automatically.
         """
         employees = []
         page = 1
         page_size = 100
-        
+
         while True:
             params = {
                 "page": page,
                 "page_size": page_size,
                 "modified_since": last_sync.isoformat() if last_sync else None
             }
-            
+
             async with aiohttp.ClientSession() as session:
                 response = await session.get(
                     f"{self.base_url}/api/employees",
                     params=params,
                     headers=await self._get_auth_headers()
                 )
-                
+
                 if response.status != 200:
                     break
-                    
+
                 data = await response.json()
                 page_employees = [self._parse_employee(emp) for emp in data["employees"]]
                 employees.extend(page_employees)
-                
+
                 if len(page_employees) < page_size:
                     break
-                    
+
                 page += 1
-                
+
                 # Rate limiting
                 await asyncio.sleep(self.rate_limits.get("request_delay", 0.1))
-        
+
         return employees
-    
+
     async def _get_auth_headers(self) -> dict:
         """Handle various authentication methods (OAuth2, API Key, SAML)."""
         auth_type = self.auth_config["type"]
-        
+
         if auth_type == "oauth2":
             token = await self._refresh_oauth_token()
             return {"Authorization": f"Bearer {token}"}
@@ -189,7 +189,7 @@ class HRISIntegration:
                 f"{self.auth_config['username']}:{self.auth_config['password']}".encode()
             ).decode()
             return {"Authorization": f"Basic {credentials}"}
-        
+
     def _parse_employee(self, emp_data: dict) -> EmployeeRecord:
         """Parse HRIS-specific employee data format."""
         return EmployeeRecord(
@@ -211,25 +211,25 @@ class AttendanceDataPush:
     def __init__(self, fhr_client, hris_client):
         self.fhr = fhr_client
         self.hris = hris_client
-    
+
     async def push_analysis_results(self, analysis_results: dict) -> bool:
         """
         Push FHR analysis results back to HRIS system.
-        
+
         Transforms FHR format to HRIS-expected format.
         Handles retry logic and error reporting.
         """
         try:
             # Transform FHR results to HRIS format
             hris_payload = self._transform_to_hris_format(analysis_results)
-            
+
             # Validate payload against HRIS schema
             if not self._validate_hris_payload(hris_payload):
                 raise ValueError("Invalid payload format for HRIS")
-            
+
             # Push to HRIS
             response = await self.hris.post_attendance_data(hris_payload)
-            
+
             # Handle HRIS-specific response codes
             if response.status_code == 202:
                 # Async processing - monitor status
@@ -239,18 +239,18 @@ class AttendanceDataPush:
             else:
                 await self._handle_push_error(response)
                 return False
-                
+
         except Exception as e:
             await self._log_integration_error("hris_push", str(e), analysis_results["analysis_id"])
             return False
-    
+
     def _transform_to_hris_format(self, fhr_results: dict) -> dict:
         """Transform FHR analysis results to HRIS-expected format."""
         return {
             "batch_id": f"fhr_{fhr_results['analysis_id']}",
             "source_system": "fhr_attendance_analyzer",
             "processing_date": datetime.utcnow().isoformat(),
-            "employee_id": fhr_results["user"], 
+            "employee_id": fhr_results["user"],
             "period_start": fhr_results.get("period_start"),
             "period_end": fhr_results.get("period_end"),
             "attendance_events": [
@@ -279,40 +279,40 @@ class AttendanceDataPush:
 class PayrollIntegration:
     """
     Integration with payroll systems (ADP, Paychex, QuickBooks, local systems).
-    
+
     Exports attendance analysis results in payroll-compatible formats.
     """
-    
+
     def __init__(self, payroll_config: dict):
         self.config = payroll_config
         self.format_handlers = {
             "adp": self._format_for_adp,
-            "paychex": self._format_for_paychex, 
+            "paychex": self._format_for_paychex,
             "quickbooks": self._format_for_quickbooks,
             "csv_generic": self._format_generic_csv,
             "xml_generic": self._format_generic_xml
         }
-    
+
     async def export_for_payroll(self, analysis_results: dict, period_start: date, period_end: date) -> dict:
         """
         Export FHR analysis results for payroll processing.
-        
+
         Returns both regular time and overtime calculations.
         """
         format_type = self.config["format"]
-        
+
         if format_type not in self.format_handlers:
             raise ValueError(f"Unsupported payroll format: {format_type}")
-        
+
         # Calculate payroll-relevant metrics
         payroll_data = self._calculate_payroll_metrics(analysis_results, period_start, period_end)
-        
+
         # Format according to target system
         formatted_data = self.format_handlers[format_type](payroll_data)
-        
+
         # Validate export
         validation_result = self._validate_payroll_export(formatted_data, format_type)
-        
+
         return {
             "export_id": f"payroll_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
             "format": format_type,
@@ -325,20 +325,20 @@ class PayrollIntegration:
             "validation": validation_result,
             "export_timestamp": datetime.utcnow().isoformat()
         }
-    
+
     def _calculate_payroll_metrics(self, analysis_results: dict, start_date: date, end_date: date) -> dict:
         """Calculate hours worked, overtime, deductions for payroll."""
-        
+
         # Taiwan-specific calculation rules
         standard_work_hours_per_day = 8
         overtime_threshold_minutes = 60  # Minimum overtime to count
         lunch_deduction_minutes = 60
-        
+
         employees = {}
-        
+
         for issue in analysis_results.get("issues_preview", []):
             employee_id = analysis_results["user"]
-            
+
             if employee_id not in employees:
                 employees[employee_id] = {
                     "employee_id": employee_id,
@@ -350,9 +350,9 @@ class PayrollIntegration:
                     "leave_days": 0,
                     "working_days": 0
                 }
-            
+
             emp = employees[employee_id]
-            
+
             if issue["type"] == "OVERTIME" and issue["duration_minutes"] >= overtime_threshold_minutes:
                 emp["overtime_hours"] += issue["duration_minutes"] / 60
             elif issue["type"] == "LATE":
@@ -365,15 +365,15 @@ class PayrollIntegration:
                 emp["working_days"] += 1
             elif issue["type"] == "WEEKDAY_LEAVE":
                 emp["leave_days"] += 1
-        
+
         # Calculate total working days and regular hours
         total_work_days = self._calculate_work_days(start_date, end_date)
-        
+
         for emp in employees.values():
             # Regular hours = (total work days - leave days) * 8 hours - late deductions
             emp["working_days"] = total_work_days - emp["leave_days"]
             emp["regular_hours"] = max(0, emp["working_days"] * standard_work_hours_per_day - emp["late_deductions"])
-        
+
         return {
             "employees": employees,
             "period": {"start": start_date, "end": end_date},
@@ -383,12 +383,12 @@ class PayrollIntegration:
                 "total_employees": len(employees)
             }
         }
-    
+
     def _format_for_adp(self, payroll_data: dict) -> str:
         """Format data for ADP payroll system."""
         # ADP-specific fixed-width format
         output_lines = []
-        
+
         for employee in payroll_data["employees"].values():
             line = (
                 f"{employee['employee_id']:<10}"
@@ -398,23 +398,23 @@ class PayrollIntegration:
                 f"{payroll_data['period']['end'].strftime('%m%d%Y')}"
             )
             output_lines.append(line)
-        
+
         return "\n".join(output_lines)
-    
+
     def _format_for_quickbooks(self, payroll_data: dict) -> str:
         """Format data for QuickBooks payroll import."""
         import csv
         import io
-        
+
         output = io.StringIO()
         writer = csv.writer(output)
-        
+
         # QuickBooks header
         writer.writerow([
-            "Employee", "Date", "Service Item", "Payroll Item", 
+            "Employee", "Date", "Service Item", "Payroll Item",
             "Duration", "Rate", "Amount", "Billable Status"
         ])
-        
+
         for employee in payroll_data["employees"].values():
             # Regular hours
             writer.writerow([
@@ -427,7 +427,7 @@ class PayrollIntegration:
                 "",  # Amount calculated by QB
                 "Not Billable"
             ])
-            
+
             # Overtime hours
             if employee["overtime_hours"] > 0:
                 writer.writerow([
@@ -440,7 +440,7 @@ class PayrollIntegration:
                     "",
                     "Not Billable"
                 ])
-        
+
         return output.getvalue()
 ```
 
@@ -457,15 +457,15 @@ class SSOIntegration:
     """
     Integrate FHR with enterprise SSO systems (SAML, OAuth2, OIDC).
     """
-    
+
     def __init__(self, sso_config: dict):
         self.config = sso_config
         self.provider_type = sso_config["provider"]  # "azure_ad", "okta", "saml", "oidc"
-        
+
     async def authenticate_user(self, token: str) -> Optional[dict]:
         """
         Authenticate user against enterprise SSO system.
-        
+
         Returns user information if authentication successful.
         """
         if self.provider_type == "azure_ad":
@@ -478,28 +478,28 @@ class SSOIntegration:
             return await self._authenticate_oidc(token)
         else:
             raise ValueError(f"Unsupported SSO provider: {self.provider_type}")
-    
+
     async def _authenticate_azure_ad(self, token: str) -> Optional[dict]:
         """Authenticate against Azure AD."""
         try:
             # Verify JWT token
             header = jwt.get_unverified_header(token)
             kid = header["kid"]
-            
+
             # Get public key from Azure AD
             keys_url = f"https://login.microsoftonline.com/{self.config['tenant_id']}/discovery/v2.0/keys"
             response = requests.get(keys_url)
             keys = response.json()["keys"]
-            
+
             public_key = None
             for key in keys:
                 if key["kid"] == kid:
                     public_key = jwt.algorithms.RSAAlgorithm.from_jwk(key)
                     break
-            
+
             if not public_key:
                 return None
-            
+
             # Verify and decode token
             payload = jwt.decode(
                 token,
@@ -508,7 +508,7 @@ class SSOIntegration:
                 audience=self.config["client_id"],
                 issuer=f"https://login.microsoftonline.com/{self.config['tenant_id']}/v2.0"
             )
-            
+
             # Extract user information
             return {
                 "user_id": payload["oid"],
@@ -518,15 +518,15 @@ class SSOIntegration:
                 "tenant_id": payload.get("tid"),
                 "expires_at": datetime.fromtimestamp(payload["exp"])
             }
-            
+
         except Exception as e:
             print(f"Azure AD authentication failed: {e}")
             return None
-    
+
     def get_user_permissions(self, user_info: dict) -> dict:
         """
         Determine user permissions based on SSO groups/roles.
-        
+
         Maps enterprise groups to FHR permissions.
         """
         permissions = {
@@ -537,17 +537,17 @@ class SSOIntegration:
             "accessible_departments": [],
             "max_file_size_mb": 10
         }
-        
+
         user_groups = user_info.get("groups", [])
-        
+
         # Map enterprise groups to FHR permissions
         group_mappings = self.config.get("group_mappings", {})
-        
+
         for group_id in user_groups:
             if group_id in group_mappings:
                 group_perms = group_mappings[group_id]
                 permissions.update(group_perms)
-        
+
         return permissions
 ```
 
@@ -556,14 +556,14 @@ class SSOIntegration:
 class AuditLogger:
     """
     Enterprise audit logging for compliance and security monitoring.
-    
+
     Integrates with SIEM systems (Splunk, ELK, QRadar, Sentinel).
     """
-    
+
     def __init__(self, audit_config: dict):
         self.config = audit_config
         self.targets = audit_config.get("targets", [])
-        
+
     async def log_event(self, event_type: str, user_info: dict, event_data: dict, risk_level: str = "LOW"):
         """
         Log security/compliance events to enterprise systems.
@@ -583,11 +583,11 @@ class AuditLogger:
             "event_data": event_data,
             "compliance_tags": self._get_compliance_tags(event_type)
         }
-        
+
         # Send to configured audit targets
         for target in self.targets:
             await self._send_to_target(target, event)
-    
+
     def _get_compliance_tags(self, event_type: str) -> List[str]:
         """Get compliance tags based on event type."""
         tag_mapping = {
@@ -599,11 +599,11 @@ class AuditLogger:
             "data_retention_cleanup": ["DATA_LIFECYCLE", "PRIVACY"]
         }
         return tag_mapping.get(event_type, [])
-    
+
     async def _send_to_target(self, target: dict, event: dict):
         """Send audit event to specific target system."""
         target_type = target["type"]
-        
+
         if target_type == "splunk":
             await self._send_to_splunk(target, event)
         elif target_type == "elk":
@@ -626,7 +626,7 @@ from fastapi.testclient import TestClient
 def mock_hris_system():
     """Mock HRIS system for integration testing."""
     mock = AsyncMock()
-    
+
     # Mock employee data responses
     mock.get_employees.return_value = [
         {
@@ -638,48 +638,48 @@ def mock_hris_system():
             "timezone": "Asia/Taipei"
         }
     ]
-    
+
     mock.post_attendance_data.return_value = MagicMock(
         status_code=202,
         json=lambda: {"batch_id": "batch_123", "status": "processing"}
     )
-    
+
     return mock
 
-@pytest.fixture 
+@pytest.fixture
 def mock_payroll_system():
     """Mock payroll system for integration testing."""
     mock = AsyncMock()
-    
+
     mock.import_timesheet_data.return_value = {
         "import_id": "import_456",
         "status": "success",
         "records_processed": 15
     }
-    
+
     return mock
 
 class TestEnterpriseIntegration:
     """Test enterprise system integrations."""
-    
+
     @pytest.mark.asyncio
     async def test_hris_employee_sync(self, mock_hris_system):
         """Test employee synchronization from HRIS."""
         integration = HRISIntegration({"base_url": "https://mock-hris.com"})
         integration.hris_client = mock_hris_system
-        
+
         employees = await integration.sync_employees()
-        
+
         assert len(employees) == 1
         assert employees[0].name == "張三"
         assert employees[0].department == "Engineering"
         mock_hris_system.get_employees.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_payroll_export(self, mock_payroll_system):
         """Test payroll data export."""
         payroll_integration = PayrollIntegration({"format": "adp"})
-        
+
         analysis_results = {
             "user": "張三",
             "issues_preview": [
@@ -691,30 +691,30 @@ class TestEnterpriseIntegration:
                 }
             ]
         }
-        
+
         export_result = await payroll_integration.export_for_payroll(
-            analysis_results, 
-            date(2024, 3, 1), 
+            analysis_results,
+            date(2024, 3, 1),
             date(2024, 3, 31)
         )
-        
+
         assert export_result["format"] == "adp"
         assert export_result["total_overtime_hours"] == 1.5
-    
+
     def test_sso_authentication_flow(self):
         """Test SSO authentication integration."""
         client = TestClient(app)
-        
+
         # Mock JWT token
         mock_token = "mock_jwt_token"
-        
+
         response = client.post(
             "/api/v2/analyze",
             headers={"Authorization": f"Bearer {mock_token}"},
             files={"file": ("test.txt", "sample data", "text/plain")},
             data={"mode": "incremental"}
         )
-        
+
         # Should handle authentication (mock will determine success/failure)
         assert response.status_code in [200, 401, 403]
 ```

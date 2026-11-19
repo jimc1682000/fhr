@@ -31,4 +31,3 @@ input[type="radio"], input[type="checkbox"] { transform: scale(1.1); }
 .modal-content ul { list-style: none; padding-left: 0; margin: 8px 0; }
 .modal-content li { padding: 4px 0; border-bottom: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, SFMono-Regular, menlo, monospace; font-size: 0.9rem; }
 .modal-content li:last-child { border-bottom: none; }
-

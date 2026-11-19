@@ -35,6 +35,7 @@
 - **[logic.md](logic.md)** - 業務邏輯與計算規則
 - **[testing.md](testing.md)** - 測試框架與覆蓋率
 - **[contributing.md](contributing.md)** - 貢獻指南與開發流程
+- **[adr/](adr/README.md)** - 架構決策紀錄（ADR）：為什麼這樣設計
 
 ### 🏢 **企業文件** - 適合企業部署
 - **[overview.md](overview.md)** - 系統概覽與企業級功能

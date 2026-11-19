@@ -35,64 +35,64 @@ privacy_impact_assessment:
   version: "2.0"
   assessment_date: "2024-03-15"
   review_date: "2025-03-15"
-  
+
   system_overview:
     name: "FHR Attendance Analysis System"
     purpose: "Automated processing of employee attendance records"
     data_controller: "Organization HR Department"
     data_processor: "FHR System"
-    
+
   personal_data_inventory:
     data_categories:
       - category: "Employee Identification"
         data_elements: ["Employee ID", "Name", "Department"]
         legal_basis: "Employment contract, legitimate interest"
         retention_period: "7 years post-employment"
-        
+
       - category: "Attendance Records"
         data_elements: ["Check-in times", "Check-out times", "Dates"]
         legal_basis: "Legal obligation (Labor Standards Act)"
         retention_period: "5 years minimum"
-        
+
       - category: "Analysis Results"
         data_elements: ["Late arrivals", "Overtime hours", "Leave recommendations"]
         legal_basis: "Legitimate interest (payroll processing)"
         retention_period: "3 years"
-    
+
   data_flows:
     - source: "HR Information System"
       destination: "FHR Analysis Engine"
       method: "Encrypted file upload"
       frequency: "Monthly"
-      
-    - source: "FHR Analysis Engine" 
+
+    - source: "FHR Analysis Engine"
       destination: "Payroll System"
       method: "API integration"
       frequency: "Monthly"
-      
+
     - source: "FHR System"
       destination: "Audit Logging System"
       method: "Real-time event streaming"
       frequency: "Continuous"
-  
+
   risk_assessment:
     high_risks:
       - risk: "Unauthorized access to employee data"
         likelihood: "Medium"
         impact: "High"
         mitigation: "Role-based access control, encryption"
-        
+
       - risk: "Data breach during transmission"
         likelihood: "Low"
         impact: "High"
         mitigation: "TLS encryption, VPN requirements"
-    
+
     medium_risks:
       - risk: "Incorrect analysis results affecting payroll"
         likelihood: "Low"
         impact: "Medium"
         mitigation: "Automated testing, manual review process"
-  
+
   compliance_measures:
     technical_safeguards:
       - "AES-256 encryption for data at rest"
@@ -100,14 +100,14 @@ privacy_impact_assessment:
       - "Multi-factor authentication"
       - "Automated backup with encryption"
       - "Access logging and monitoring"
-      
+
     organizational_safeguards:
       - "Data access training for HR staff"
       - "Incident response procedures"
       - "Regular security assessments"
       - "Vendor security evaluation"
       - "Data retention policy enforcement"
-      
+
     procedural_safeguards:
       - "Employee consent collection"
       - "Data subject rights handling"
@@ -120,15 +120,15 @@ privacy_impact_assessment:
       - right: "Right of access"
         implementation: "Self-service portal for employees"
         response_time: "30 days"
-        
+
       - right: "Right to rectification"
         implementation: "HR department correction workflow"
         response_time: "30 days"
-        
+
       - right: "Right to deletion"
         implementation: "Automated purging after retention period"
         response_time: "30 days"
-        
+
       - right: "Right to data portability"
         implementation: "CSV/Excel export functionality"
         response_time: "30 days"
@@ -237,29 +237,29 @@ class AuditEventType(Enum):
     USER_LOGOUT = "user.logout"
     USER_LOGIN_FAILED = "user.login_failed"
     USER_PASSWORD_CHANGED = "user.password_changed"
-    
+
     # Data Processing Events
     FILE_UPLOAD = "data.file_upload"
     ANALYSIS_STARTED = "data.analysis_started"
     ANALYSIS_COMPLETED = "data.analysis_completed"
     ANALYSIS_FAILED = "data.analysis_failed"
-    
+
     # Data Access Events
     DATA_EXPORT = "data.export"
     DATA_DOWNLOAD = "data.download"
     DATA_VIEW = "data.view"
     DATA_DELETE = "data.delete"
-    
+
     # System Events
     SYSTEM_STARTUP = "system.startup"
     SYSTEM_SHUTDOWN = "system.shutdown"
     CONFIG_CHANGE = "system.config_change"
-    
+
     # Security Events
     PERMISSION_DENIED = "security.permission_denied"
     SUSPICIOUS_ACTIVITY = "security.suspicious_activity"
     DATA_BREACH_DETECTED = "security.data_breach"
-    
+
     # Compliance Events
     DATA_RETENTION_EXECUTED = "compliance.data_retention"
     AUDIT_LOG_ACCESSED = "compliance.audit_access"
@@ -282,44 +282,44 @@ class AuditEvent:
     user_agent: Optional[str]
     tenant_id: Optional[str]
     risk_level: RiskLevel
-    
+
     # Event-specific data
     resource_type: Optional[str] = None
     resource_id: Optional[str] = None
     action: Optional[str] = None
     outcome: str = "success"  # success, failure, partial
-    
+
     # Additional context
     details: Dict[str, Any] = None
     error_message: Optional[str] = None
-    
+
     # Compliance fields
     regulatory_category: List[str] = None
     data_classification: Optional[str] = None
     retention_required: bool = True
-    
+
     # Integrity protection
     checksum: Optional[str] = None
-    
+
     def __post_init__(self):
         if self.details is None:
             self.details = {}
         if self.regulatory_category is None:
             self.regulatory_category = []
-        
+
         # Generate event ID if not provided
         if not self.event_id:
             self.event_id = self._generate_event_id()
-        
+
         # Calculate checksum for integrity
         self.checksum = self._calculate_checksum()
-    
+
     def _generate_event_id(self) -> str:
         """Generate unique event ID."""
         timestamp_str = self.timestamp.isoformat()
         content = f"{timestamp_str}:{self.event_type.value}:{self.user_id}:{self.source_ip}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
-    
+
     def _calculate_checksum(self) -> str:
         """Calculate integrity checksum."""
         # Create deterministic string representation
@@ -331,10 +331,10 @@ class AuditEvent:
             "outcome": self.outcome,
             "details": json.dumps(self.details, sort_keys=True) if self.details else ""
         }
-        
+
         content = json.dumps(data, sort_keys=True)
         return hashlib.sha256(content.encode()).hexdigest()
-    
+
     def verify_integrity(self) -> bool:
         """Verify event integrity."""
         original_checksum = self.checksum
@@ -345,14 +345,14 @@ class AuditEvent:
 
 class ComplianceAuditLogger:
     """Enterprise-grade audit logger with compliance features."""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.logger = logging.getLogger("compliance.audit")
         self.setup_logging()
         self.event_buffer: List[AuditEvent] = []
         self.buffer_size = config.get("buffer_size", 100)
-        
+
     def setup_logging(self):
         """Setup secure audit logging."""
         # Create tamper-evident log handler
@@ -360,73 +360,73 @@ class ComplianceAuditLogger:
             self.config.get("audit_log_file", "/var/log/fhr/audit.log"),
             mode='a'
         )
-        
+
         # Use structured JSON format
         formatter = logging.Formatter(
             '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": %(message)s}'
         )
         handler.setFormatter(formatter)
-        
+
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.INFO)
-        
+
         # Prevent log manipulation
         self.logger.propagate = False
-    
+
     def log_event(self, event: AuditEvent):
         """Log an audit event with compliance metadata."""
         # Validate event integrity
         if not event.verify_integrity():
             raise ValueError("Audit event failed integrity check")
-        
+
         # Add to buffer
         self.event_buffer.append(event)
-        
+
         # Flush buffer if full
         if len(self.event_buffer) >= self.buffer_size:
             self.flush_events()
-        
+
         # Immediate logging for high-risk events
         if event.risk_level in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
             self.flush_events()
             self._send_alert(event)
-    
+
     def flush_events(self):
         """Flush buffered events to persistent storage."""
         for event in self.event_buffer:
             self._write_event(event)
-        
+
         self.event_buffer.clear()
-    
+
     def _write_event(self, event: AuditEvent):
         """Write single event to audit log."""
         event_data = asdict(event)
-        
+
         # Convert enum values to strings
         event_data["event_type"] = event.event_type.value
         event_data["risk_level"] = event.risk_level.value
         event_data["timestamp"] = event.timestamp.isoformat()
-        
+
         # Log structured event
         self.logger.info(json.dumps(event_data, ensure_ascii=False))
-        
+
         # Send to external SIEM if configured
         if self.config.get("siem_enabled"):
             self._send_to_siem(event_data)
-    
+
     def _send_to_siem(self, event_data: Dict[str, Any]):
         """Send audit event to SIEM system."""
         siem_config = self.config.get("siem_config", {})
-        
+
         if siem_config.get("type") == "splunk":
             self._send_to_splunk(event_data, siem_config)
         elif siem_config.get("type") == "elastic":
             self._send_to_elasticsearch(event_data, siem_config)
-    
+
     def _send_alert(self, event: AuditEvent):
         """Send immediate alert for high-risk events."""
         alert_config = self.config.get("alerting", {})
-        
+
         if alert_config.get("enabled"):
             alert_message = {
                 "severity": event.risk_level.value,
@@ -436,19 +436,19 @@ class ComplianceAuditLogger:
                 "description": f"High-risk audit event: {event.event_type.value}",
                 "details": event.details
             }
-            
+
             # Send to monitoring system
             if alert_config.get("webhook_url"):
                 self._send_webhook_alert(alert_config["webhook_url"], alert_message)
-    
-    def generate_compliance_report(self, 
-                                 start_date: datetime, 
+
+    def generate_compliance_report(self,
+                                 start_date: datetime,
                                  end_date: datetime,
                                  report_type: str = "full") -> Dict[str, Any]:
         """Generate compliance audit report."""
         # Read audit logs for date range
         events = self._read_audit_events(start_date, end_date)
-        
+
         # Analyze events for compliance metrics
         report = {
             "report_id": f"compliance-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}",
@@ -464,12 +464,12 @@ class ComplianceAuditLogger:
             "data_access_summary": self._analyze_data_access(events),
             "security_incidents": self._identify_security_incidents(events)
         }
-        
+
         if report_type == "executive":
             report = self._create_executive_summary(report)
-        
+
         return report
-    
+
     def _analyze_event_types(self, events: List[Dict[str, Any]]) -> Dict[str, int]:
         """Analyze distribution of event types."""
         event_counts = {}
@@ -477,11 +477,11 @@ class ComplianceAuditLogger:
             event_type = event.get("event_type", "unknown")
             event_counts[event_type] = event_counts.get(event_type, 0) + 1
         return event_counts
-    
+
     def _identify_violations(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Identify potential compliance violations."""
         violations = []
-        
+
         for event in events:
             # Check for excessive data access
             if event.get("event_type") == "data.export" and event.get("risk_level") == "high":
@@ -492,7 +492,7 @@ class ComplianceAuditLogger:
                     "user_id": event.get("user_id"),
                     "description": "High-risk data export detected"
                 })
-            
+
             # Check for failed access attempts
             if event.get("event_type") == "security.permission_denied":
                 violations.append({
@@ -502,7 +502,7 @@ class ComplianceAuditLogger:
                     "user_id": event.get("user_id"),
                     "description": "Attempted unauthorized access"
                 })
-        
+
         return violations
 
 # Usage in FastAPI application
@@ -522,21 +522,21 @@ def setup_audit_logging(app):
             "webhook_url": "https://alerts.example.com/webhook"
         }
     }
-    
+
     audit_logger = ComplianceAuditLogger(audit_config)
     app.state.audit_logger = audit_logger
-    
+
     # Add middleware to log all API requests
     @app.middleware("http")
     async def audit_middleware(request, call_next):
         start_time = datetime.utcnow()
-        
+
         # Extract user context
         user_id = getattr(request.state, 'user_id', None)
         session_id = getattr(request.state, 'session_id', None)
-        
+
         response = await call_next(request)
-        
+
         # Log API access
         event = AuditEvent(
             event_id="",
@@ -559,7 +559,7 @@ def setup_audit_logging(app):
             },
             regulatory_category=["data_access", "api_usage"]
         )
-        
+
         audit_logger.log_event(event)
         return response
 ```
@@ -586,11 +586,11 @@ class ComplianceRule:
 
 class ComplianceMonitor:
     """Monitor system compliance with regulatory requirements."""
-    
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.rules = self._load_compliance_rules()
-        
+
     def _load_compliance_rules(self) -> List[ComplianceRule]:
         """Load compliance rules from configuration."""
         return [
@@ -604,7 +604,7 @@ class ComplianceMonitor:
                 parameters={"max_retention_years": 7}
             ),
             ComplianceRule(
-                rule_id="PDPA-002", 
+                rule_id="PDPA-002",
                 name="Employee Consent Verification",
                 description="Ensure valid consent exists for all data processing",
                 regulation="Taiwan PDPA",
@@ -631,7 +631,7 @@ class ComplianceMonitor:
                 parameters={"sample_size": 100}
             )
         ]
-    
+
     def run_compliance_check(self) -> Dict[str, Any]:
         """Run all enabled compliance checks."""
         results = {
@@ -642,22 +642,22 @@ class ComplianceMonitor:
             "warnings": 0,
             "rule_results": []
         }
-        
+
         for rule in self.rules:
             if not rule.enabled:
                 continue
-                
+
             try:
                 check_result = self._execute_rule(rule)
                 results["rule_results"].append(check_result)
-                
+
                 if check_result["status"] == "pass":
                     results["passed"] += 1
                 elif check_result["status"] == "fail":
                     results["failed"] += 1
                 elif check_result["status"] == "warning":
                     results["warnings"] += 1
-                    
+
             except Exception as e:
                 results["rule_results"].append({
                     "rule_id": rule.rule_id,
@@ -667,24 +667,24 @@ class ComplianceMonitor:
                     "timestamp": datetime.utcnow().isoformat()
                 })
                 results["failed"] += 1
-        
+
         # Calculate overall compliance score
         total_checks = results["passed"] + results["failed"] + results["warnings"]
         if total_checks > 0:
             results["compliance_score"] = (results["passed"] / total_checks) * 100
         else:
             results["compliance_score"] = 0
-        
+
         return results
-    
+
     def _execute_rule(self, rule: ComplianceRule) -> Dict[str, Any]:
         """Execute a single compliance rule."""
         check_function = getattr(self, rule.check_function)
-        
+
         start_time = datetime.utcnow()
         result = check_function(rule.parameters)
         end_time = datetime.utcnow()
-        
+
         return {
             "rule_id": rule.rule_id,
             "rule_name": rule.name,
@@ -697,16 +697,16 @@ class ComplianceMonitor:
             "check_duration": (end_time - start_time).total_seconds(),
             "timestamp": start_time.isoformat()
         }
-    
+
     def check_data_retention(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Check data retention compliance."""
         max_retention_years = params.get("max_retention_years", 7)
         cutoff_date = datetime.utcnow() - timedelta(days=max_retention_years * 365)
-        
+
         # Check for old state files
         violations = []
         # Implementation would check actual data stores
-        
+
         if violations:
             return {
                 "status": "fail",
@@ -724,18 +724,18 @@ class ComplianceMonitor:
                 "details": "All data within retention limits",
                 "evidence": {"checked_records": 1000, "violations": 0}
             }
-    
+
     def check_audit_integrity(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Check audit log integrity."""
         check_period_days = params.get("check_period_days", 30)
         start_date = datetime.utcnow() - timedelta(days=check_period_days)
-        
+
         # Check audit log completeness and integrity
         integrity_violations = []
         missing_logs = []
-        
+
         # Implementation would verify actual audit logs
-        
+
         if integrity_violations or missing_logs:
             return {
                 "status": "fail",
@@ -756,11 +756,11 @@ class ComplianceMonitor:
                 "details": "Audit logs complete and tamper-evident",
                 "evidence": {"logs_checked": 10000, "integrity_score": 100}
             }
-    
+
     def generate_compliance_dashboard(self) -> Dict[str, Any]:
         """Generate compliance dashboard data."""
         compliance_results = self.run_compliance_check()
-        
+
         return {
             "overall_status": self._calculate_overall_status(compliance_results),
             "compliance_score": compliance_results["compliance_score"],
@@ -770,7 +770,7 @@ class ComplianceMonitor:
             "critical_issues": self._get_critical_issues(compliance_results),
             "recommendations": self._get_top_recommendations(compliance_results)
         }
-    
+
     def _calculate_overall_status(self, results: Dict[str, Any]) -> str:
         """Calculate overall compliance status."""
         if results["failed"] > 0:
@@ -779,11 +779,11 @@ class ComplianceMonitor:
             return "partial_compliance"
         else:
             return "compliant"
-    
+
     def export_compliance_report(self, format: str = "pdf") -> str:
         """Export comprehensive compliance report."""
         results = self.run_compliance_check()
-        
+
         if format == "pdf":
             return self._generate_pdf_report(results)
         elif format == "excel":

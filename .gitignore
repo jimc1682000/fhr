@@ -188,3 +188,6 @@ tests/fixtures/portal_replay_v1/state/
 tests/fixtures/portal_replay_v1/state/
 tmp/
 .claude/skills/*/local.md
+
+# Real Portal captures — never commit; test_fixture_hygiene rejects unmarked PNGs
+tests/fixtures/real/

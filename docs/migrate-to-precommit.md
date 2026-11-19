@@ -57,7 +57,7 @@ make pre-commit-run
 - **新方式**: `pre-commit install` 自動安裝 hooks
 
 ### Hook 內容
-- **舊方式**: 
+- **舊方式**:
   - black 格式化
   - ruff linting
   - 單元測試運行

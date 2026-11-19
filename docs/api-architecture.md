@@ -37,7 +37,7 @@ class EnterpriseAnalyzeResponse(BaseModel):
     # Current fields...
     analysis_id: str
     user: Optional[str] = None
-    
+
     # Enterprise additions
     tenant_id: str
     compliance_metadata: ComplianceMetadata
@@ -45,7 +45,7 @@ class EnterpriseAnalyzeResponse(BaseModel):
     integration_webhooks: List[WebhookEvent]
     performance_metrics: PerformanceMetrics
     security_context: SecurityContext
-    
+
     class Config:
         schema_extra = {
             "example": {
@@ -106,23 +106,23 @@ security:
     summary="Analyze attendance data with enterprise features",
     description="""
     Analyzes uploaded attendance data with enterprise-grade features including:
-    
+
     - Multi-tenant isolation
     - Audit logging
     - Compliance metadata
     - Integration webhooks
     - Performance monitoring
-    
+
     **File Requirements:**
     - Format: Tab-separated text (.txt)
     - Size limit: 50MB per tenant tier
     - Naming convention: YYYYMM[-YYYYMM]-UserName-出勤資料.txt
-    
+
     **Rate Limits:**
     - Standard tier: 10 requests/minute
     - Premium tier: 100 requests/minute
     - Enterprise tier: Unlimited
-    
+
     **Data Retention:**
     - Upload files: Deleted after 30 days
     - Analysis results: Retained per tenant policy
@@ -145,7 +145,7 @@ class BaseErrorResponse(BaseModel):
 
 class ValidationErrorResponse(BaseErrorResponse):
     validation_errors: List[ValidationError]
-    
+
 class RateLimitErrorResponse(BaseErrorResponse):
     retry_after: int  # seconds
     current_limit: int
@@ -191,18 +191,18 @@ class FHRClient:
         self.api_key = api_key
         self.tenant_id = tenant_id
         self.base_url = base_url
-    
-    def analyze_file(self, file_path: str, mode: str = "incremental", 
+
+    def analyze_file(self, file_path: str, mode: str = "incremental",
                     output: str = "excel") -> dict:
         headers = {
             "X-API-Key": self.api_key,
             "X-Tenant-ID": self.tenant_id
         }
-        
+
         with open(file_path, 'rb') as f:
             files = {"file": f}
             data = {"mode": mode, "output": output}
-            
+
             response = requests.post(
                 f"{self.base_url}/api/v2/analyze",
                 headers=headers,
@@ -219,13 +219,13 @@ class FHRClient {
         this.tenantId = tenantId;
         this.baseUrl = baseUrl;
     }
-    
+
     async analyzeFile(file, mode = 'incremental', output = 'excel') {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('mode', mode);
         formData.append('output', output);
-        
+
         const response = await fetch(`${this.baseUrl}/api/v2/analyze`, {
             method: 'POST',
             headers: {
@@ -234,11 +234,11 @@ class FHRClient {
             },
             body: formData
         });
-        
+
         if (!response.ok) {
             throw new Error(`API request failed: ${response.statusText}`);
         }
-        
+
         return await response.json();
     }
 }
@@ -275,7 +275,7 @@ class FHRClient {
 def get_metrics():
     """
     Returns system metrics for monitoring and alerting.
-    
+
     Requires monitoring role or system API key.
     """
     return {
@@ -318,30 +318,30 @@ from fastapi.openapi.utils import get_openapi
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-        
+
     openapi_schema = get_openapi(
         title="FHR Enterprise API",
         version="2.0.0",
         description="Enterprise attendance analysis system",
         routes=app.routes,
     )
-    
+
     # Add enterprise-specific documentation
     openapi_schema["info"]["x-logo"] = {
         "url": "https://api.fhr.example.com/static/logo.png"
     }
-    
+
     openapi_schema["info"]["contact"] = {
         "name": "FHR Support",
         "url": "https://support.fhr.example.com",
         "email": "api-support@example.com"
     }
-    
+
     openapi_schema["info"]["license"] = {
         "name": "Enterprise License",
         "url": "https://example.com/licenses/fhr-enterprise"
     }
-    
+
     # Add authentication flows
     openapi_schema["components"]["securitySchemes"] = {
         "BearerAuth": {
@@ -350,7 +350,7 @@ def custom_openapi():
             "bearerFormat": "JWT"
         }
     }
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -368,14 +368,14 @@ def test_openapi_schema_completeness():
     client = TestClient(app)
     response = client.get("/openapi.json")
     schema = response.json()
-    
+
     # Verify all endpoints have descriptions
     for path, methods in schema["paths"].items():
         for method, details in methods.items():
             assert "summary" in details, f"{method.upper()} {path} missing summary"
             assert "description" in details, f"{method.upper()} {path} missing description"
             assert "responses" in details, f"{method.upper()} {path} missing responses"
-            
+
             # Check for proper error response documentation
             if method in ["post", "put", "patch"]:
                 assert "400" in details["responses"], f"{method.upper()} {path} missing 400 response"
@@ -384,14 +384,14 @@ def test_openapi_schema_completeness():
 def test_example_requests_valid():
     """Ensure example requests in documentation are valid."""
     client = TestClient(app)
-    
+
     # Test documented examples
     example_request = {
         "file": ("test.txt", "sample data", "text/plain"),
         "mode": "incremental",
         "output": "excel"
     }
-    
+
     # This should match the documented example format
     response = client.post("/api/v2/analyze", files=example_request)
     assert response.status_code in [200, 400, 422]  # Should not be 500

@@ -15,61 +15,61 @@ graph TB
         Mobile[Mobile Interface]
         CLI[Command Line Interface]
     end
-    
+
     subgraph "API Gateway Layer"
         Gateway[API Gateway/Load Balancer]
         Auth[Authentication Service]
         RateLimit[Rate Limiting]
     end
-    
+
     subgraph "Application Layer"
         FastAPI[FastAPI Application]
         Background[Background Tasks]
         Scheduler[Task Scheduler]
     end
-    
+
     subgraph "Business Logic Layer"
         Analyzer[AttendanceAnalyzer]
         Exporters[Export Modules]
         Holidays[Holiday Service]
         State[State Management]
     end
-    
+
     subgraph "Data Layer"
         FileStore[(File Storage)]
         StateDB[(State Database)]
         Cache[(Redis Cache)]
         Logs[(Log Storage)]
     end
-    
+
     subgraph "External Services"
         HRIS[HR Systems]
         Payroll[Payroll Systems]
         HolidayAPI[Government Holiday API]
         Notifications[Notification Services]
     end
-    
+
     Web --> Gateway
     Mobile --> Gateway
     CLI --> FastAPI
-    
+
     Gateway --> FastAPI
     Gateway --> Auth
     Gateway --> RateLimit
-    
+
     FastAPI --> Analyzer
     FastAPI --> Background
     Background --> Scheduler
-    
+
     Analyzer --> Exporters
     Analyzer --> Holidays
     Analyzer --> State
-    
+
     FastAPI --> FileStore
     State --> StateDB
     FastAPI --> Cache
     FastAPI --> Logs
-    
+
     Holidays --> HolidayAPI
     Background --> HRIS
     Background --> Payroll
@@ -163,11 +163,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      
+
   fhr-app-2:
     build: .
     environment:
-      - ENVIRONMENT=production  
+      - ENVIRONMENT=production
       - INSTANCE_ID=app-2
       - DATABASE_URL=postgresql://user:pass@postgres:5432/fhr
       - REDIS_URL=redis://redis:6379/0
@@ -316,7 +316,7 @@ spec:
           claimName: fhr-data-pvc
       - name: fhr-logs
         emptyDir: {}
-      
+
 ---
 apiVersion: v1
 kind: Service
@@ -383,13 +383,13 @@ class DatabaseConfig:
     pool_size: int = 10
     max_overflow: int = 20
     pool_timeout: int = 30
-    
+
 @dataclass
 class RedisConfig:
     url: str
     max_connections: int = 10
     socket_timeout: int = 30
-    
+
 @dataclass
 class S3Config:
     bucket: str
@@ -397,7 +397,7 @@ class S3Config:
     access_key_id: Optional[str] = None
     secret_access_key: Optional[str] = None
     endpoint_url: Optional[str] = None  # For MinIO/localstack
-    
+
 @dataclass
 class SecurityConfig:
     jwt_secret: str
@@ -405,13 +405,13 @@ class SecurityConfig:
     api_key_header: str = "X-API-Key"
     tenant_header: str = "X-Tenant-ID"
     cors_origins: list = field(default_factory=list)
-    
+
 @dataclass
 class MonitoringConfig:
     prometheus_port: int = 9090
     log_level: str = "INFO"
     sentry_dsn: Optional[str] = None
-    
+
 @dataclass
 class ServiceConfig:
     environment: Environment
@@ -419,29 +419,29 @@ class ServiceConfig:
     host: str = "0.0.0.0"
     port: int = 8000
     workers: int = 1
-    
+
     # Storage
     database: Optional[DatabaseConfig] = None
     redis: Optional[RedisConfig] = None
     s3: Optional[S3Config] = None
-    
+
     # Security
     security: SecurityConfig = field(default_factory=lambda: SecurityConfig(jwt_secret="dev-secret"))
-    
+
     # Monitoring
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
-    
+
     # Business Logic
     state_file: str = "attendance_state.json"
     upload_max_size: int = 50 * 1024 * 1024  # 50MB
     analysis_timeout: int = 300  # 5 minutes
-    
+
     @classmethod
     def from_env(cls) -> 'ServiceConfig':
         """Load configuration from environment variables."""
         env_name = os.getenv("ENVIRONMENT", "development")
         environment = Environment(env_name)
-        
+
         config = cls(
             environment=environment,
             debug=os.getenv("DEBUG", "false").lower() == "true",
@@ -451,7 +451,7 @@ class ServiceConfig:
             state_file=os.getenv("FHR_STATE_FILE", "attendance_state.json"),
             upload_max_size=int(os.getenv("UPLOAD_MAX_SIZE", str(50 * 1024 * 1024))),
         )
-        
+
         # Database configuration
         database_url = os.getenv("DATABASE_URL")
         if database_url:
@@ -460,7 +460,7 @@ class ServiceConfig:
                 pool_size=int(os.getenv("DB_POOL_SIZE", "10")),
                 max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "20"))
             )
-        
+
         # Redis configuration
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
@@ -468,7 +468,7 @@ class ServiceConfig:
                 url=redis_url,
                 max_connections=int(os.getenv("REDIS_MAX_CONNECTIONS", "10"))
             )
-        
+
         # S3 configuration
         s3_bucket = os.getenv("S3_BUCKET")
         if s3_bucket:
@@ -479,26 +479,26 @@ class ServiceConfig:
                 secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
                 endpoint_url=os.getenv("S3_ENDPOINT_URL")
             )
-        
+
         # Security configuration
         config.security = SecurityConfig(
             jwt_secret=os.getenv("JWT_SECRET", "dev-secret-change-in-production"),
             jwt_expire_minutes=int(os.getenv("JWT_EXPIRE_MINUTES", "60")),
             cors_origins=os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
         )
-        
+
         # Monitoring configuration
         config.monitoring = MonitoringConfig(
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             sentry_dsn=os.getenv("SENTRY_DSN")
         )
-        
+
         return config
-    
+
     def validate(self) -> list[str]:
         """Validate configuration and return list of errors."""
         errors = []
-        
+
         if self.environment == Environment.PRODUCTION:
             if self.security.jwt_secret == "dev-secret":
                 errors.append("JWT secret must be changed in production")
@@ -506,10 +506,10 @@ class ServiceConfig:
                 errors.append("Debug mode should be disabled in production")
             if "*" in self.security.cors_origins:
                 errors.append("CORS origins should be restricted in production")
-        
+
         if self.upload_max_size > 100 * 1024 * 1024:  # 100MB
             errors.append("Upload max size should not exceed 100MB")
-            
+
         return errors
 ```
 
@@ -531,42 +531,42 @@ class ServiceInstance:
     last_health_check: Optional[datetime] = None
     healthy: bool = True
     metadata: Dict[str, str] = None
-    
+
 class ServiceRegistry:
     """Simple service registry for multi-instance deployments."""
-    
+
     def __init__(self):
         self.instances: Dict[str, List[ServiceInstance]] = {}
         self.health_check_interval = 30  # seconds
-        
+
     def register_instance(self, service_name: str, instance: ServiceInstance):
         """Register a service instance."""
         if service_name not in self.instances:
             self.instances[service_name] = []
         self.instances[service_name].append(instance)
-        
+
     def get_healthy_instances(self, service_name: str) -> List[ServiceInstance]:
         """Get all healthy instances of a service."""
         if service_name not in self.instances:
             return []
         return [inst for inst in self.instances[service_name] if inst.healthy]
-        
+
     async def health_check_loop(self):
         """Continuously monitor instance health."""
         while True:
             await self.check_all_instances()
             await asyncio.sleep(self.health_check_interval)
-            
+
     async def check_all_instances(self):
         """Check health of all registered instances."""
         tasks = []
         for service_name, instances in self.instances.items():
             for instance in instances:
                 tasks.append(self._check_instance_health(instance))
-        
+
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     async def _check_instance_health(self, instance: ServiceInstance):
         """Check health of a single instance."""
         try:
@@ -580,18 +580,18 @@ class ServiceRegistry:
 
 class LoadBalancer:
     """Simple load balancer for distributing requests."""
-    
+
     def __init__(self, service_registry: ServiceRegistry):
         self.registry = service_registry
         self.round_robin_counters: Dict[str, int] = {}
-        
+
     def get_instance(self, service_name: str, strategy: str = "round_robin") -> Optional[ServiceInstance]:
         """Get an instance using the specified load balancing strategy."""
         healthy_instances = self.registry.get_healthy_instances(service_name)
-        
+
         if not healthy_instances:
             return None
-            
+
         if strategy == "round_robin":
             return self._round_robin_select(service_name, healthy_instances)
         elif strategy == "random":
@@ -602,18 +602,18 @@ class LoadBalancer:
             return self._least_connections_select(healthy_instances)
         else:
             return healthy_instances[0]  # First available
-            
+
     def _round_robin_select(self, service_name: str, instances: List[ServiceInstance]) -> ServiceInstance:
         """Select instance using round-robin strategy."""
         if service_name not in self.round_robin_counters:
             self.round_robin_counters[service_name] = 0
-            
+
         counter = self.round_robin_counters[service_name]
         instance = instances[counter % len(instances)]
         self.round_robin_counters[service_name] = counter + 1
-        
+
         return instance
-    
+
     def _least_connections_select(self, instances: List[ServiceInstance]) -> ServiceInstance:
         """Select instance with least active connections (simplified)."""
         # In a real implementation, you'd track active connections
@@ -635,7 +635,7 @@ from collections import defaultdict, deque
 
 class MetricsCollector:
     """Collect application metrics for monitoring and alerting."""
-    
+
     def __init__(self):
         self.request_counts = defaultdict(int)
         self.response_times = defaultdict(deque)
@@ -643,34 +643,34 @@ class MetricsCollector:
         self.active_analyses = 0
         self.total_analyses = 0
         self.start_time = datetime.utcnow()
-        
+
     def record_request(self, endpoint: str, method: str, status_code: int, response_time: float):
         """Record request metrics."""
         key = f"{method}:{endpoint}"
         self.request_counts[key] += 1
-        
+
         # Keep last 1000 response times for percentile calculations
         response_times = self.response_times[key]
         response_times.append(response_time)
         if len(response_times) > 1000:
             response_times.popleft()
-            
+
         if status_code >= 400:
             self.error_counts[key] += 1
-    
+
     def start_analysis(self):
         """Record start of analysis."""
         self.active_analyses += 1
         self.total_analyses += 1
-        
+
     def complete_analysis(self):
         """Record completion of analysis."""
         self.active_analyses = max(0, self.active_analyses - 1)
-    
+
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics snapshot."""
         uptime = datetime.utcnow() - self.start_time
-        
+
         # Calculate response time percentiles
         percentiles = {}
         for endpoint, times in self.response_times.items():
@@ -679,35 +679,35 @@ class MetricsCollector:
                 percentiles[f"{endpoint}_p50"] = self._percentile(sorted_times, 50)
                 percentiles[f"{endpoint}_p95"] = self._percentile(sorted_times, 95)
                 percentiles[f"{endpoint}_p99"] = self._percentile(sorted_times, 99)
-        
+
         # System metrics
         process = psutil.Process()
         memory_info = process.memory_info()
-        
+
         return {
             "timestamp": datetime.utcnow().isoformat(),
             "uptime_seconds": uptime.total_seconds(),
-            
+
             # Application metrics
             "active_analyses": self.active_analyses,
             "total_analyses": self.total_analyses,
             "request_counts": dict(self.request_counts),
             "error_counts": dict(self.error_counts),
             "response_time_percentiles": percentiles,
-            
+
             # System metrics
             "memory_usage_mb": memory_info.rss / 1024 / 1024,
             "memory_usage_percent": process.memory_percent(),
             "cpu_usage_percent": process.cpu_percent(),
             "open_files": len(process.open_files()),
             "num_threads": process.num_threads(),
-            
+
             # System-wide metrics
             "system_cpu_percent": psutil.cpu_percent(),
             "system_memory_percent": psutil.virtual_memory().percent,
             "disk_usage_percent": psutil.disk_usage('/').percent,
         }
-    
+
     def _percentile(self, sorted_data: list, percentile: int) -> float:
         """Calculate percentile from sorted data."""
         if not sorted_data:
@@ -725,21 +725,21 @@ import time
 async def metrics_middleware(request: Request, call_next):
     """FastAPI middleware to automatically collect request metrics."""
     start_time = time.time()
-    
+
     response = await call_next(request)
-    
+
     response_time = time.time() - start_time
-    
+
     # Get metrics collector from app state
     metrics_collector = request.app.state.metrics_collector
-    
+
     metrics_collector.record_request(
         endpoint=request.url.path,
         method=request.method,
         status_code=response.status_code,
         response_time=response_time
     )
-    
+
     return response
 ```
 
@@ -753,7 +753,7 @@ from typing import Dict, Any
 async def detailed_health_check() -> Dict[str, Any]:
     """
     Comprehensive health check including dependencies.
-    
+
     Returns detailed status information for monitoring systems.
     """
     health_status = {
@@ -764,9 +764,9 @@ async def detailed_health_check() -> Dict[str, Any]:
         "uptime_seconds": (datetime.utcnow() - app.state.start_time).total_seconds(),
         "checks": {}
     }
-    
+
     overall_healthy = True
-    
+
     # Check database connection
     try:
         if config.database:
@@ -778,7 +778,7 @@ async def detailed_health_check() -> Dict[str, Any]:
     except Exception as e:
         health_status["checks"]["database"] = {"status": "unhealthy", "error": str(e)}
         overall_healthy = False
-    
+
     # Check Redis connection
     try:
         if config.redis:
@@ -789,7 +789,7 @@ async def detailed_health_check() -> Dict[str, Any]:
     except Exception as e:
         health_status["checks"]["redis"] = {"status": "unhealthy", "error": str(e)}
         overall_healthy = False
-    
+
     # Check file storage
     try:
         await test_file_storage()
@@ -797,7 +797,7 @@ async def detailed_health_check() -> Dict[str, Any]:
     except Exception as e:
         health_status["checks"]["file_storage"] = {"status": "unhealthy", "error": str(e)}
         overall_healthy = False
-    
+
     # Check holiday API
     try:
         await test_holiday_api()
@@ -805,12 +805,12 @@ async def detailed_health_check() -> Dict[str, Any]:
     except Exception as e:
         health_status["checks"]["holiday_api"] = {"status": "degraded", "error": str(e)}
         # Holiday API failure doesn't make the service unhealthy (has fallback)
-    
+
     # Check system resources
     try:
         memory_percent = psutil.virtual_memory().percent
         disk_percent = psutil.disk_usage('/').percent
-        
+
         resource_status = "healthy"
         if memory_percent > 90 or disk_percent > 90:
             resource_status = "warning"
@@ -818,7 +818,7 @@ async def detailed_health_check() -> Dict[str, Any]:
         if memory_percent > 95 or disk_percent > 95:
             resource_status = "critical"
             overall_healthy = False
-        
+
         health_status["checks"]["system_resources"] = {
             "status": resource_status,
             "memory_percent": memory_percent,
@@ -826,7 +826,7 @@ async def detailed_health_check() -> Dict[str, Any]:
         }
     except Exception as e:
         health_status["checks"]["system_resources"] = {"status": "unknown", "error": str(e)}
-    
+
     # Get application metrics
     metrics_collector = app.state.metrics_collector
     app_metrics = metrics_collector.get_metrics()
@@ -836,10 +836,10 @@ async def detailed_health_check() -> Dict[str, Any]:
         "memory_usage_mb": app_metrics["memory_usage_mb"],
         "cpu_usage_percent": app_metrics["cpu_usage_percent"]
     }
-    
+
     if not overall_healthy:
         health_status["status"] = "unhealthy"
-    
+
     return health_status
 
 # Add health check endpoints
@@ -858,14 +858,14 @@ async def metrics():
     """Prometheus-compatible metrics endpoint."""
     metrics_collector = app.state.metrics_collector
     metrics_data = metrics_collector.get_metrics()
-    
+
     # Convert to Prometheus format
     prometheus_metrics = []
     prometheus_metrics.append(f"fhr_active_analyses {metrics_data['active_analyses']}")
     prometheus_metrics.append(f"fhr_total_analyses {metrics_data['total_analyses']}")
     prometheus_metrics.append(f"fhr_memory_usage_mb {metrics_data['memory_usage_mb']}")
     prometheus_metrics.append(f"fhr_cpu_usage_percent {metrics_data['cpu_usage_percent']}")
-    
+
     return Response("\n".join(prometheus_metrics), media_type="text/plain")
 ```
 
@@ -951,22 +951,22 @@ class BackgroundJob:
 
 class BackgroundJobManager:
     """Manage long-running background jobs (analysis, export, cleanup)."""
-    
+
     def __init__(self, max_concurrent_jobs: int = 5):
         self.jobs: Dict[str, BackgroundJob] = {}
         self.job_handlers: Dict[str, Callable] = {}
         self.max_concurrent_jobs = max_concurrent_jobs
         self.running_jobs = 0
         self.job_queue = asyncio.Queue()
-        
+
     def register_handler(self, job_type: str, handler: Callable):
         """Register a handler for a job type."""
         self.job_handlers[job_type] = handler
-        
+
     async def submit_job(self, job_type: str, job_data: Dict[str, Any]) -> str:
         """Submit a job for background processing."""
         job_id = f"{job_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{id(job_data)}"
-        
+
         job = BackgroundJob(
             job_id=job_id,
             job_type=job_type,
@@ -974,16 +974,16 @@ class BackgroundJobManager:
             created_at=datetime.utcnow(),
             metadata=job_data
         )
-        
+
         self.jobs[job_id] = job
         await self.job_queue.put(job_id)
-        
+
         return job_id
-    
+
     async def get_job_status(self, job_id: str) -> BackgroundJob:
         """Get the status of a job."""
         return self.jobs.get(job_id)
-    
+
     async def cancel_job(self, job_id: str) -> bool:
         """Cancel a pending or running job."""
         job = self.jobs.get(job_id)
@@ -991,7 +991,7 @@ class BackgroundJobManager:
             job.status = JobStatus.CANCELLED
             return True
         return False
-    
+
     async def start_job_processor(self):
         """Start the background job processor."""
         while True:
@@ -1000,56 +1000,56 @@ class BackgroundJobManager:
                     # Get next job from queue
                     job_id = await self.job_queue.get()
                     job = self.jobs.get(job_id)
-                    
+
                     if job and job.status == JobStatus.PENDING:
                         # Start job processing
                         asyncio.create_task(self._process_job(job))
-                        
+
             except Exception as e:
                 print(f"Error in job processor: {e}")
                 await asyncio.sleep(1)
-    
+
     async def _process_job(self, job: BackgroundJob):
         """Process a single job."""
         try:
             self.running_jobs += 1
             job.status = JobStatus.RUNNING
             job.started_at = datetime.utcnow()
-            
+
             # Get handler for job type
             handler = self.job_handlers.get(job.job_type)
             if not handler:
                 raise ValueError(f"No handler registered for job type: {job.job_type}")
-            
+
             # Execute job with progress callback
             def progress_callback(progress: float):
                 job.progress = min(100.0, max(0.0, progress))
-            
+
             result = await handler(job.metadata, progress_callback)
-            
+
             job.status = JobStatus.COMPLETED
             job.result = result
             job.progress = 100.0
             job.completed_at = datetime.utcnow()
-            
+
         except Exception as e:
             job.status = JobStatus.FAILED
             job.error = str(e)
             job.completed_at = datetime.utcnow()
-            
+
         finally:
             self.running_jobs -= 1
-    
+
     def cleanup_old_jobs(self, max_age_hours: int = 24):
         """Clean up old completed/failed jobs."""
         cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
-        
+
         jobs_to_remove = []
         for job_id, job in self.jobs.items():
-            if (job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED] and 
+            if (job.status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED] and
                 job.completed_at and job.completed_at < cutoff):
                 jobs_to_remove.append(job_id)
-        
+
         for job_id in jobs_to_remove:
             del self.jobs[job_id]
 
@@ -1059,25 +1059,25 @@ async def analyze_file_job(job_data: Dict[str, Any], progress_callback: Callable
     file_path = job_data["file_path"]
     mode = job_data.get("mode", "incremental")
     output_format = job_data.get("output_format", "excel")
-    
+
     progress_callback(10.0)  # Starting analysis
-    
+
     # Create analyzer
     analyzer = AttendanceAnalyzer()
     analyzer.parse_attendance_file(file_path, incremental=(mode == "incremental"))
     progress_callback(30.0)  # Parsed file
-    
+
     analyzer.group_records_by_day()
     progress_callback(50.0)  # Grouped records
-    
+
     analyzer.analyze_attendance()
     progress_callback(80.0)  # Completed analysis
-    
+
     # Generate output file
     output_path = file_path.replace(".txt", f"_analysis.{output_format}")
     analyzer.export_report(output_path, output_format)
     progress_callback(100.0)  # Export completed
-    
+
     return {
         "output_path": output_path,
         "total_issues": len(analyzer.issues),

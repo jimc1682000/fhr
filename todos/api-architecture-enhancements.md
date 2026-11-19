@@ -9,7 +9,7 @@
 ```markdown
 ## Security Architecture
 ### JWT Token Authentication
-### API Key Management  
+### API Key Management
 ### Role-Based Access Control (RBAC)
 ### OAuth2/OIDC Integration
 ```
@@ -27,7 +27,7 @@
 ```markdown
 ## API Endpoint Reference
 ### Attendance Analysis Endpoints
-### File Management Endpoints  
+### File Management Endpoints
 ### User Management Endpoints
 ### Reporting & Export Endpoints
 ```
@@ -43,7 +43,7 @@
 ```markdown
 ## Performance & Rate Limiting
 ### Request Rate Limits
-### Caching Strategy  
+### Caching Strategy
 ### Response Time Optimization
 ### Load Balancing Configuration
 ```

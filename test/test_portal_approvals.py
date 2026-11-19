@@ -59,6 +59,15 @@ class TestParseWsdinfotext(unittest.TestCase):
         self.assertEqual(out["leave_type"], "異地辦公(8hr一週)")
         self.assertEqual(out["reason"], "WFH")
 
+    def test_decimal_hours_kept(self):
+        out = parse_wsdinfotext(SAMPLE_WSD_LEAVE.replace("合計時數：8 小時", "合計時數：1.5 小時"))
+        self.assertEqual(out["hours"], 1.5)
+
+    def test_whole_hours_stay_int(self):
+        out = parse_wsdinfotext(SAMPLE_WSD_LEAVE.replace("合計時數：8 小時", "合計時數：8.0 小時"))
+        self.assertEqual(out["hours"], 8)
+        self.assertIsInstance(out["hours"], int)
+
     def test_missing_date_returns_none(self):
         self.assertIsNone(parse_wsdinfotext(""))
         self.assertIsNone(parse_wsdinfotext("無有效資料"))

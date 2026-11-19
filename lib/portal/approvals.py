@@ -42,7 +42,7 @@ FORM_NAMES = {
 #   合計時數：8 小時
 _RE_START = re.compile(r"\(開始時間 StartDate\)\s*(\d{4}/\d{2}/\d{2})\s*(\d{2}:\d{2})")
 _RE_END = re.compile(r"\(結束時間 EndDate\)\s*(\d{4}/\d{2}/\d{2})\s*(\d{2}:\d{2})")
-_RE_HOURS = re.compile(r"合計時數[：:]\s*(\d+)\s*小時")
+_RE_HOURS = re.compile(r"合計時數[：:]\s*(\d+(?:\.\d+)?)\s*小時")
 _RE_LEAVE_TYPE = re.compile(r"可申請假勤項目[：:]\s*(.+)")
 _RE_OT_LOCATION = re.compile(r"加班地點[：:]\s*(.+)")
 _RE_REASON = re.compile(r"(加班原因|請假原因)[：:]\s*(.+)")
@@ -91,6 +91,12 @@ _READ_PAGE_JS = """
 """
 
 
+def _hours(raw: str) -> int | float:
+    """Keep the Portal's decimals ("1.5"); whole numbers stay int ("8" → 8)."""
+    value = float(raw)
+    return int(value) if value.is_integer() else value
+
+
 def parse_wsdinfotext(text: str) -> dict | None:
     """Extract the structured fields we care about from a wsdinfotext blob.
 
@@ -110,7 +116,7 @@ def parse_wsdinfotext(text: str) -> dict | None:
         "start_time": start.group(2).replace(":", ""),  # HHMM
         "end_date": end.group(1) if end else start.group(1),
         "end_time": end.group(2).replace(":", "") if end else "",
-        "hours": int(hours.group(1)) if hours else None,
+        "hours": _hours(hours.group(1)) if hours else None,
         "leave_type": (leave_type.group(1).strip() if leave_type else None),
         "location": (location.group(1).strip() if location else None),
         "reason": (reason.group(2).strip() if reason else ""),

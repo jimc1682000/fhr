@@ -19,6 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
+
+from lib.portal.statuses import is_dead_status
 
 # Maps the analyzer's type_hint → which cascade key from config to consult.
 TYPE_HINT_TO_CASCADE = {
@@ -59,7 +62,8 @@ class AllocationDecision:
 class AllocationResult:
     decisions: list[AllocationDecision] = field(default_factory=list)
     remaining: dict[str, int | None] = field(default_factory=dict)
-    monthly_used: dict[tuple[str, str], int] = field(default_factory=dict)
+    # Exact Decimal sums (see `_hours`); compares equal to plain numbers.
+    monthly_used: dict[tuple[str, str], Decimal] = field(default_factory=dict)
 
 
 def _month_key(date_str: str) -> str:
@@ -88,6 +92,16 @@ def _cascade_for(type_hint: str, cascades: dict[str, list[str]]) -> list[str]:
     return cascades.get(key, [])
 
 
+def _hours(value) -> Decimal:
+    """Exact hours: str() first so 7.7 stays 7.7, and sums never drift."""
+    return Decimal(str(value))
+
+
+def _fmt(value: Decimal) -> str:
+    """Display only: at most 2 decimals, no trailing zeros."""
+    return f"{round(float(value), 2):g}"
+
+
 def allocate(
     entries: list[dict],
     balances: dict,
@@ -106,7 +120,7 @@ def allocate(
     """
     cascades = cascades or DEFAULT_CASCADES
     remaining: dict[str, int | None] = {}
-    monthly_used: dict[tuple[str, str], int] = {}
+    monthly_used: dict[tuple[str, str], Decimal] = {}
 
     # Bootstrap remaining from balances; deduct already_applied
     candidate_types: set[str] = set()
@@ -121,12 +135,13 @@ def allocate(
     # items panel as a remaining-hours number; we track those locally.
     for applied in already_applied or []:
         lt = applied.get("leave_type")
-        if not lt:
+        # Withdrawn / rejected forms no longer use the monthly budget.
+        if not lt or is_dead_status(applied.get("status")):
             continue
         hrs = applied.get("hours") or 0
         if lt in MONTHLY_CAPS_HOURS:
             mk = _month_key(applied["date"])
-            monthly_used[(lt, mk)] = monthly_used.get((lt, mk), 0) + int(hrs)
+            monthly_used[(lt, mk)] = monthly_used.get((lt, mk), Decimal(0)) + _hours(hrs)
 
     decisions: list[AllocationDecision] = []
     for entry in sorted(entries, key=lambda e: e["date"]):
@@ -139,13 +154,13 @@ def allocate(
             if cand in MONTHLY_CAPS_HOURS:
                 cap = MONTHLY_CAPS_HOURS[cand]
                 mk = _month_key(entry["date"])
-                used = monthly_used.get((cand, mk), 0)
-                if used + hours <= cap:
-                    monthly_used[(cand, mk)] = used + hours
+                used = monthly_used.get((cand, mk), Decimal(0))
+                if used + _hours(hours) <= cap:
+                    monthly_used[(cand, mk)] = used + _hours(hours)
                     picked = cand
-                    reason = f"月額 {cap}h，已用 {used}h，扣本筆 {hours}h"
+                    reason = f"月額 {cap}h，已用 {_fmt(used)}h，扣本筆 {hours}h"
                     break
-                reason = f"{cand} {mk} 月額 {cap}h 不足 (已用 {used}h)"
+                reason = f"{cand} {mk} 月額 {cap}h 不足 (已用 {_fmt(used)}h)"
                 continue
             rem = remaining.get(cand)
             if rem is None:

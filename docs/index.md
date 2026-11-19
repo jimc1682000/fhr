@@ -73,6 +73,7 @@
 
 ### ⚡ **快速查詢**
 - **命令速查**: [quick-reference.md](quick-reference.md)
+- **週工時（工時表 TTL／請假／加班）**: `fhr week-hours`，用法見 [README.md](../README.md) 與 [portal.md](portal.md#state-cache)
 - **錯誤排除**: [troubleshooting.md](troubleshooting.md)
 - **檔案格式**: [data-format.md](data-format.md)
 - **輸出說明**: [output.md](output.md)

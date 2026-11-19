@@ -98,7 +98,11 @@ Per-user data persists in `attendance_state.json` (or wherever `FHR_STATE_FILE` 
       "applied_forms": {                       // portal-sync writes this
         "overtime": [...],
         "leave": [...],
-        "last_full_sync": "2033-07-20T10:00:00"
+        "synced_at_by_kind": {                 // per kind; week-hours needs both
+          "overtime": "2033-07-20T10:00:00",
+          "leave": "2033-07-20T10:00:00"
+        },
+        "last_full_sync": "2033-07-20T10:00:00" // last sync of any kind
       }
     }
   }

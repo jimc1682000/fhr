@@ -51,6 +51,22 @@ python3 attendance_analyzer.py sample-attendance-data.txt --export-policy archiv
 python3 attendance_analyzer.py sample-attendance-data.txt --debug --cleanup-exports
 ```
 
+### Weekly Work Hours (timesheet)
+```bash
+# 先完整 portal-sync（加班單、請假單都要），再算週工時
+python3 attendance_analyzer.py week-hours --user ExampleUser --week 2033/06/21
+```
+- 選項：`--attendance <出勤.txt>` 標出沒打卡的日子；`--json` 輸出 JSON；省略 `--week` 時取週五已過的最近一週
+- 規則：平日 8h − 請假單時數 ＋ 加班單時數；國定假日 0。異地辦公／在家工作／忘刷卡算工時，公假算請假（從 TTL 扣掉）
+- 狀態沿用 `lib/portal/statuses.py` 的分類（`apply_forms` 再匯出、`cascade` 也用）：狀態含「抽單」或「駁回」（全形括號視同半形）、退件、已撤回都不計；已核准、流程結束(完成) 照計；簽核中的單照計並標註；portal-apply 寫入的本機記錄（`已送出 (本機新增)`）照計，但時數未經 Portal 確認，標為總計不完整並提示重跑 portal-sync；未知狀態照計，但標為總計不完整。cascade 加總月額度已用時數時也排除這些失效單
+- 單日單一律用單據時數；請假扣到當日工時 0 為止，超過的部分不扣、標為總計不完整
+- 起訖日期不同就算跨日（結束在隔天 00:00 也算）。跨日的單依起訖日期時間分到各天：請假只算 09:30–18:30 扣午休、跳過週末與國定假日、每天最多 8h；加班依實際時段分到各日（跨午夜會拆兩天）。分出的總數與單據時數相差超過 0.01h（恰好 0.01h 仍接受；或根本沒有可分的工作日）時不縮放：整張單不計入，起始日備註「跨日單時數與時段不符，無法分配」，並標為總計不完整
+- 週末只在有加班或備註時列出該日；時數可為小數（1.5h），各日與週總計都用精確值加總，只在表格與 JSON 輸出時四捨五入到 2 位；週內有效單據缺時數時，輸出標示總計不完整（JSON `complete: false`、`warnings`）
+- 只接受 `applied_forms.synced_at_by_kind` 同時有加班單、請假單的同步時間，且兩份清單都在的 cache；其他情況（包含舊格式 cache、只跑過 `portal-sync --kinds leave`）一律拒絕並提示重跑完整 `fhr portal-sync`
+- 國定假日資料抓取失敗、只載入基本固定假日時，標為總計不完整
+- 不用打卡的上下班差值算（避免 9.70h 這種沒有單據對應的數字）；`--attendance` 只標出沒有任何有效單據的日子：出勤檔日期範圍內無打卡記為「無打卡也無假單」，範圍外記為「打卡資料未涵蓋」
+- 邏輯在 `lib/week_hours.py`（純函式），指令在 `lib/commands/week_hours.py`
+
 ### Testing with Sample Data
 ```bash
 python3 attendance_analyzer.py sample-attendance-data.txt

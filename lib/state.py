@@ -91,15 +91,18 @@ class AttendanceStateManager:
     #   "applied_forms": {
     #     "overtime": [
     #       {"date": "YYYY/MM/DD", "start_time": "HHMM", "end_time": "HHMM",
-    #        "hours": int, "location": "...", "reason": "...",
+    #        "hours": int | float | None, "location": "...", "reason": "...",
     #        "status": "已核准|...", "synced_at": "ISO8601"}
     #     ],
     #     "leave": [
     #       {"date", "start_time", "end_time", "hours", "leave_type",
     #        "reason", "status", "synced_at"}
     #     ],
-    #     "last_full_sync": "ISO8601"
+    #     "synced_at_by_kind": {"overtime": "ISO8601", "leave": "ISO8601"},
+    #     "last_full_sync": "ISO8601"   # last sync of any kind
     #   }
+    #
+    # `hours` keeps the Portal's decimals (1.5); whole numbers stay int.
 
     @staticmethod
     def _applied_form_key(entry: dict) -> tuple:
@@ -136,6 +139,8 @@ class AttendanceStateManager:
                 rec.setdefault("synced_at", synced_at)
                 cleaned.append(rec)
             applied[kind] = cleaned
+            # Per kind, so a `portal-sync --kinds leave` can't pass for a full sync.
+            applied.setdefault("synced_at_by_kind", {})[kind] = synced_at
         applied["last_full_sync"] = synced_at
 
     def record_applied_form(self, user_name: str, kind: str, entry: dict, recorded_at: str) -> None:

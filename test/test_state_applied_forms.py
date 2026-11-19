@@ -47,6 +47,16 @@ class TestAppliedForms(unittest.TestCase):
         self.assertEqual(applied["overtime"][0]["synced_at"], "2033-07-20T10:00:00")
         self.assertEqual(applied["last_full_sync"], "2033-07-20T10:00:00")
         self.assertEqual(applied["leave"], [])
+        self.assertEqual(
+            applied["synced_at_by_kind"],
+            {"overtime": "2033-07-20T10:00:00", "leave": "2033-07-20T10:00:00"},
+        )
+
+    def test_partial_sync_records_only_its_kind(self):
+        self.sm.replace_applied_forms("ExampleUser", {"overtime": [], "leave": []}, "t1")
+        self.sm.replace_applied_forms("ExampleUser", {"leave": []}, "t2")
+        applied = self.sm.get_applied_forms("ExampleUser")
+        self.assertEqual(applied["synced_at_by_kind"], {"overtime": "t1", "leave": "t2"})
 
     def test_is_form_already_applied(self):
         self.sm.replace_applied_forms(

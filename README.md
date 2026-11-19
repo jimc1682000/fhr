@@ -81,6 +81,12 @@ python attendance_analyzer.py reasons --input tmp/analysis.json \
 # 送出後到 Portal 全部狀態清單對帳（只接受有效狀態，排除流程停止(抽單)及駁回），查到才算成功；非 WFH 假單必須帶 --proxy
 python attendance_analyzer.py portal-apply --user JimmyChen \
     --input tmp/analysis.json --proxy 王小明
+
+# 週工時 (工時表 TTL/請假/加班):平日 8h − 請假 + 加班,國定假日 0,讀 state cache 的假單
+# 需先完整 portal-sync (加班單、請假單都要);跨日的單依起訖時間分到各天,對不上單據時數就不計並標示不完整
+# 預設週五已過的最近一週;--attendance 會標出沒打卡也沒假單的日子;--json 含 complete/warnings
+python attendance_analyzer.py week-hours --user ExampleUser --week 2033/06/20 \
+    --attendance tmp/203306-ExampleUser-出勤資料.txt
 ```
 
 `portal-apply` 每筆單都會在結果檔記錄 `status`：只有 `confirmed`、`already_pending` 代表單子已在 Portal 上。有 `unconfirmed`、`failed`、`blocked` 時以結束碼 `5` 結束；非 WFH 假單缺 `--proxy` 則在送出前以 `2` 結束。細節見 [`docs/portal.md`](docs/portal.md#submission-confirmation-portal-apply)。

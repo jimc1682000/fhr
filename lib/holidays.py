@@ -185,6 +185,8 @@ class HolidayService:
         self.hardcoded = Hardcoded2025Provider()
         self.gov = TaiwanGovOpenDataProvider()
         self.basic = BasicFixedProvider()
+        # Years that only got the basic fixed holidays (full data unavailable).
+        self.fallback_years: set[int] = set()
 
     def load_year(self, year: int) -> set[datetime.date]:
         if year == 2025:
@@ -194,6 +196,7 @@ class HolidayService:
         if out:
             return out
         logger.warning("無法取得 %d 年完整假日資料，僅載入基本固定假日", year)
+        self.fallback_years.add(year)
         return self.basic.load(year)
 
     def load_years(self, years: set) -> set[datetime.date]:

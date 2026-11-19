@@ -1,6 +1,7 @@
 """Tests for `lib/cascade.py` allocation logic."""
 
 import unittest
+from decimal import Decimal
 
 from lib.cascade import (
     DEFAULT_CASCADES,
@@ -180,6 +181,77 @@ class TestAlreadyApplied(unittest.TestCase):
         out = allocate(entries, _balances(), already_applied=applied)
         self.assertEqual(out.decisions[0].leave_type, "異地辦公(8hr一週)")
         self.assertEqual(out.monthly_used[("異地辦公(8hr一週)", "2033-06")], 27)
+
+    def test_decimal_hours_do_not_drift_past_the_cap(self):
+        # 7.7 + 7.9 + 7.8 + 7.9 + 7.7 is 39.00000000000001 in floats.
+        applied = [
+            {"date": f"2033/06/{d:02d}", "hours": h, "leave_type": "異地辦公(8hr一週)"}
+            for d, h in ((2, 7.7), (9, 7.9), (16, 7.8), (23, 7.9), (27, 7.7))
+        ]
+        entry = {**_wfh("2033/06/30"), "hours": 1, "end_time": "1030"}
+        out = allocate([entry], _balances(), already_applied=applied)
+        self.assertEqual(out.decisions[0].leave_type, "異地辦公(8hr一週)")
+        self.assertEqual(out.monthly_used[("異地辦公(8hr一週)", "2033-06")], 40)
+
+    def _wfh_with_used(self, used_hours, request_hours):
+        applied = [
+            {"date": f"2033/06/{i + 1:02d}", "hours": h, "leave_type": "異地辦公(8hr一週)"}
+            for i, h in enumerate(used_hours)
+        ]
+        entry = {**_wfh("2033/06/30"), "hours": request_hours}
+        return allocate([entry], _balances(), already_applied=applied)
+
+    def test_exact_fit_after_decimal_hours_accepted(self):
+        # 7.667 + 7.667 + 7.666 + 8 + 8 is exactly 39h; 1h more fills the cap.
+        out = self._wfh_with_used([7.667, 7.667, 7.666, 8, 8], 1)
+        self.assertEqual(out.decisions[0].leave_type, "異地辦公(8hr一週)")
+        self.assertEqual(out.monthly_used[("異地辦公(8hr一週)", "2033-06")], 40)
+
+    def test_over_cap_after_decimal_hours_rejected(self):
+        # 7.334 × 3 + 8 + 8 is 38.002h; 2h more would be 40.002h.
+        out = self._wfh_with_used([7.334, 7.334, 7.334, 8, 8], 2)
+        self.assertIsNone(out.decisions[0].leave_type)
+        self.assertEqual(out.monthly_used[("異地辦公(8hr一週)", "2033-06")], Decimal("38.002"))
+        # Rounded for display only.
+        self.assertIn("已用 38h", out.decisions[0].reason)
+
+    def test_already_applied_decimal_hours_not_truncated(self):
+        applied = [
+            {
+                "date": "2033/06/10",
+                "start_time": "0930",
+                "end_time": "1100",
+                "hours": 1.5,
+                "leave_type": "異地辦公(8hr一週)",
+            }
+        ]
+        out = allocate([], _balances(), already_applied=applied)
+        self.assertEqual(out.monthly_used[("異地辦公(8hr一週)", "2033-06")], 1.5)
+
+    def test_dead_already_applied_forms_do_not_use_monthly_budget(self):
+        # 31h approved + a withdrawn 1.5h form; a new 9h WFH still fits in 40h.
+        def wfh(day, hours, status):
+            return {
+                "date": day,
+                "start_time": "0930",
+                "end_time": "1830",
+                "hours": hours,
+                "leave_type": "異地辦公(8hr一週)",
+                "status": status,
+            }
+
+        applied = [
+            wfh("2033/06/03", 9, "已核准"),
+            wfh("2033/06/10", 9, "已核准"),
+            wfh("2033/06/17", 9, "已核准"),
+            wfh("2033/06/20", 4, "已核准"),
+            wfh("2033/06/21", 1.5, "已撤回"),
+            wfh("2033/06/22", 8, "流程停止（抽單）"),
+            wfh("2033/06/23", 8, "主管駁回"),
+        ]
+        out = allocate([_wfh("2033/06/24")], _balances(), already_applied=applied)
+        self.assertEqual(out.decisions[0].leave_type, "異地辦公(8hr一週)")
+        self.assertEqual(out.monthly_used[("異地辦公(8hr一週)", "2033-06")], 40)
 
 
 class TestDecisionShape(unittest.TestCase):

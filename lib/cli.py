@@ -30,6 +30,8 @@ KNOWN_SUBCOMMANDS = {
     "portal-apply",
     "portal_apply",
     "reasons",
+    "week-hours",
+    "week_hours",
 }
 
 
@@ -76,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
         portal_fetch as portal_fetch_cmd,
         portal_sync as portal_sync_cmd,
         reasons as reasons_cmd,
+        week_hours as week_hours_cmd,
     )
 
     analyze_cmd.add_parser(sub)
@@ -87,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     portal_balances_cmd.add_parser(sub)
     portal_apply_cmd.add_parser(sub)
     reasons_cmd.add_parser(sub)
+    week_hours_cmd.add_parser(sub)
     return parser
 
 
@@ -134,5 +138,9 @@ def run(argv: list | None = None) -> None:
         from lib.commands import reasons as reasons_cmd
 
         reasons_cmd.run(args)
+    elif args.cmd in ("week-hours", "week_hours"):
+        from lib.commands import week_hours as week_hours_cmd
+
+        week_hours_cmd.run(args)
     else:
         parser.error(f"unknown subcommand: {args.cmd}")

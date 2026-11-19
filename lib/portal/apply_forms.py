@@ -21,6 +21,9 @@ from lib.portal import approvals
 from lib.portal.balances import FORM_QUEUES_URL_PATH
 from lib.portal.client import AgentBrowserError, PortalSession, js_escape
 
+# Re-exported: callers and tests import these from apply_forms.
+from lib.portal.statuses import ACTIVE_FORM_STATUSES, INACTIVE_FORM_STATUSES
+
 logger = logging.getLogger(__name__)
 
 # Per-entry outcome. Only CONFIRMED / ALREADY_PENDING mean the form exists on
@@ -32,12 +35,6 @@ FAILED = "failed"  # 沒有按送出（假別比對失敗、送出前查不到�
 BLOCKED = "blocked"  # 前置條件不符（非 WFH 假單缺職務代理人），未開表單
 DRY_RUN = "dry_run"
 OK_STATUSES = frozenset({CONFIRMED, ALREADY_PENDING, DRY_RUN})
-
-# 實際清單狀態與既有 Portal 狀態別名；未知狀態不可推定單據有效或失效。
-ACTIVE_FORM_STATUSES = frozenset(
-    {"未處理", "簽核中", "已核准", "主管簽核 - 一階主管", "流程結束(完成)"}
-)
-INACTIVE_FORM_STATUSES = frozenset({"已駁回", "退件", "已撤回", "流程結束(駁回)", "流程停止(抽單)"})
 
 
 class SubmissionInterrupted(AgentBrowserError):

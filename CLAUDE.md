@@ -150,7 +150,9 @@ Endpoints
 - 內容：
   - 安裝 dev 相依 `requirements-dev.txt`
   - Ruff lint（`ruff check`）& Ruff 格式檢查（`ruff format --check`）
-  - 單元測試 + 覆蓋率 >=90% 要求
+  - 單元測試（`make coverage` → `tools/run_coverage.py`；任何測試失敗都會讓這一步失敗）
+  - 各套件覆蓋率下限（`tools/check_coverage_threshold.py` 對照 `tools/coverage_baseline.json`，整體 ≥80%）
+  - `requirements-dev.txt` 要含 `httpx2`：starlette 1.x 的 `TestClient` 需要它，缺了 server 測試會在匯入時失敗
   - 上傳 coverage_report 與 coverage.svg 產物
 
 ### File Format Requirements

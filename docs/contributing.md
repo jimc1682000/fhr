@@ -1,7 +1,7 @@
 # Contributing
 
 - 主要規範：根目錄 `AGENTS.md`（開發流程、測試覆蓋、假日 API 退避/回退策略、Stacked PR）
-- AI/自動化工具補充：`CLAUDE.md`（Holiday API Resilience、測試執行、Logging & Privacy）
+- AI/自動化工具補充：`docs/agent-guide.md`（Holiday API Resilience、測試執行、Logging & Privacy）
 
 ## Commit 與 PR
 - 使用 Conventional Commits；訊息可中英雙語，並於描述加入 `Fixes #<issue>`（或 `Closes #<issue>`）

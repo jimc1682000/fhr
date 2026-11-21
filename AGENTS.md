@@ -102,4 +102,4 @@ This guide sets expectations for contributing to fhr, a small Python attendance 
 4. **Testing**: Ensure documentation examples work as described in tests
 
 ## Extended Reference
-- Please read `CLAUDE.md` in full before starting; it covers architecture details and complete workflow examples.
+- Please read `docs/agent-guide.md` in full before starting; it covers architecture details and complete workflow examples.

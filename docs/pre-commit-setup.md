@@ -195,4 +195,4 @@ pre-commit install --install-hooks
 
 ---
 
-**注意**: 如果您遇到任何問題，請查看項目的 `CLAUDE.md` 或聯繫維護者。
+**注意**: 如果您遇到任何問題，請查看項目的 `docs/agent-guide.md` 或聯繫維護者。

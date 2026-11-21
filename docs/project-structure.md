@@ -10,7 +10,8 @@ fhr/
 │   └── excel_exporter.py           # Excel 匯出共用函式庫
 ├── sample-attendance-data.txt      # 範例出勤資料
 ├── sample-attendance-data_analysis.csv # 範例分析結果（含狀態欄位）
-├── CLAUDE.md                       # AI 代理知識庫（技術文件）
+├── AGENTS.md                       # AI 代理主要規範
+├── CLAUDE.md                       # 只含 @AGENTS.md
 ├── README.md                       # 使用者說明文件（精簡版）
 ├── .gitignore                      # 版本控制排除規則（保護隱私）
 └── [執行時產生的檔案]

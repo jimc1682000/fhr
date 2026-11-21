@@ -1,0 +1,471 @@
+# Agent Guide
+
+This file provides guidance to coding agents (Claude Code, Codex) when working with code in this repository. Paths are relative to the repository root.
+
+## Project Overview
+
+This is a Python-based attendance analysis system that processes employee attendance records from HR portals and calculates late arrivals, overtime, work-from-home (WFH) recommendations, and forget-punch suggestions. The system is designed for companies with flexible working hours in Taiwan.
+
+## Core Commands
+
+### Running the Analyzer
+```bash
+python3 attendance_analyzer.py <attendance_file_path> [format] [options]
+```
+
+**Format options**: `excel` (default) or `csv`
+
+**Analysis options**:
+- `--incremental` / `-i`: Enable incremental analysis (default)
+- `--full` / `-f`: Force complete re-analysis
+- `--reset-state` / `-r`: Clear user's processing state
+- `--unprocessed-only` / `-u`: Analyze only records with empty processing status (未處理), skip processed records (已處理)
+- `--debug`: Enable read-only debug mode with verbose logging
+- `--export-policy {merge,archive}`: Control export behavior; default `merge` keeps a single output file, `archive` preserves timestamped backups
+- `--cleanup-exports`: Remove timestamp backups; in debug mode also deletes the freshly generated export for quick cleanups
+
+### Basic Usage Examples
+```bash
+# Default incremental analysis
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt
+
+# Force complete re-analysis
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --full
+
+# Analyze only unprocessed records (skip records marked as 已處理)
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --unprocessed-only
+
+# Clear state and re-analyze
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt --reset-state
+
+# Specify output format
+python3 attendance_analyzer.py 202508-員工姓名-出勤資料.txt csv
+
+# Debug without touching state
+python3 attendance_analyzer.py sample-attendance-data.txt --debug
+
+# Preserve timestamped backups explicitly
+python3 attendance_analyzer.py sample-attendance-data.txt --export-policy archive
+
+# Debug run with automatic cleanup afterward
+python3 attendance_analyzer.py sample-attendance-data.txt --debug --cleanup-exports
+```
+
+### Weekly Work Hours (timesheet)
+```bash
+# 先完整 portal-sync（加班單、請假單都要），再算週工時
+python3 attendance_analyzer.py week-hours --user ExampleUser --week 2033/06/21
+```
+- 選項：`--attendance <出勤.txt>` 標出沒打卡的日子；`--json` 輸出 JSON；省略 `--week` 時取週五已過的最近一週
+- 規則：平日 8h − 請假單時數 ＋ 加班單時數；國定假日 0。異地辦公／在家工作／忘刷卡算工時，公假算請假（從 TTL 扣掉）
+- 狀態沿用 `lib/portal/statuses.py` 的分類（`apply_forms` 再匯出、`cascade` 也用）：狀態含「抽單」或「駁回」（全形括號視同半形）、退件、已撤回都不計；已核准、流程結束(完成) 照計；簽核中的單照計並標註；portal-apply 寫入的本機記錄（`已送出 (本機新增)`）照計，但時數未經 Portal 確認，標為總計不完整並提示重跑 portal-sync；未知狀態照計，但標為總計不完整。cascade 加總月額度已用時數時也排除這些失效單
+- 單日單一律用單據時數；請假扣到當日工時 0 為止，超過的部分不扣、標為總計不完整
+- 起訖日期不同就算跨日（結束在隔天 00:00 也算）。跨日的單依起訖日期時間分到各天：請假只算 09:30–18:30 扣午休、跳過週末與國定假日、每天最多 8h；加班依實際時段分到各日（跨午夜會拆兩天）。分出的總數與單據時數相差超過 0.01h（恰好 0.01h 仍接受；或根本沒有可分的工作日）時不縮放：整張單不計入，起始日備註「跨日單時數與時段不符，無法分配」，並標為總計不完整
+- 週末只在有加班或備註時列出該日；時數可為小數（1.5h），各日與週總計都用精確值加總，只在表格與 JSON 輸出時四捨五入到 2 位；週內有效單據缺時數時，輸出標示總計不完整（JSON `complete: false`、`warnings`）
+- 只接受 `applied_forms.synced_at_by_kind` 同時有加班單、請假單的同步時間，且兩份清單都在的 cache；其他情況（包含舊格式 cache、只跑過 `portal-sync --kinds leave`）一律拒絕並提示重跑完整 `fhr portal-sync`
+- 國定假日資料抓取失敗、只載入基本固定假日時，標為總計不完整
+- 不用打卡的上下班差值算（避免 9.70h 這種沒有單據對應的數字）；`--attendance` 只標出沒有任何有效單據的日子：出勤檔日期範圍內無打卡記為「無打卡也無假單」，範圍外記為「打卡資料未涵蓋」
+- 邏輯在 `lib/week_hours.py`（純函式），指令在 `lib/commands/week_hours.py`
+
+### Testing with Sample Data
+```bash
+python3 attendance_analyzer.py sample-attendance-data.txt
+python3 attendance_analyzer.py sample-attendance-data.txt csv
+```
+
+### Running Unit Tests
+```bash
+# full suite (quiet)
+python3 -m unittest -q
+
+# run a specific test module
+python3 -m unittest -q test.test_holiday_api_resilience
+```
+
+### Development Tools & Pre-commit
+
+#### Pre-commit Framework Setup
+本項目使用 [pre-commit](https://pre-commit.com/) 框架管理 Git hooks，確保代碼質量：
+
+```bash
+# 1. 安裝 pre-commit
+pip install pre-commit
+
+# 2. 安裝開發依賴
+pip install -r requirements-dev.txt
+
+# 3. 安裝 pre-commit hooks
+pre-commit install
+
+# 4. 手動運行所有 hooks（可選）
+pre-commit run --all-files
+```
+
+#### 配置的 Hooks
+- **ruff-format**: Python 代碼自動格式化（行長度 100，取代 black）
+- **ruff**: Python linting 和自動修復
+- **trailing-whitespace**: 移除行尾空白
+- **end-of-file-fixer**: 確保文件以換行符結尾
+- **check-yaml**: 檢查 YAML 文件語法
+- **check-added-large-files**: 防止提交大文件
+- **mypy**: Python 靜態類型檢查（可選）
+
+#### 常用命令
+```bash
+# 手動運行 linting
+make lint
+
+# 跳過 pre-commit hooks（不推薦）
+git commit --no-verify
+
+# 更新 hooks 到最新版本
+pre-commit autoupdate
+```
+
+**詳細設置說明**: 參見 [`docs/pre-commit-setup.md`](pre-commit-setup.md)
+
+### 打包與發佈（Packaging）
+- `pyproject.toml` 定義 `[project]`,console script `fhr = lib.cli:run`；`[project].version` 為版本單一真相(commitizen `version_provider = pep621`)。
+- wheel `only-include = ["attendance_analyzer.py", "lib", "server", "web"]`。**注意**:`attendance_analyzer.py` 是核心模組(`lib.*`/`server.*` 反向 import `Issue`/`IssueType`/`AttendanceAnalyzer`/`logger`),不可漏;`web/` 是前端靜態資源(`server/main.py` 以安裝根目錄解析 `WEB_DIR`,pip 安裝的 `[service]` 靠它掛載 `/`),也不可漏。
+- 安裝:`uvx --from . fhr ...` / `pipx install .`(CLI);`pip install .[service]`(含 Web 相依)。
+- 容器:單一 image 由 `docker-entrypoint.sh` 分流——預設 `CMD=["web"]` 啟 uvicorn,`analyze`/其他子命令走 `fhr` CLI。CI(`.github/workflows/release-image.yml`)在 push `v*` tag 時 buildx 多架構(amd64+arm64)推 `ghcr.io/jimc1682000/fhr`。
+- **邊界**:`portal-*`(agent-browser headed 瀏覽器 + 內網)**不進 image**,走原生安裝。詳見 [`docs/packaging.md`](packaging.md)。
+
+### Web Service（FastAPI）
+- App 入口：`server/main.py`
+- 本地啟動：`uvicorn server.main:app --reload`
+- Docker：`docker compose up --build -d`
+- Runtime 根目錄：`FHR_BUILD_DIR`（預設目前工作目錄的 `build/`；Docker 為 `/app/build`）
+- 狀態檔持久化：環境變數 `FHR_STATE_FILE`（Docker 預設 `/app/build/attendance_state.json`）
+- Debug 模式：`FHR_DEBUG=true` 啟用全域唯讀/詳細日誌；`POST /api/analyze` 可用 `debug=true` 請求層級切換（前端有對應核取方塊）。
+- OpenAPI 文件：http://localhost:8000/docs
+
+Endpoints
+- `POST /api/analyze`：上傳 TXT，選擇模式/格式，可選重置狀態
+- `GET /api/download/{analysis_id}/{filename}`：下載結果（檔名含時間戳）
+- `GET /api/health`：健康檢查
+
+## CI（GitHub Actions）
+- Workflow：`.github/workflows/ci.yml`
+- 內容：
+  - 安裝 dev 相依 `requirements-dev.txt`
+  - Ruff lint（`ruff check`）& Ruff 格式檢查（`ruff format --check`）
+  - 單元測試（`make coverage` → `tools/run_coverage.py`；任何測試失敗都會讓這一步失敗）
+  - 各套件覆蓋率下限（`tools/check_coverage_threshold.py` 對照 `tools/coverage_baseline.json`，整體 ≥80%）
+  - `requirements-dev.txt` 要含 `httpx2`：starlette 1.x 的 `TestClient` 需要它，缺了 server 測試會在匯入時失敗
+  - 上傳 coverage_report 與 coverage.svg 產物
+
+### File Format Requirements
+
+#### Input File Naming (Required for Incremental Analysis)
+For incremental analysis to work, files must follow this naming convention:
+- **Single month**: `YYYYMM-Name-出勤資料.txt` (e.g., `202508-員工姓名-出勤資料.txt`)
+- **Cross-month**: `YYYYMM-YYYYMM-Name-出勤資料.txt` (e.g., `202508-202509-員工姓名-出勤資料.txt`)
+
+#### Data Format
+- Input files must be tab-separated text files with 9 columns
+- Expected format: 應刷卡時段, 當日卡鐘資料, 刷卡別, 卡鐘編號, 資料來源, 異常狀態, 處理狀態, 異常處理作業, 備註
+- Attendance records with empty "當日卡鐘資料" are treated as absenteeism
+- **Complete work days**: Days with both check-in and check-out records (regardless of actual punch times)
+
+## Architecture
+
+### Core Data Structures
+- **AttendanceRecord**: Individual check-in/out records with timestamps and metadata
+- **WorkDay**: Daily work record containing check-in and check-out records for a single date
+- **Issue**: Identified problems requiring action (late, overtime, WFH, etc.) with new/existing status tracking
+- **AttendanceStateManager**: Manages JSON-based state persistence for incremental analysis
+
+### Main Components
+
+#### AttendanceAnalyzer (Enhanced)
+Central processing engine with enhanced incremental analysis capabilities:
+- `parse_attendance_file()`: Parses data and initializes incremental state
+- `group_records_by_day()`: Groups records and loads holiday data
+- `analyze_attendance()`: Smart analysis (full or incremental mode)
+- `generate_report()`: Enhanced reporting with incremental statistics
+- `export_csv()`: Enhanced CSV export with status column and merge-aware writes
+- `export_excel()`: Enhanced Excel export with status indicators
+- `export_report()`: Unified export interface honoring export policies (`merge` vs `archive`)
+
+#### AttendanceStateManager (New)
+JSON-based state management for incremental analysis:
+- `_load_state()`: Loads processing state from `attendance_state.json`
+- `save_state()`: Persists current processing state
+- `get_user_processed_ranges()`: Retrieves user's previously processed date ranges
+- `update_user_state()`: Updates user processing state and forget-punch usage
+- `detect_date_overlap()`: Identifies overlapping date ranges for smart merging
+- `state_data`: Property holding current state information
+
+#### ExcelExporter (New)
+Shared helper library for Excel output:
+- `init_workbook()`: 建立工作簿與樣式
+- `write_headers()`: 寫入標題列
+- `write_status_row()`: 在增量模式寫入狀態資訊
+- `write_issue_rows()`: 逐筆寫入問題資料列
+- `set_column_widths()`: 調整欄寬
+- `save_workbook()`: 儲存分析檔案
+
+#### ExportCleanup Utilities (New)
+Utility helpers for managing generated exports:
+- `list_backups()`: Enumerates `_analysis_YYYYMMDD_HHMMSS.*` artifacts for a given base path
+- `cleanup_exports()`: Removes timestamped backups and, when requested, the canonical export file (used by CLI `--cleanup-exports`)
+
+#### Incremental Analysis Features
+- **Smart Date Range Detection**: Parses filenames to extract user names and date ranges
+- **Overlap Handling**: Detects and handles overlapping date ranges intelligently
+- **Complete Work Day Identification**: Only processes days with both check-in and check-out records
+- **Monthly Forget-Punch Tracking**: Maintains per-month usage counters across analysis sessions
+- **State Persistence**: Saves processing history to `attendance_state.json`
+
+### Business Rules (Hard-coded Constants)
+- Working hours: 8 hours + 1 hour lunch break
+- Flexible check-in: 08:30 (earliest) to **10:00 (latest)**; arriving after 10:00 counts as late
+- Lunch period: 12:30-13:30. **Late-leave hours deduct the lunch overlap**: a late
+  arrival whose 09:30→check-in span crosses lunch subtracts the 12:30-13:30 portion
+  before rounding up to whole hours (e.g. arriving 13:19 = 3h leave, not 4h)
+- Overtime threshold: Minimum 60 minutes to qualify for application
+- Forget-punch allowance: **4 times per year** (default in this version; scarce manual
+  resource). The analyzer does **not** auto-substitute forget-punch for late arrivals —
+  all late arrivals are suggested as leave; forget-punch is left for the user to apply
+  manually. (`config.forget_punch_allowance_per_month` is vestigial / unused by analysis.)
+- Friday WFH policy: **All Fridays (regardless of attendance) are recommended as WFH days (9-hour WFH leave), except national holidays**
+- Full-day weekday absence: suggested as a full-day leave (8h, 09:30-18:30); now emitted
+  by the `analysis-v1` export (`type_hint="full_day"`)
+
+### Taiwan Holiday Integration
+The system supports mixed holiday loading strategy:
+- **2025 (Current Year)**: Hardcoded holidays for optimal performance
+- **Other Years**: Dynamic loading with fallback to basic holidays when API unavailable
+- **Auto-Detection**: Automatically detects years in attendance data and loads required holidays
+- **API Integration**: Attempts to load from government open data API, falls back to basic holidays (New Year's Day, National Day) when API fails
+- **Caching**: Tracks loaded years to avoid duplicate API calls
+
+Key methods:
+- `_load_taiwan_holidays(years)`: Main holiday loading coordinator
+- `_load_hardcoded_2025_holidays()`: Efficient 2025 holiday loading
+- `_load_dynamic_holidays(year)`: Dynamic loading for other years
+- `_get_years_from_records()`: Extracts years from attendance data
+
+## Key Behavioral Notes
+
+### Issue Classification Logic
+- **Late**: Any arrival after 10:00 → leave suggestion. Leave hours = ceil of the
+  missed work minutes (09:30→check-in, minus any lunch overlap). Forget-punch is **not**
+  auto-applied (4/year manual allowance; see Business Rules).
+- **Overtime**: Work beyond calculated end time, minimum 60 minutes
+- **WFH Leave**: **Recommended for ALL Fridays (with or without attendance records), unless it's a national holiday**
+- **Regular Leave**: Recommended for full-day absences on weekdays (excluding Fridays)
+
+## Incremental Analysis Workflow
+
+### How It Works
+1. **File Analysis**: System extracts user name and date range from filename
+2. **State Loading**: Loads existing processing history from `attendance_state.json`
+3. **Overlap Detection**: Identifies previously processed date ranges
+4. **Complete Work Day Identification**: Finds days with both check-in and check-out records
+5. **Smart Processing**: Analyzes only new complete work days
+6. **State Update**: Saves updated processing state and forget-punch usage
+
+### State File Structure
+```json
+{
+  "users": {
+    "員工姓名": {
+      "processed_date_ranges": [
+        {
+          "start_date": "2025-08-01",
+          "end_date": "2025-08-31",
+          "source_file": "202508-員工姓名-出勤資料.txt",
+          "last_analysis_time": "2025-08-27T14:30:00"
+        }
+      ],
+      "forget_punch_usage": {
+        "2025-08": 1,
+        "2025-09": 0
+      }
+    }
+  }
+}
+```
+
+### Cross-Month Data Handling
+- Supports both single-month (`202508-員工姓名-出勤資料.txt`) and cross-month (`202508-202509-員工姓名-出勤資料.txt`) files
+- Automatically detects date overlaps and processes only new ranges
+- Maintains separate forget-punch counters for each month
+- Provides clear overlap warnings during processing
+
+### Output Formats
+
+#### Export Policy Controls
+- **Default `merge` policy**: Rewrites `<original>_analysis.(csv|xlsx)` in place to keep a single canonical export (no timestamp backups)
+- **Optional `archive` policy**: Use `--export-policy archive` to create `_analysis_YYYYMMDD_HHMMSS.*` backups before writing fresh results
+- **Cleanup helper**: `--cleanup-exports` 先列出候選檔案並詢問使用者；預設只移除 timestamp 備份，搭配 `--debug` 時會連同本次輸出的主檔案一起刪除
+- **Utility module**: `lib/export_cleanup.py` exposes reusable helpers for listing and deleting timestamped artifacts
+- **Web flow**: 前端在送出分析前會呼叫 `POST /api/exports/cleanup-preview` 取得 `token + snapshot`，並於 `/api/analyze` 提交 `cleanup_token`、`cleanup_snapshot` 完成確認刪除。
+
+#### Excel Format (Default) - Enhanced
+- File naming: `<original_filename>_analysis.xlsx`
+- Professional formatting with color-coded issue types:
+  - Late: Light red background
+  - Overtime: Light blue background
+  - WFH: Light green background
+  - Forget punch: Light orange background
+- **NEW**: Status column in incremental mode showing "[NEW]" vs existing issues
+- **NEW**: If no new issues in incremental mode, row 2 outputs a status row including
+  the last processed date and the "last_analysis_time"
+- Auto-adjusted column widths (incremental mode widens Calculation column to 40 and
+  Status column to 24 for readability)
+- Cross-platform compatibility (Windows/Mac/Linux)
+- Requires `openpyxl` library (auto-fallback to CSV if unavailable)
+
+#### CSV Format (Compatibility) - Enhanced
+- File naming: `<original_filename>_analysis.csv`
+- UTF-8-BOM encoding for Mac Excel compatibility
+- Semicolon-delimited for proper Excel parsing
+- **NEW**: Status column in incremental mode for tracking new vs existing issues;
+  if no new issues, outputs a status row including "last_analysis_time"
+- Includes emoji indicators and detailed calculation explanations
+
+#### Terminal Report - Enhanced
+- **NEW**: Incremental analysis statistics (processed/skipped days)
+- **NEW**: User identification and date range information
+- All existing formatting and emoji indicators preserved
+
+### Holiday API Resilience (Important)
+- Dynamic holiday loading uses retries with exponential backoff and jitter; non‑retryable
+  4xx (e.g., 403) fails fast. On persistent failure it falls back to basic holidays.
+- Environment variables (override defaults):
+  - `HOLIDAY_API_MAX_RETRIES` (default: 3)
+  - `HOLIDAY_API_BACKOFF_BASE` (default: 0.5)
+  - `HOLIDAY_API_MAX_BACKOFF` (default: 8)
+- Tests must mock `urllib.request.urlopen`; do not perform real network calls. To keep
+  tests fast/deterministic, set the backoff env vars to 0 in test setup.
+
+### Privacy Considerations
+The .gitignore is configured to exclude real employee data files while preserving sample files for testing. Never commit files matching patterns like:
+- `*-出勤資料.txt` or `*JimmyChen*.txt` (actual attendance data files)
+- `*_analysis.csv` or `*_analysis.xlsx` (analysis result files)
+- `attendance_state.json` (state file containing user identification information)
+
+**Important**: The `attendance_state.json` file contains user names and processing history, and must be excluded from version control to protect user privacy.
+
+## Testing and Validation
+
+### Unit Tests
+The system includes comprehensive unit tests across multiple files under `test/` covering:
+
+#### Core Business Logic (8 tests)
+- Basic file parsing and data grouping
+- Late arrival calculations (including lunch time deduction logic)
+- Overtime calculations with minimum thresholds
+- Friday WFH recommendations
+- Forget-punch suggestion logic
+- Report generation functionality
+- Error handling for empty files
+- Cross-year attendance data processing
+
+#### Export and Output
+- CSV export functionality (status column and status row when applicable)
+- Excel export with formatting/headers/status row
+- Column widths in incremental mode (calculation/status columns wider)
+
+#### Advanced Features
+- Taiwan holiday recognition (hardcoded 2025 + dynamic loading)
+- Holiday API retry/timeout/5xx fallback scenarios
+- Friday WFH on national holiday edge case
+- Overtime hourly rounding edges
+- Cross-year data processing with holiday loading
+
+## Logging & Privacy Notes
+- Use `logging` (info/warning/error) for user‑visible messages; avoid `print`.
+- Prefer absolute dates (YYYY‑MM‑DD) in logs to avoid ambiguity.
+- Data structure validation (3 sub-tests)
+
+#### **NEW: Incremental Analysis & Export Controls (5 tests)**
+- **Incremental Analysis Core**: Filename parsing for user/date extraction, format validation
+- **State Management**: JSON persistence, user state updates, overlap detection
+- **Export Policy Handling**: Merge vs archive pathways and log coverage
+- **Complete Work Day Logic**: Identification of days with both check-in/out records
+- **Enhanced Output**: Status column validation, new vs existing issue marking
+
+#### **NEW: Export Cleanup Testing**
+- Timestamped backup detection via `lib.export_cleanup.list_backups`
+- Cleanup helper removing `_analysis_YYYYMMDD_HHMMSS.*` artifacts
+- Optional canonical deletion when `include_canonical=True`
+- CLI `--cleanup-exports` integration (including debug-only canonical removal)
+
+Run tests with: `python3 -m unittest test.test_attendance_analyzer`
+
+**Test Quality Features:**
+- Isolated execution using temporary files
+- Automatic cleanup of all test artifacts
+- Real-world scenario validation
+- Edge case and error condition coverage
+
+### Integration Testing
+Real-world testing scenarios have been validated:
+- ✅ **Incremental Processing**: Skip previously analyzed data effectively
+- ✅ **Cross-Month Support**: Handle `202508-202509-Name-出勤資料.txt` format
+- ✅ **State Persistence**: Maintain processing history across sessions
+- ✅ **Overlap Detection**: Smart handling of duplicate date ranges
+- ✅ **Command Line Options**: All options (`--full`, `--reset-state`) working correctly
+- ✅ **Output Enhancement**: Status columns and incremental statistics display properly
+
+### Sample Data Testing
+Use `sample-attendance-data.txt` for integration testing - it contains various scenarios including normal check-ins, tardiness, overtime, absences, and Friday WFH cases. The corresponding `sample-attendance-data_analysis.csv` shows expected output format.
+
+## Documentation Structure
+
+### docs/ Directory
+The project includes comprehensive documentation organized in a tiered structure:
+
+**Core Documentation**: Basic usage, troubleshooting, and quick reference
+**Operational Documentation**: System requirements, deployment, configuration
+**Developer Documentation**: Architecture, testing, contributing guidelines
+**Enterprise Documentation**: API architecture, service architecture, integration patterns
+
+**Navigation**: Use `docs/index.md` as the central navigation hub to find specific documentation.
+
+### todos/ Directory
+Project improvement and development task management:
+
+- **`immediate-documentation-tasks.md`** - Ready-to-execute documentation tasks (2-3 hours)
+- **`api-architecture-enhancements.md`** - API features requiring development work
+- **`documentation-enhancement-roadmap.md`** - Overall planning and timelines
+- **`README.md`** - Task management index and usage guide
+
+**Usage**: Check `todos/` for actionable improvement items and development priorities.
+
+### Portal 送單可靠性
+
+`portal-apply` 預查與送出後對帳皆讀全部狀態，以有效狀態允許清單判斷，排除
+「流程停止(抽單)」與駁回；比對起訖日期、時間及下拉選單解析的唯一假別全名。
+未知狀態、假別無匹配或多匹配、清單解析或分頁不完整時不送單。
+`portal-check` 會列出抽單並回傳 exit 1。本機 lock 阻擋並行執行。
+送出中斷先保存對帳狀態，再以 exit 5 停止。狀態表與結束碼見 `docs/portal.md`。
+`portal-check` 查詢成功但有待處理事項回傳 exit 1；查詢失敗回傳 exit 6，
+錯誤輸出不可當成清單證據。
+結果檔頂層有每次送單唯一的 `run_id` 與 `completed`，每次保存以同目錄暫存檔
+加 rename 原子替換。逐筆保存時 completed 為 false，批次或中斷收尾完成後為 true，
+再於 stdout 印出 `結果寫入：<絕對路徑>（run_id=<UUID>）`。completed 不代表每筆成功。
+hook 註冊 `PostToolUse` 與 `PostToolUseFailure`，偵測非 dry-run、非 help 的
+`portal-apply`／`portal_apply` CLI 呼叫，支援 `uv run`、`timeout` 等包裝。
+兩種事件都以相同的 `hookEventName` 回傳固定 `additionalContext` 提醒。
+hook 不讀結果檔、不解析收據、不比對 run_id 或 mtime、不取鎖、不自動查詢，
+也不產生快照；查重、flock、逐筆對帳與原子寫入仍由送單本體負責。
+
+結果以 `portal-apply` 印出的逐筆狀態與 exit code 為準。
+只有 `confirmed`／`already_pending` 代表送單時已確認 Portal 上有有效單，
+未必仍在簽核中；`unconfirmed`、`failed`、`blocked` 都不算。
+exit 5 表示有未確認的單、送出中斷，或另一個 `portal-apply`／`portal-check`
+正在執行。回報前先跑 `fhr portal-check --since <最早日期>` 對帳，不可以直接重送。
+任何一筆沒有確認，就不可以把該筆或整批回報為「已送出」或「簽核中」。
+
+若 `run_in_background`、shell 的 `&` 或 `tool_response.backgroundTaskId`
+表示背景執行，送單可能還在進行，須等它完成、看完輸出再對帳，
+不可以說成「沒有送單」。背景結束後不保證再次觸發 hook。
+`portal-check` 只補充需要注意的單，已核准的單不會列出；
+報告缺單或查詢失敗不推翻已確認的逐筆結果。
+先前已確認、這次跳過的單不會列出，沒出現在結果檔不代表未確認，請另查先前證據。
+`portal-check` 持有同一把鎖直到查詢結束，取不到鎖時在接觸瀏覽器前以 `5` 結束。
